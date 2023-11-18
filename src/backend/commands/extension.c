@@ -1113,7 +1113,7 @@ execute_extension_script(Oid extensionOid, ExtensionControlFile *control,
 
 		/* And now back to C string */
 		c_sql = text_to_cstring(DatumGetTextPP(t_sql));
-
+		// elog(INFO,"query string:%s",c_sql);
 		execute_sql_string(c_sql);
 	}
 	PG_FINALLY();

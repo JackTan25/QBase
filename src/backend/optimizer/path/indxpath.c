@@ -3133,6 +3133,12 @@ match_pathkeys_to_index(IndexOptInfo *index, List *pathkeys,
 												   pathkey->pk_opfamily);
 				if (expr)
 				{
+					if (pathkey->limitCount != -1)
+					{
+						// hack logic, we just put it here fisrt, because if we
+						// add a new field in expr, we can't build citus.
+						((OpExpr *)expr)->location = pathkey->limitCount;
+					}
 					orderby_clauses = lappend(orderby_clauses, expr);
 					clause_columns = lappend_int(clause_columns, indexcol);
 					found = true;

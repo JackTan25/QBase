@@ -3522,6 +3522,28 @@ standard_qp_callback(PlannerInfo *root, void *extra)
 	 * much easier, since we know that the parser ensured that one is a
 	 * superset of the other.
 	 */
+	// add limit push down for knn.
+	Node* node = parse->limitCount;
+	int64		count = 0, offset = 0;
+	if (node && IsA(parse->limitCount, Const) && !((Const*)node)->constisnull)
+	{
+		count = DatumGetInt64(((Const*)node)->constvalue);
+	}
+	// table schema (a int,b text,c int);
+	// order by (a,b,c) => sorr key len: 3
+	// order by (a,a) => sort key len: 1
+	// order by (a+c) => sort key len: 1
+	// elog(INFO,"sort key len: %d",list_length(root->sort_pathkeys));
+	if (root->sort_pathkeys && count > 0)
+	{
+		ListCell* l;
+		foreach(l, root->sort_pathkeys)
+		{
+			PathKey* key = (PathKey*)lfirst(l);
+			key->limitCount = count;
+		}
+	}
+
 	if (root->group_pathkeys)
 		root->query_pathkeys = root->group_pathkeys;
 	else if (root->window_pathkeys)

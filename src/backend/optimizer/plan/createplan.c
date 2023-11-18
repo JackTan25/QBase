@@ -17,7 +17,7 @@
 #include "postgres.h"
 
 #include <math.h>
-
+#include "nodes/print.h"
 #include "access/sysattr.h"
 #include "catalog/pg_class.h"
 #include "foreign/fdwapi.h"
@@ -342,7 +342,7 @@ create_plan(PlannerInfo *root, Path *best_path)
 	/* Initialize this module's workspace in PlannerInfo */
 	root->curOuterRels = NULL;
 	root->curOuterParams = NIL;
-
+	// elog_node_display(INFO,"plan",best_path,true);
 	/* Recursively process the path tree, demanding the correct tlist result */
 	plan = create_plan_recurse(root, best_path, CP_EXACT_TLIST);
 

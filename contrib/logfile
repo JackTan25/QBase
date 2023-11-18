@@ -1,0 +1,42 @@
+2023-11-15 19:22:27.703 CST [209218] FATAL:  lock file "postmaster.pid" already exists
+2023-11-15 19:22:27.703 CST [209218] HINT:  Is another postmaster (PID 198046) running in data directory "/data/data"?
+2023-11-15 19:22:32.701 CST [209268] LOG:  There is no designated Main database.
+2023-11-15 19:22:32.701 CST [209268] LOG:  number of prepared transactions has not been configured, overriding
+2023-11-15 19:22:32.701 CST [209268] DETAIL:  max_prepared_transactions is now set to 200
+2023-11-15 19:22:32.733 CST [209268] LOG:  starting PostgreSQL 16.1 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 8.5.0 20210514 (Red Hat 8.5.0-4), 64-bit
+2023-11-15 19:22:32.734 CST [209268] LOG:  listening on IPv6 address "::1", port 5432
+2023-11-15 19:22:32.734 CST [209268] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2023-11-15 19:22:32.735 CST [209268] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2023-11-15 19:22:32.736 CST [209271] LOG:  database system was shut down at 2023-11-15 19:22:30 CST
+2023-11-15 19:22:32.739 CST [209268] LOG:  database system is ready to accept connections
+2023-11-15 19:27:32.838 CST [209269] LOG:  checkpoint starting: time
+2023-11-15 19:28:14.615 CST [209269] LOG:  checkpoint complete: wrote 414 buffers (2.5%); 1 WAL file(s) added, 0 removed, 0 recycled; write=41.702 s, sync=0.004 s, total=41.778 s; sync files=202, longest=0.003 s, average=0.001 s; distance=2766 kB, estimate=2766 kB; lsn=0/1DCA280, redo lsn=0/1CEA1B8
+2023-11-15 19:32:32.698 CST [209269] LOG:  checkpoint starting: time
+2023-11-15 19:32:42.150 CST [209269] LOG:  checkpoint complete: wrote 94 buffers (0.6%); 0 WAL file(s) added, 0 removed, 0 recycled; write=9.425 s, sync=0.006 s, total=9.453 s; sync files=21, longest=0.004 s, average=0.001 s; distance=908 kB, estimate=2581 kB; lsn=0/1DCD4C8, redo lsn=0/1DCD490
+2023-11-15 19:44:27.475 CST [219709] LOG:  starting maintenance daemon on database 5 user 10
+2023-11-15 19:44:27.475 CST [219709] CONTEXT:  Citus maintenance daemon for database 5 user 10
+2023-11-15 19:44:31.260 CST [209268] LOG:  received fast shutdown request
+2023-11-15 19:44:31.270 CST [209268] LOG:  aborting any active transactions
+2023-11-15 19:44:31.274 CST [209268] LOG:  background worker "logical replication launcher" (PID 209274) exited with exit code 1
+2023-11-15 19:44:31.275 CST [209269] LOG:  shutting down
+2023-11-15 19:44:31.276 CST [209269] LOG:  checkpoint starting: shutdown immediate
+2023-11-15 19:44:31.297 CST [209269] LOG:  checkpoint complete: wrote 168 buffers (1.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.017 s, sync=0.002 s, total=0.023 s; sync files=46, longest=0.002 s, average=0.001 s; distance=792 kB, estimate=2402 kB; lsn=0/1E93570, redo lsn=0/1E93570
+2023-11-15 19:44:31.309 CST [209268] LOG:  database system is shut down
+2023-11-15 19:44:41.938 CST [219807] LOG:  There is no designated Main database.
+2023-11-15 19:44:41.938 CST [219807] LOG:  number of prepared transactions has not been configured, overriding
+2023-11-15 19:44:41.938 CST [219807] DETAIL:  max_prepared_transactions is now set to 200
+2023-11-15 19:44:41.982 CST [219807] LOG:  starting PostgreSQL 16.1 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 8.5.0 20210514 (Red Hat 8.5.0-4), 64-bit
+2023-11-15 19:44:41.983 CST [219807] LOG:  listening on IPv6 address "::1", port 5432
+2023-11-15 19:44:41.983 CST [219807] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2023-11-15 19:44:41.985 CST [219807] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2023-11-15 19:44:41.988 CST [219810] LOG:  database system was shut down at 2023-11-15 19:44:31 CST
+2023-11-15 19:44:41.992 CST [219807] LOG:  database system is ready to accept connections
+2023-11-15 19:44:46.999 CST [219839] ERROR:  did not find '}' at end of input node at character 57698
+2023-11-15 19:44:46.999 CST [219839] STATEMENT:  create extension citus;
+2023-11-15 19:45:37.698 CST [219807] LOG:  received fast shutdown request
+2023-11-15 19:45:37.706 CST [219807] LOG:  aborting any active transactions
+2023-11-15 19:45:37.709 CST [219807] LOG:  background worker "logical replication launcher" (PID 219813) exited with exit code 1
+2023-11-15 19:45:37.710 CST [219808] LOG:  shutting down
+2023-11-15 19:45:37.711 CST [219808] LOG:  checkpoint starting: shutdown immediate
+2023-11-15 19:45:37.736 CST [219808] LOG:  checkpoint complete: wrote 176 buffers (1.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.021 s, sync=0.002 s, total=0.027 s; sync files=117, longest=0.001 s, average=0.001 s; distance=867 kB, estimate=867 kB; lsn=0/1F6C4A8, redo lsn=0/1F6C4A8
+2023-11-15 19:45:37.744 CST [219807] LOG:  database system is shut down

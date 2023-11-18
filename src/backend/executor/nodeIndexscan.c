@@ -1207,102 +1207,252 @@ ExecIndexBuildScanKeys(PlanState *planstate, Relation index,
 		indnkeyatts = IndexRelationGetNumberOfKeyAttributes(index);
 		if (IsA(clause, OpExpr))
 		{
-			/* indexkey op const or indexkey op expression */
-			int			flags = 0;
-			Datum		scanvalue;
-
-			opno = ((OpExpr *) clause)->opno;
-			opfuncid = ((OpExpr *) clause)->opfuncid;
-
-			/*
-			 * leftop should be the index key Var, possibly relabeled
-			 */
-			leftop = (Expr *) get_leftop(clause);
-
-			if (leftop && IsA(leftop, RelabelType))
-				leftop = ((RelabelType *) leftop)->arg;
-
-			Assert(leftop != NULL);
-
-			if (!(IsA(leftop, Var) &&
-				  ((Var *) leftop)->varno == INDEX_VAR))
-				elog(ERROR, "indexqual doesn't have key on left side");
-
-			varattno = ((Var *) leftop)->varattno;
-			if (varattno < 1 || varattno > indnkeyatts)
-				elog(ERROR, "bogus index qualification");
-
-			/*
-			 * We have to look up the operator's strategy number.  This
-			 * provides a cross-check that the operator does match the index.
-			 */
-			opfamily = index->rd_opfamily[varattno - 1];
-
-			get_op_opfamily_properties(opno, opfamily, isorderby,
-									   &op_strategy,
-									   &op_lefttype,
-									   &op_righttype);
-
-			if (isorderby)
-				flags |= SK_ORDER_BY;
-
-			/*
-			 * rightop is the constant or variable comparison value
-			 */
-			rightop = (Expr *) get_rightop(clause);
-
-			if (rightop && IsA(rightop, RelabelType))
-				rightop = ((RelabelType *) rightop)->arg;
-
-			Assert(rightop != NULL);
-
-			if (IsA(rightop, Const))
+			if (!IsA((Expr*)get_leftop(clause), OpExpr))
 			{
-				/* OK, simple constant comparison value */
-				scanvalue = ((Const *) rightop)->constvalue;
-				if (((Const *) rightop)->constisnull)
-					flags |= SK_ISNULL;
+				/* indexkey op const or indexkey op expression */ // TODO: add the indexkey <-> const op const where search pattern
+				int			flags = 0;
+				Datum		scanvalue;
+
+				opno = ((OpExpr*)clause)->opno;
+				opfuncid = ((OpExpr*)clause)->opfuncid;
+
+				/*
+				 * leftop should be the index key Var, possibly relabeled
+				 */
+				leftop = (Expr*)get_leftop(clause);
+
+				if (leftop && IsA(leftop, RelabelType))
+					leftop = ((RelabelType*)leftop)->arg;
+
+				Assert(leftop != NULL);
+
+				if (!(IsA(leftop, Var) &&
+					((Var*)leftop)->varno == INDEX_VAR))
+					elog(ERROR, "indexqual doesn't have key on left side");
+
+				varattno = ((Var*)leftop)->varattno;
+				if (varattno < 1 || varattno > indnkeyatts)
+					elog(ERROR, "bogus index qualification");
+
+				/*
+				 * We have to look up the operator's strategy number.  This
+				 * provides a cross-check that the operator does match the index.
+				 */
+				opfamily = index->rd_opfamily[varattno - 1];
+				const struct TableAmRoutine* tableam = index->rd_tableam;
+
+				get_op_opfamily_properties(opno, opfamily, isorderby,
+					&op_strategy,
+					&op_lefttype,
+					&op_righttype);
+
+				if (isorderby)
+					flags |= SK_ORDER_BY;
+
+				/*
+				 * rightop is the constant or variable comparison value
+				 */
+				rightop = (Expr*)get_rightop(clause);
+
+				if (rightop && IsA(rightop, RelabelType))
+					rightop = ((RelabelType*)rightop)->arg;
+
+				Assert(rightop != NULL);
+
+				if (IsA(rightop, Const))
+				{
+					/* OK, simple constant comparison value */
+					Const* con = (Const*)rightop;
+					scanvalue = ((Const*)rightop)->constvalue;
+					//elogArray(scanvalue);
+					if (((Const*)rightop)->constisnull)
+						flags |= SK_ISNULL;
+				}
+				else
+				{
+					/* Need to treat this one as a runtime key */
+					if (n_runtime_keys >= max_runtime_keys)
+					{
+						if (max_runtime_keys == 0)
+						{
+							max_runtime_keys = 8;
+							runtime_keys = (IndexRuntimeKeyInfo*)
+								palloc(max_runtime_keys * sizeof(IndexRuntimeKeyInfo));
+						}
+						else
+						{
+							max_runtime_keys *= 2;
+							runtime_keys = (IndexRuntimeKeyInfo*)
+								repalloc(runtime_keys, max_runtime_keys * sizeof(IndexRuntimeKeyInfo));
+						}
+					}
+					runtime_keys[n_runtime_keys].scan_key = this_scan_key;
+					runtime_keys[n_runtime_keys].key_expr =
+						ExecInitExpr(rightop, planstate);
+					runtime_keys[n_runtime_keys].key_toastable =
+						TypeIsToastable(op_righttype);
+					n_runtime_keys++;
+					scanvalue = (Datum)0;
+				}
+
+				/*
+				 * initialize the scan key's fields appropriately
+				 */
+				ScanKeyEntryInitialize(this_scan_key,
+					flags,
+					varattno,	/* attribute number to scan */
+					op_strategy, /* op's strategy */
+					op_righttype,	/* strategy subtype */
+					((OpExpr*)clause)->inputcollid,	/* collation */
+					opfuncid,	/* reg proc to use */
+					scanvalue);	/* constant */
+				if (((OpExpr*)clause)->location > 0)
+				{
+					this_scan_key->KNNValues = ((OpExpr*)clause)->location;
+					elog(INFO, "KNNValue:%d", this_scan_key->KNNValues);
+				}
 			}
 			else
 			{
-				/* Need to treat this one as a runtime key */
-				if (n_runtime_keys >= max_runtime_keys)
-				{
-					if (max_runtime_keys == 0)
-					{
-						max_runtime_keys = 8;
-						runtime_keys = (IndexRuntimeKeyInfo *)
-							palloc(max_runtime_keys * sizeof(IndexRuntimeKeyInfo));
-					}
-					else
-					{
-						max_runtime_keys *= 2;
-						runtime_keys = (IndexRuntimeKeyInfo *)
-							repalloc(runtime_keys, max_runtime_keys * sizeof(IndexRuntimeKeyInfo));
-					}
-				}
-				runtime_keys[n_runtime_keys].scan_key = this_scan_key;
-				runtime_keys[n_runtime_keys].key_expr =
-					ExecInitExpr(rightop, planstate);
-				runtime_keys[n_runtime_keys].key_toastable =
-					TypeIsToastable(op_righttype);
-				n_runtime_keys++;
-				scanvalue = (Datum) 0;
-			}
+				/* indexkey op const or indexkey op expression */ // TODO: add the indexkey <-> const op const where search pattern
+				int			flags = 0;
+				Datum		scanvalue;
+				OpExpr* rangeQueryOp;
+				Expr* queryobject;
+				opno = ((OpExpr*)clause)->opno;
+				opfuncid = ((OpExpr*)clause)->opfuncid;
 
-			/*
-			 * initialize the scan key's fields appropriately
-			 */
-			ScanKeyEntryInitialize(this_scan_key,
-								   flags,
-								   varattno,	/* attribute number to scan */
-								   op_strategy, /* op's strategy */
-								   op_righttype,	/* strategy subtype */
-								   ((OpExpr *) clause)->inputcollid,	/* collation */
-								   opfuncid,	/* reg proc to use */
-								   scanvalue);	/* constant */
-		}
-		else if (IsA(clause, RowCompareExpr))
+				/*
+				 * leftop should be the index key Var, possibly relabeled
+				 */
+				rangeQueryOp = (OpExpr*)get_leftop(clause);
+
+				leftop = (Expr*)linitial(rangeQueryOp->args);
+
+				//leftop = (OpExpr*)get_leftop(clause);
+
+				if (leftop && IsA(leftop, RelabelType))
+					leftop = ((RelabelType*)leftop)->arg;
+
+				Assert(leftop != NULL);
+
+				/*if (!(IsA(leftop, Var) &&
+					((Var*)leftop)->varno == INDEX_VAR))
+					elog(ERROR, "indexqual doesn't have key on left side");*/
+
+				varattno = ((Var*)leftop)->varattno;
+				if (varattno < 1 || varattno > indnkeyatts)
+					elog(ERROR, "bogus index qualification");
+
+				/*
+				 * We have to look up the operator's strategy number.  This
+				 * provides a cross-check that the operator does match the index.
+				 */
+				opfamily = index->rd_opfamily[varattno - 1];
+				const struct TableAmRoutine* tableam = index->rd_tableam;
+				opno = rangeQueryOp->opno;
+				opfuncid = rangeQueryOp->opfuncid;
+				isorderby = true;
+				get_op_opfamily_properties(opno, opfamily, isorderby,
+					&op_strategy,
+					&op_lefttype,
+					&op_righttype);
+				isorderby = false;
+				if (isorderby)
+					flags |= SK_ORDER_BY;
+
+				/*
+				 * rightop is the constant or variable comparison value
+				 */
+				rightop = (Expr*)get_rightop(clause);
+
+				if (rightop && IsA(rightop, RelabelType))
+					rightop = ((RelabelType*)rightop)->arg;
+
+				Assert(rightop != NULL);
+
+				if (IsA(rightop, Const))
+				{
+					/* OK, simple constant comparison value */
+					Const* con = (Const*)rightop;
+					scanvalue = ((Const*)rightop)->constvalue;
+					if (((Const*)rightop)->constisnull)
+						flags |= SK_ISNULL;
+				}
+				else
+				{
+					/* Need to treat this one as a runtime key */
+					if (n_runtime_keys >= max_runtime_keys)
+					{
+						if (max_runtime_keys == 0)
+						{
+							max_runtime_keys = 8;
+							runtime_keys = (IndexRuntimeKeyInfo*)
+								palloc(max_runtime_keys * sizeof(IndexRuntimeKeyInfo));
+						}
+						else
+						{
+							max_runtime_keys *= 2;
+							runtime_keys = (IndexRuntimeKeyInfo*)
+								repalloc(runtime_keys, max_runtime_keys * sizeof(IndexRuntimeKeyInfo));
+						}
+					}
+					runtime_keys[n_runtime_keys].scan_key = this_scan_key;
+					runtime_keys[n_runtime_keys].key_expr =
+						ExecInitExpr(rightop, planstate);
+					runtime_keys[n_runtime_keys].key_toastable =
+						TypeIsToastable(op_righttype);
+					n_runtime_keys++;
+					scanvalue = (Datum)0;
+				}
+
+				// get the range query object
+				queryobject = (Expr*)lsecond(rangeQueryOp->args);
+
+				if (queryobject && IsA(queryobject, RelabelType))
+				{
+					queryobject = ((RelabelType*)queryobject)->arg;
+				}
+
+				Assert(queryobject != NULL);
+
+				if (IsA(queryobject, Const) && !(((Const*)queryobject)->constisnull))
+				{
+					this_scan_key->query = ((Const*)queryobject)->constvalue;
+					// ArrayType* array = DatumGetArrayTypeP(this_scan_key->query);
+					// {
+					// 	char str[200];
+					// 	uint32* temp = ARRPTR(array);
+					// 	int l = 0;
+					// 	for (int i = 0; i < ARRNELEMS(array); ++i)
+					// 	{
+					// 		sprintf(str + l, "%d ", temp[i]);
+					// 		l = strlen(str);
+					// 	}
+					// 	elog(INFO, "decompress-tuple:%s", str);
+					// }
+				}
+				else {
+					elog(ERROR, "object can't be null when do the range query");
+				}
+				/*
+				 * initialize the scan key's fields appropriately
+				 */
+				ScanKeyEntryInitialize(this_scan_key,
+					flags,
+					varattno,	/* attribute number to scan */
+					op_strategy, /* op's strategy */
+					op_righttype,	/* strategy subtype */
+					((OpExpr*)clause)->inputcollid,	/* collation */
+					opfuncid,	/* reg proc to use */
+					scanvalue);	/* constant */
+				
+				if (((OpExpr*)clause)->location > 0)
+				{
+					this_scan_key->KNNValues = ((OpExpr*)clause)->location;
+				}
+			}
+		}else if (IsA(clause, RowCompareExpr))
 		{
 			/* (indexkey, indexkey, ...) op (expression, expression, ...) */
 			RowCompareExpr *rc = (RowCompareExpr *) clause;

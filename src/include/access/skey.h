@@ -70,6 +70,8 @@ typedef struct ScanKeyData
 	Oid			sk_collation;	/* collation to use, if needed */
 	FmgrInfo	sk_func;		/* lookup info for function to call */
 	Datum		sk_argument;	/* data to compare */
+	Datum 		query;
+	int 		KNNValues;
 } ScanKeyData;
 
 typedef ScanKeyData *ScanKey;
