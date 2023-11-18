@@ -2103,6 +2103,8 @@ match_clauses_to_index(PlannerInfo *root,
 {
 	ListCell   *lc;
 
+	// SELECT * FROM t where val <=> '[3,3,3]' < 0.1; clauses->length => 1
+	// select * from t where val <=> '[1,2,3]' < 0.2 and val <=> '[1,3,4]' > 0.5; clauses->length => 2
 	foreach(lc, clauses)
 	{
 		RestrictInfo *rinfo = lfirst_node(RestrictInfo, lc);
@@ -2545,6 +2547,38 @@ match_opclause_to_indexcol(PlannerInfo *root,
 											 1, /* indexarg on right */
 											 indexcol,
 											 index);
+	}
+
+	if (leftop && IsA(leftop, OpExpr) && strcmp(get_opname(expr_op), "<") == 0 || leftop && IsA(leftop, OpExpr) && strcmp(get_opname(expr_op), "<") == 0)
+	{
+		OpExpr *opert = (OpExpr *)leftop;
+		Node *left = (Node *)linitial(opert->args);
+		Node *right = (Node *)lsecond(opert->args);
+		expr_op = opert->opno;
+		if (left && match_index_to_operand(left, indexcol, index) &&
+			!bms_is_member(index_relid, rinfo->right_relids) &&
+			!contain_volatile_functions(right))
+		{
+			
+			char *name = get_am_name_me(index->relam);
+			if (strcmp(name, "spb") == 0 || strcmp(name, "mtree") == 0)
+			{
+				iclause = makeNode(IndexClause);
+				iclause->rinfo = rinfo;
+				if (IsA(rinfo->clause, OpExpr)){
+					OpExpr	   *op = (OpExpr *) clause;
+					Node* node = linitial(op->args);
+					if(IsA(node, Var)){
+						elog(INFO,"is a var");
+					}
+				}
+				iclause->indexquals = list_make1(rinfo);
+				iclause->lossy = false;
+				iclause->indexcol = indexcol;
+				iclause->indexcols = NIL;
+				return iclause;
+			}
+		}
 	}
 
 	return NULL;

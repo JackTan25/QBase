@@ -24,7 +24,7 @@
  * than XLR_NORMAL_RDATAS data chunks in a single WAL record, you must call
  * XLogEnsureRecordSpace() first to allocate more working memory.
  */
-#define XLR_NORMAL_MAX_BLOCK_ID		4
+#define XLR_NORMAL_MAX_BLOCK_ID		32
 #define XLR_NORMAL_RDATAS			20
 
 /* flags for XLogRegisterBuffer */

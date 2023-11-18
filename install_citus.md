@@ -1,3 +1,4 @@
+## 一.安装相关
 在配置安装citus的过程当中,我们会遇到很多问题,总结下步骤如下:
 ```text
 1. git clone 
@@ -19,3 +20,13 @@ pipenv shell
 echo "shared_preload_libraries = 'citus'" >> /data/data/postgresql.conf
 
 ./configure --prefix=/data --with-libedit-preferred --with-perl --with-python --with-uuid=e2fs --with-systemd --enable-debug --enable-dtrace CFLAGS="-g -O0" --without-icu
+
+## Perf性能查看调优
+```sql
+    -- 查看进程
+    postgres: select pg_backend_pid();
+    -- 获取perf report
+    sudo perf record -p [pid] -g -- sleep 5
+    -- 查看性能,观察函数性能消耗
+    sudo perf report
+```
