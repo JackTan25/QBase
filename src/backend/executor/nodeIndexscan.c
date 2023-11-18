@@ -1309,7 +1309,7 @@ ExecIndexBuildScanKeys(PlanState *planstate, Relation index,
 				if (((OpExpr*)clause)->location > 0)
 				{
 					this_scan_key->KNNValues = ((OpExpr*)clause)->location;
-					elog(INFO, "KNNValue:%d", this_scan_key->KNNValues);
+					// elog(INFO, "KNNValue:%d", this_scan_key->KNNValues);
 				}
 			}
 			else

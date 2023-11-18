@@ -17,7 +17,7 @@
 
 #include <limits.h>
 #include <math.h>
-
+#include "nodes/print.h"
 #include "access/genam.h"
 #include "access/htup_details.h"
 #include "access/parallel.h"
@@ -279,6 +279,7 @@ planner(Query *parse, const char *query_string, int cursorOptions,
 		result = (*planner_hook) (parse, query_string, cursorOptions, boundParams);
 	else
 		result = standard_planner(parse, query_string, cursorOptions, boundParams);
+	print(result);
 	return result;
 }
 

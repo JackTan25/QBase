@@ -5135,15 +5135,15 @@ fix_indexqual_operand(Node *node, IndexOptInfo *index, int indexcol)
 	if (index->indexkeys[indexcol] != 0)
 	{
 		/* It's a simple index column */
-		if(IsA(node, Var)){
-			elog(INFO,"is a var");
-			if(((Var *) node)->varno == index->rel->relid){
-				elog(INFO,"is a var2");
-			}
-			if(((Var *) node)->varattno == index->indexkeys[indexcol]){
-				elog(INFO,"is a var3");
-			}
-		}
+		// if(IsA(node, Var)){
+		// 	elog(INFO,"is a var");
+		// 	if(((Var *) node)->varno == index->rel->relid){
+		// 		elog(INFO,"is a var2");
+		// 	}
+		// 	if(((Var *) node)->varattno == index->indexkeys[indexcol]){
+		// 		elog(INFO,"is a var3");
+		// 	}
+		// }
 		if (IsA(node, Var) &&
 			((Var *) node)->varno == index->rel->relid &&
 			((Var *) node)->varattno == index->indexkeys[indexcol])

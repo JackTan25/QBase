@@ -2565,13 +2565,13 @@ match_opclause_to_indexcol(PlannerInfo *root,
 			{
 				iclause = makeNode(IndexClause);
 				iclause->rinfo = rinfo;
-				if (IsA(rinfo->clause, OpExpr)){
-					OpExpr	   *op = (OpExpr *) clause;
-					Node* node = linitial(op->args);
-					if(IsA(node, Var)){
-						elog(INFO,"is a var");
-					}
-				}
+				// if (IsA(rinfo->clause, OpExpr)){
+				// 	OpExpr	   *op = (OpExpr *) clause;
+				// 	Node* node = linitial(op->args);
+				// 	if(IsA(node, Var)){
+				// 		elog(INFO,"is a var");
+				// 	}
+				// }
 				iclause->indexquals = list_make1(rinfo);
 				iclause->lossy = false;
 				iclause->indexcol = indexcol;
