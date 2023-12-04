@@ -378,7 +378,7 @@ void MtreeUpdatePageOpaque(OffsetNumber offset, uint8 is_root, BlockNumber blkno
 void DebugPageOpaque(char *msg, Page page, BlockNumber blkno);
 float8 max(float8 a, float8 b);
 void DebugMetaPage(MtreeMetaPageData page);
-void UpdateParentRecurse(Page parent_page, BlockNumber parent_block_num, Relation index, FmgrInfo *procinfo, Oid collation, Page left_son_page, BlockNumber left_son_blkno, Page right_son_page, BlockNumber right_son_blkno, MtreeElementTuple left_centor, MtreeElementTuple right_centor, OffsetNumber left_offset, GenericXLogState *state);
+void UpdateParentRecurse(Page parent_page, BlockNumber parent_block_num, Relation index, FmgrInfo *procinfo, Oid collation, Page left_son_page, Page right_son_page, MtreeElementTuple left_centor, MtreeElementTuple right_centor, OffsetNumber left_offset, GenericXLogState *state);
 static int CompareNearestCandidates(const pairingheap_node *a, const pairingheap_node *b, void *arg);
 MtreePairingKNNNode *CreateMtreePairingKNNNode(MtreeKNNCandidate *c);
 static MtreePairingHeapNode *CreatePairingHeapNode(MtreeCandidate *c);

@@ -100,7 +100,8 @@ void DebugEntireMtreeTree(BlockNumber root, Relation index, int level)
 	Buffer buffer = ReadBuffer(index, root);
 	Page page = BufferGetPage(buffer);
 	ReleaseBuffer(buffer);
-	elog(INFO, "level %d blkno %d", level, root);
+	BlockNumber parent_blkno = MtreePageGetOpaque(page)->parent_blkno;
+	elog(INFO, "level %d blkno %d parent_block_number: %d", level, root, parent_blkno);
 	if (PageType(MtreePageGetOpaque(page)->type) == MTREE_INNER_PAGE_TYPE)
 	{
 		PrintInternalPageVectors("internal page", page);

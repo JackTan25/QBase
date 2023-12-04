@@ -150,7 +150,7 @@ bool MtreeInsertTuple(Relation index, Datum *values, bool *isnull, ItemPointer h
 	// DebugEntireMtreeTree(5, index, 0);
 	// DebugEntireMtreeTree(3, index, 0);
 	elog(INFO, "new root a: %d", MtreeGetMetaPageInfo(index).root);
-	// DebugEntireMtreeTree(MtreeGetMetaPageInfo(index).root, index, 0);
+	DebugEntireMtreeTree(MtreeGetMetaPageInfo(index).root, index, 0);
 	return true;
 }
 
@@ -306,7 +306,7 @@ bool InsertMtree(BlockNumber root_block, Relation index, MtreeElement element, b
 				DebugPageOpaque("right page opaque", new_page, right_page_block_number);
 				DebugPageOpaque("root page opaque", new_root_page, new_root_page_block_number);
 				DebugMetaPage(MtreeGetMetaPageInfo(index));
-
+				DebugEntireMtreeTree(MtreeGetMetaPageInfo(index).root, index, 0);
 				return false;
 			}
 			else
@@ -341,7 +341,7 @@ bool InsertMtree(BlockNumber root_block, Relation index, MtreeElement element, b
 				// update opaque (just new_page for now, temp_page can hold on, if there is something changed, it will update in UpdateParentRecurse() )
 				MtreeUpdatePageOpaque(OffsetNumberNext(PageGetMaxOffsetNumber(parent_page)), 0, parent_blkno, new_page, MTREE_LEAF_PAGE_TYPE);
 
-				UpdateParentRecurse(parent_page, parent_blkno, index, procinfo, collation, temp_page, root_block, new_page, right_page_block_number, left_etup, right_etup, MtreePageGetOpaque(temp_page)->offset, state);
+				UpdateParentRecurse(parent_page, parent_blkno, index, procinfo, collation, temp_page, new_page, left_etup, right_etup, MtreePageGetOpaque(temp_page)->offset, state);
 				// restore
 				PageRestoreTempPage(temp_page, page);
 				PrintLeafPageVectors("test leaf page", temp_page);
@@ -364,6 +364,7 @@ bool InsertMtree(BlockNumber root_block, Relation index, MtreeElement element, b
 				// be released in this InsertMtree func tail.
 				LockBuffer(buf, BUFFER_LOCK_UNLOCK);
 				elog(INFO, "UnLock Buffer 351 %d", buf);
+				DebugEntireMtreeTree(3, index, 0);
 			}
 		}
 	}
@@ -426,6 +427,7 @@ bool InsertMtree(BlockNumber root_block, Relation index, MtreeElement element, b
 	// {
 	// 	DebugEntireMtreeTree(3, index, 0);
 	// }
+	DebugEntireMtreeTree(3, index, 0);
 	return append_only;
 }
 
@@ -445,7 +447,7 @@ bool InsertMtree(BlockNumber root_block, Relation index, MtreeElement element, b
  *	2. blockno -> offset (in parent page)
  *	Why do we need this? because the data in mtree page is not sorted. It's not like the traditonal Bplus tree.
  */
-void UpdateParentRecurse(Page parent_page, BlockNumber parent_block_num, Relation index, FmgrInfo *procinfo, Oid collation, Page left_son_page, BlockNumber left_son_blkno, Page right_son_page, BlockNumber right_son_blkno, MtreeElementTuple left_centor, MtreeElementTuple right_centor, OffsetNumber left_offset, GenericXLogState *state)
+void UpdateParentRecurse(Page parent_page, BlockNumber parent_block_num, Relation index, FmgrInfo *procinfo, Oid collation, Page left_son_page, Page right_son_page, MtreeElementTuple left_centor, MtreeElementTuple right_centor, OffsetNumber left_offset, GenericXLogState *state)
 {
 	PrintVector("UpdateParentRecurse left centor: ", &left_centor->vec);
 	PrintVector("UpdateParentRecurse right centor: ", &right_centor->vec);
@@ -477,7 +479,6 @@ void UpdateParentRecurse(Page parent_page, BlockNumber parent_block_num, Relatio
 		// elog(INFO, "resgister %d 453", right_buf);
 		MtreeInitPage(right_buf, new_page, InvalidBlockNumber, MTREE_INNER_PAGE_TYPE, 0, InvalidOffsetNumber);
 		Page temp_page = SplitInternalPage(parent_page, new_page, procinfo, collation, left_centor, right_centor, left_offset, &left_copy_up, &right_copy_up, &left_radius, &right_radius);
-
 		// After Split, we should update the left_son_page and right_son_page
 		// Attentation: just read buffer;modify;mark dirty;commit;release buffer. (it's safe, we have a exclusive lock above)
 		// in the future, we will maintain a page mapping in meta_page for parent blkno and offset. (optimization)
@@ -550,6 +551,7 @@ void UpdateParentRecurse(Page parent_page, BlockNumber parent_block_num, Relatio
 			PageRestoreTempPage(temp_page, parent_page);
 			PrintInternalPageVectors("test parent_page", parent_page);
 			elog(INFO, "test parent_page %d", parent_block_num);
+			DebugEntireMtreeTree(3, index, 0);
 			// unlock current page buffer.
 			Buffer parent_buffer = ReadBuffer(index, parent_block_num);
 			UnlockReleaseBuffer(parent_buffer);
@@ -557,6 +559,12 @@ void UpdateParentRecurse(Page parent_page, BlockNumber parent_block_num, Relatio
 		}
 		else
 		{
+			// update son page
+			MtreeElement left_element = DatumGetMtreeElementTuple(left_copy_up);
+			MtreeElement right_element = DatumGetMtreeElementTuple(right_copy_up);
+			left_element->son_page = parent_block_num;
+			right_element->son_page = right_page_block_number;
+
 			Buffer new_parent_buf = ReadBuffer(index, MtreePageGetOpaque(parent_page)->parent_blkno);
 			// we have locked outside.
 			// LockBuffer(new_parent_buf, BUFFER_LOCK_EXCLUSIVE);
@@ -567,10 +575,14 @@ void UpdateParentRecurse(Page parent_page, BlockNumber parent_block_num, Relatio
 			Buffer parent_buffer = ReadBuffer(index, parent_block_num);
 			UnlockReleaseBuffer(parent_buffer);
 			elog(INFO, "UnLock Buffer 516 %d", parent_buffer);
-			UpdateParentRecurse(new_parent_page, MtreePageGetOpaque(parent_page)->parent_blkno, index, procinfo, collation, temp_page, parent_block_num, new_page, right_page_block_number, DatumGetMtreeElementTuple(left_copy_up), DatumGetMtreeElementTuple(right_copy_up), MtreePageGetOpaque(parent_page)->offset, state);
+			UpdateParentRecurse(new_parent_page, MtreePageGetOpaque(parent_page)->parent_blkno, index, procinfo, collation, temp_page, new_page, DatumGetMtreeElementTuple(left_copy_up), DatumGetMtreeElementTuple(right_copy_up), MtreePageGetOpaque(parent_page)->offset, state);
+			// restore temp page
+			PageRestoreTempPage(temp_page, parent_page);
+			PrintInternalPageVectors("test parent_page", parent_page);
 			MarkBufferDirty(new_parent_buf);
 			ReleaseBuffer(new_parent_buf);
 			UnlockReleaseBuffer(right_buf);
+			DebugEntireMtreeTree(parent_block_num, index, 0);
 			elog(INFO, "UnLock Buffer 522 %d", right_buf);
 		}
 	}
@@ -595,6 +607,7 @@ void UpdateParentRecurse(Page parent_page, BlockNumber parent_block_num, Relatio
 			UnlockReleaseBuffer(buffer);
 			elog(INFO, "UnLock Buffer 543 %d", buffer);
 		}
+		DebugEntireMtreeTree(3, index, 0);
 	}
 }
 
