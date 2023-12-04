@@ -577,7 +577,13 @@ void UpdateParentRecurse(Page parent_page, BlockNumber parent_block_num, Relatio
 			elog(INFO, "UnLock Buffer 516 %d", parent_buffer);
 			UpdateParentRecurse(new_parent_page, MtreePageGetOpaque(parent_page)->parent_blkno, index, procinfo, collation, temp_page, new_page, DatumGetMtreeElementTuple(left_copy_up), DatumGetMtreeElementTuple(right_copy_up), MtreePageGetOpaque(parent_page)->offset, state);
 			// restore temp page
+			elog(INFO, "prent blkno: %d", MtreePageGetOpaque(parent_page)->parent_blkno);
+			elog(INFO, "prent blkno: %d", MtreePageGetOpaque(temp_page)->parent_blkno);
+			// in uppper UpdateParentRecurse, we will update the son_page's parent_block,
+			// so the newest parent_blkno is in parent_page.
+			BlockNumber newest_blkno = MtreePageGetOpaque(parent_page)->parent_blkno;
 			PageRestoreTempPage(temp_page, parent_page);
+			MtreeUpdatePageOpaqueParentBlockNumber(newest_blkno, parent_page);
 			PrintInternalPageVectors("test parent_page", parent_page);
 			MarkBufferDirty(new_parent_buf);
 			ReleaseBuffer(new_parent_buf);

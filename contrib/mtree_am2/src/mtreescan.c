@@ -29,7 +29,7 @@ float8 getKDistance(pairingheap *heap, int k, int nn_size);
  */
 void getKNNRecurse(Relation index, BlockNumber blkno, Datum q, int k, float8 distance, pairingheap *p, pairingheap *nn, FmgrInfo *procinfo, Oid collation, int *nn_size)
 {
-	elog(INFO, "get knn blkno: %d", blkno);
+	// elog(INFO, "get knn blkno: %d", blkno);
 	Buffer buf = ReadBuffer(index, blkno);
 	LockBuffer(buf, BUFFER_LOCK_SHARE);
 	Page page = BufferGetPage(buf);
@@ -64,8 +64,8 @@ void getKNNRecurse(Relation index, BlockNumber blkno, Datum q, int k, float8 dis
 					// not leaf, don't update tid
 					candidate_nn->distance = target_to_parent_dist + etup->radius;
 					candidate_nn->tid = NIL;
-					elog(INFO, "KNN Internal Distance: %f, addr: %p", candidate_nn->distance, candidate_nn->tid);
-					PrintVector("and again knn vec: ", &etup->vec);
+					// elog(INFO, "KNN Internal Distance: %f, addr: %p", candidate_nn->distance, candidate_nn->tid);
+					// PrintVector("and again knn vec: ", &etup->vec);
 					// max heap
 					// pairingheap_add(nn, CreateMtreePairingKNNNode(candidate_nn));
 					// MtreePairingKNNNode *n = (MtreePairingKNNNode *)pairingheap_first(nn);
@@ -97,7 +97,7 @@ void getKNNRecurse(Relation index, BlockNumber blkno, Datum q, int k, float8 dis
 					// this is accurate distance
 					candidate_nn->distance = dist;
 					candidate_nn->tid = &etup->data_tid;
-					elog(INFO, "KNN Leaf Distance: %f, addr: %p", candidate_nn->distance, candidate_nn->tid);
+					// elog(INFO, "KNN Leaf Distance: %f, addr: %p", candidate_nn->distance, candidate_nn->tid);
 					// max heap
 					pairingheap_add(nn, CreateMtreePairingKNNNode(candidate_nn));
 					*nn_size = *nn_size + 1;
@@ -174,7 +174,7 @@ GetKNNScanItems(IndexScanDesc scan, Datum q)
 	// if son_blkno is InvalidBlockNumber, so it's a leaf
 	candidate->son_blkno = root_block;
 	int nn_size = 0;
-	DebugEntireMtreeTree(root_block, index, 0);
+	// DebugEntireMtreeTree(root_block, index, 0);
 	pairingheap_add(p, CreateMtreePairingKNNNode(candidate));
 	while (!pairingheap_is_empty(p))
 	{

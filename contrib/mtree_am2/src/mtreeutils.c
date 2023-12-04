@@ -187,6 +187,11 @@ void MtreeUpdatePageOpaque(OffsetNumber offset, uint8 is_root, BlockNumber blkno
 	MtreePageGetOpaque(page)->offset = offset;
 }
 
+void MtreeUpdatePageOpaqueParentBlockNumber(BlockNumber blkno, Page page)
+{
+	MtreePageGetOpaque(page)->parent_blkno = blkno;
+}
+
 /*
  * Set element tuple
  */

@@ -375,6 +375,7 @@ void MtreeUpdateConnection(MtreeElement element, MtreeCandidate *hc, int m, int 
 void MtreeLoadNeighbors(MtreeElement element, Relation index, int m);
 Page SplitLeafPage(Page page, Page new_page, FmgrInfo *procinfo, Oid collation, MtreeElementLeafTuple insert_data, Datum *left_centor, Datum *right_centor, float8 *left_radius, float8 *right_radius);
 void MtreeUpdatePageOpaque(OffsetNumber offset, uint8 is_root, BlockNumber blkno, Page page, uint8 type);
+void MtreeUpdatePageOpaqueParentBlockNumber(BlockNumber blkno, Page page);
 void DebugPageOpaque(char *msg, Page page, BlockNumber blkno);
 float8 max(float8 a, float8 b);
 void DebugMetaPage(MtreeMetaPageData page);
