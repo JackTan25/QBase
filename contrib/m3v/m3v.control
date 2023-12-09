@@ -1,0 +1,5 @@
+# m3v extension
+comment = 'template table AM eating all data'
+default_version = '1.0'
+module_pathname = '$libdir/m3v'
+relocatable = true

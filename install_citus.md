@@ -21,6 +21,9 @@ echo "shared_preload_libraries = 'citus'" >> /data/data/postgresql.conf
 
 ./configure --prefix=/data --with-libedit-preferred --with-perl --with-python --with-uuid=e2fs --with-systemd --enable-debug --enable-dtrace CFLAGS="-g -O0" --without-icu
 
+## 携带c++
+CXX=g++ ./configure --prefix=/data --with-libedit-preferred --with-perl --with-python --with-uuid=e2fs --with-systemd --enable-debug --enable-dtrace CFLAGS="-g -O0" --without-icu --with-extra-version=-lstdc++
+
 ## Perf性能查看调优
 ```sql
     -- 查看进程

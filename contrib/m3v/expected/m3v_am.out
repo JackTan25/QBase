@@ -1,0 +1,42 @@
+CREATE EXTENSION m3v_am;
+CREATE TABLE m3v_tab (a int) USING m3v_am;
+SELECT * FROM m3v_tab;
+ a 
+---
+(0 rows)
+
+INSERT INTO m3v_tab VALUES (1);
+SELECT * FROM m3v_tab;
+ a 
+---
+(0 rows)
+
+UPDATE m3v_tab SET a = 0 WHERE a = 1;
+SELECT * FROM m3v_tab;
+ a 
+---
+(0 rows)
+
+DELETE FROM m3v_tab WHERE a = 1;
+SELECT * FROM m3v_tab;
+ a 
+---
+(0 rows)
+
+-- ALTER TABLE SET ACCESS METHOD
+ALTER TABLE m3v_tab SET ACCESS METHOD heap;
+INSERT INTO m3v_tab VALUES (1);
+SELECT * FROM m3v_tab;
+ a 
+---
+ 1
+(1 row)
+
+ALTER TABLE m3v_tab SET ACCESS METHOD m3v_am;
+SELECT * FROM m3v_tab;
+ a 
+---
+(0 rows)
+
+-- Clean up
+DROP TABLE m3v_tab;
