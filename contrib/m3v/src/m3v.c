@@ -48,9 +48,9 @@ m3vbuildphasename(int64 phasenum)
  */
 static void
 m3vcostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
-				  Cost *indexStartupCost, Cost *indexTotalCost,
-				  Selectivity *indexSelectivity, double *indexCorrelation,
-				  double *indexPages)
+				Cost *indexStartupCost, Cost *indexTotalCost,
+				Selectivity *indexSelectivity, double *indexCorrelation,
+				double *indexPages)
 {
 	// for now, make sure it goes m3v index
 	*indexStartupCost = 0;
@@ -111,7 +111,7 @@ Datum m3vhandler(PG_FUNCTION_ARGS)
 
 	amroutine->amstrategies = 0;
 	// 构建索引操作符类支持的函数的数量,从1开始编号,一直到amsupport
-	amroutine->amsupport = 4;
+	amroutine->amsupport = 100;
 #if PG_VERSION_NUM >= 130000
 	amroutine->amoptsprocnum = 0;
 #endif

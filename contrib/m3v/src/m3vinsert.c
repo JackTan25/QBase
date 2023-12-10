@@ -1,7 +1,6 @@
 #include "postgres.h"
 
 #include <math.h>
-#include "util.h"
 #include "m3v.h"
 #include "storage/bufmgr.h"
 #include "storage/lmgr.h"
@@ -79,7 +78,9 @@ bool m3vInsertTuple(Relation index, Datum *values, bool *isnull, ItemPointer hea
 	int m;
 	int efConstruction = m3vGetEfConstruction(index);
 	FmgrInfo *procinfo = index_getprocinfo(index, 1, M3V_DISTANCE_PROC);
+	FmgrInfo *PrintInfo = index_getprocinfo(index, 1, 5);
 	Oid collation = index->rd_indcollation[0];
+	FunctionCall0Coll(PrintInfo, collation);
 	m3vElement dup;
 	Vector *normvec;
 	LOCKMODE lockmode = ShareLock;
@@ -170,7 +171,6 @@ bool m3vInsertTuple(Relation index, Datum *values, bool *isnull, ItemPointer hea
 // Insertm3v is recursive insert.
 bool Insertm3v(BlockNumber root_block, Relation index, m3vElement element, bool *isnull, Relation heapRel, FmgrInfo *procinfo, Oid collation, GenericXLogState *state)
 {
-	Print();
 	PrintVector("insert vector: ", element->vec);
 	// elog(INFO, "item pointer2: %d %d", element->item_pointer->ip_blkid, element->item_pointer->ip_posid);
 	Buffer buf;
@@ -622,13 +622,13 @@ void UpdateParentRecurse(Page parent_page, BlockNumber parent_block_num, Relatio
  * Insert a tuple into the index
  */
 bool m3vinsert(Relation index, Datum *values, bool *isnull, ItemPointer heap_tid,
-				 Relation heap, IndexUniqueCheck checkUnique
+			   Relation heap, IndexUniqueCheck checkUnique
 #if PG_VERSION_NUM >= 140000
-				 ,
-				 bool indexUnchanged
+			   ,
+			   bool indexUnchanged
 #endif
-				 ,
-				 IndexInfo *indexInfo)
+			   ,
+			   IndexInfo *indexInfo)
 {
 	MemoryContext oldCtx;
 	MemoryContext insertCtx;

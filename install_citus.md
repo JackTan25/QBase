@@ -22,8 +22,22 @@ echo "shared_preload_libraries = 'citus'" >> /data/data/postgresql.conf
 ./configure --prefix=/data --with-libedit-preferred --with-perl --with-python --with-uuid=e2fs --with-systemd --enable-debug --enable-dtrace CFLAGS="-g -O0" --without-icu
 
 ## 携带c++
-CXX=g++ ./configure --prefix=/data --with-libedit-preferred --with-perl --with-python --with-uuid=e2fs --with-systemd --enable-debug --enable-dtrace CFLAGS="-g -O0" --without-icu --with-extra-version=-lstdc++
+CXX=g++ CXXFLAGS="-std=c++11 -lstdc++" LDFLAGS="-lstdc++" ./configure --prefix=/data --with-libedit-preferred --with-perl --with-python --with-uuid=e2fs --with-systemd --enable-debug --enable-dtrace CFLAGS="-g -O0" --without-icu 
 
+g++ -c -fPIC -Wall -Werror -g3 -O0 -o src/util.o -I/data/include/postgresql/server/ -I/home/jack/cpp_workspace/wrapdir/OneDb2/contrib/m3v/src/ util.cpp 
+
+g++ -shared -o util.so util.o
+
+```cpp
+/usr/bin/mkdir -p '/data/lib/postgresql'
+/usr/bin/mkdir -p '/data/share/postgresql/extension'
+/usr/bin/mkdir -p '/data/share/postgresql/extension'
+/usr/bin/install -c -m 755  m3v.so '/data/lib/postgresql/m3v.so'
+/usr/bin/install -c -m 644 ./m3v.control '/data/share/postgresql/extension/'
+/usr/bin/install -c -m 644 ./m3v--1.0.sql  '/data/share/postgresql/extension/'
+/usr/bin/mkdir -p '/data/include/postgresql/server/extension/m3v/'
+/usr/bin/install -c -m 644   ./src/vector.h '/data/include/postgresql/server/extension/m3v/'
+```
 ## Perf性能查看调优
 ```sql
     -- 查看进程
