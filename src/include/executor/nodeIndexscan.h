@@ -37,7 +37,7 @@ extern void ExecIndexBuildScanKeys(PlanState *planstate, Relation index,
 								   List *quals, bool isorderby,
 								   ScanKey *scanKeys, int *numScanKeys,
 								   IndexRuntimeKeyInfo **runtimeKeys, int *numRuntimeKeys,
-								   IndexArrayKeyInfo **arrayKeys, int *numArrayKeys);
+								   IndexArrayKeyInfo **arrayKeys, int *numArrayKeys,bool is_multi_col_vector_search);
 extern void ExecIndexEvalRuntimeKeys(ExprContext *econtext,
 									 IndexRuntimeKeyInfo *runtimeKeys, int numRuntimeKeys);
 extern bool ExecIndexEvalArrayKeys(ExprContext *econtext,

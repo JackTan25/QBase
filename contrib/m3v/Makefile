@@ -29,3 +29,11 @@ top_builddir = ../..
 include $(top_builddir)/src/Makefile.global
 include $(top_srcdir)/contrib/contrib-global.mk
 endif
+
+## 在完成了普通的m3v-tree的c系列代码的构造之后,我们继续将其他功能的cpp包封装进来
+## 外包的几个重要功能:
+## 1. 在构建m3v-tree的过程当中维护每一个entry的额外的扩展数据
+## 2. buffer-record-cache的缓存都在这里使用
+## 3. SPrefsh的https://spdk.io调用(服务2)
+## 4. 索引数据的存储直接放到这外面来,而真实数据则存放在列存引擎,列存引擎的需要
+## 需要负责本身数据的分类使用(LSH).

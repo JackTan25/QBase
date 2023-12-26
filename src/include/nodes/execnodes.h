@@ -1581,6 +1581,7 @@ typedef struct IndexScanState
 	bool	   *iss_OrderByTypByVals;
 	int16	   *iss_OrderByTypLens;
 	Size		iss_PscanLen;
+	bool 		is_multi_vector_search;
 } IndexScanState;
 
 /* ----------------

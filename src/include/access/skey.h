@@ -72,6 +72,8 @@ typedef struct ScanKeyData
 	Datum		sk_argument;	/* data to compare */
 	Datum 		query;
 	int 		KNNValues;
+	Datum		w;
+	bool 		is_multi_vector_search;
 } ScanKeyData;
 
 typedef ScanKeyData *ScanKey;

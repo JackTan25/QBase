@@ -585,7 +585,7 @@ ExecInitIndexOnlyScan(IndexOnlyScan *node, EState *estate, int eflags)
 						   &indexstate->ioss_RuntimeKeys,
 						   &indexstate->ioss_NumRuntimeKeys,
 						   NULL,	/* no ArrayKeys */
-						   NULL);
+						   NULL,false);
 
 	/*
 	 * any ORDER BY exprs have to be turned into scankeys in the same way
@@ -599,7 +599,7 @@ ExecInitIndexOnlyScan(IndexOnlyScan *node, EState *estate, int eflags)
 						   &indexstate->ioss_RuntimeKeys,
 						   &indexstate->ioss_NumRuntimeKeys,
 						   NULL,	/* no ArrayKeys */
-						   NULL);
+						   NULL,false);
 
 	/*
 	 * If we have runtime keys, we need an ExprContext to evaluate them. The

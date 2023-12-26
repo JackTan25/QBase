@@ -14,9 +14,11 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
-
+#include "catalog/pg_type.h"
+#include "utils/syscache.h"
+#include "utils/lsyscache.h"
 #include <math.h>
-
+#include "nodes/print.h"
 #include "access/stratnum.h"
 #include "access/sysattr.h"
 #include "catalog/pg_am.h"
@@ -35,7 +37,6 @@
 #include "utils/lsyscache.h"
 #include "utils/selfuncs.h"
 
-
 /* XXX see PartCollMatchesExprColl */
 #define IndexCollMatchesExprColl(idxcollation, exprcollation) \
 	((idxcollation) == InvalidOid || (idxcollation) == (exprcollation))
@@ -43,37 +44,37 @@
 /* Whether we are looking for plain indexscan, bitmap scan, or either */
 typedef enum
 {
-	ST_INDEXSCAN,				/* must support amgettuple */
-	ST_BITMAPSCAN,				/* must support amgetbitmap */
-	ST_ANYSCAN					/* either is okay */
+	ST_INDEXSCAN,  /* must support amgettuple */
+	ST_BITMAPSCAN, /* must support amgetbitmap */
+	ST_ANYSCAN	   /* either is okay */
 } ScanTypeControl;
 
 /* Data structure for collecting qual clauses that match an index */
 typedef struct
 {
-	bool		nonempty;		/* True if lists are not all empty */
+	bool nonempty; /* True if lists are not all empty */
 	/* Lists of IndexClause nodes, one list per index column */
-	List	   *indexclauses[INDEX_MAX_KEYS];
+	List *indexclauses[INDEX_MAX_KEYS];
 } IndexClauseSet;
 
 /* Per-path data used within choose_bitmap_and() */
 typedef struct
 {
-	Path	   *path;			/* IndexPath, BitmapAndPath, or BitmapOrPath */
-	List	   *quals;			/* the WHERE clauses it uses */
-	List	   *preds;			/* predicates of its partial index(es) */
-	Bitmapset  *clauseids;		/* quals+preds represented as a bitmapset */
-	bool		unclassifiable; /* has too many quals+preds to process? */
+	Path *path;			  /* IndexPath, BitmapAndPath, or BitmapOrPath */
+	List *quals;		  /* the WHERE clauses it uses */
+	List *preds;		  /* predicates of its partial index(es) */
+	Bitmapset *clauseids; /* quals+preds represented as a bitmapset */
+	bool unclassifiable;  /* has too many quals+preds to process? */
 } PathClauseUsage;
 
 /* Callback argument for ec_member_matches_indexcol */
 typedef struct
 {
-	IndexOptInfo *index;		/* index we're considering */
-	int			indexcol;		/* index column we want to match to */
+	IndexOptInfo *index; /* index we're considering */
+	int indexcol;		 /* index column we want to match to */
 } ec_member_matches_arg;
 
-
+bool is_vector_type(Const *con);
 static void consider_index_join_clauses(PlannerInfo *root, RelOptInfo *rel,
 										IndexOptInfo *index,
 										IndexClauseSet *rclauseset,
@@ -114,7 +115,7 @@ static List *generate_bitmap_or_paths(PlannerInfo *root, RelOptInfo *rel,
 									  List *clauses, List *other_clauses);
 static Path *choose_bitmap_and(PlannerInfo *root, RelOptInfo *rel,
 							   List *paths);
-static int	path_usage_comparator(const void *a, const void *b);
+static int path_usage_comparator(const void *a, const void *b);
 static Cost bitmap_scan_cost_est(PlannerInfo *root, RelOptInfo *rel,
 								 Path *ipath);
 static Cost bitmap_and_cost_est(PlannerInfo *root, RelOptInfo *rel,
@@ -122,7 +123,7 @@ static Cost bitmap_and_cost_est(PlannerInfo *root, RelOptInfo *rel,
 static PathClauseUsage *classify_index_clause_usage(Path *path,
 													List **clauselist);
 static void find_indexpath_quals(Path *bitmapqual, List **quals, List **preds);
-static int	find_list_position(Node *node, List **nodelist);
+static int find_list_position(Node *node, List **nodelist);
 static bool check_index_only(RelOptInfo *rel, IndexOptInfo *index);
 static double get_loop_count(PlannerInfo *root, Index cur_relid, Relids outer_relids);
 static double adjust_rowcount_for_semijoins(PlannerInfo *root,
@@ -186,13 +187,12 @@ static IndexClause *expand_indexqual_rowcompare(PlannerInfo *root,
 												bool var_on_left);
 static void match_pathkeys_to_index(IndexOptInfo *index, List *pathkeys,
 									List **orderby_clauses_p,
-									List **clause_columns_p);
+									List **clause_columns_p, bool *is_vector_expr);
 static Expr *match_clause_to_ordering_op(IndexOptInfo *index,
 										 int indexcol, Expr *clause, Oid pk_opfamily);
 static bool ec_member_matches_indexcol(PlannerInfo *root, RelOptInfo *rel,
 									   EquivalenceClass *ec, EquivalenceMember *em,
 									   void *arg);
-
 
 /*
  * create_index_paths()
@@ -231,17 +231,16 @@ static bool ec_member_matches_indexcol(PlannerInfo *root, RelOptInfo *rel,
  * In particular, comments below about "unparameterized" paths should be read
  * as meaning "unparameterized so far as the indexquals are concerned".
  */
-void
-create_index_paths(PlannerInfo *root, RelOptInfo *rel)
+void create_index_paths(PlannerInfo *root, RelOptInfo *rel)
 {
-	List	   *indexpaths;
-	List	   *bitindexpaths;
-	List	   *bitjoinpaths;
-	List	   *joinorclauses;
+	List *indexpaths;
+	List *bitindexpaths;
+	List *bitjoinpaths;
+	List *joinorclauses;
 	IndexClauseSet rclauseset;
 	IndexClauseSet jclauseset;
 	IndexClauseSet eclauseset;
-	ListCell   *lc;
+	ListCell *lc;
 
 	/* Skip the whole mess if no indexes */
 	if (rel->indexlist == NIL)
@@ -251,9 +250,9 @@ create_index_paths(PlannerInfo *root, RelOptInfo *rel)
 	bitindexpaths = bitjoinpaths = joinorclauses = NIL;
 
 	/* Examine each index in turn */
-	foreach(lc, rel->indexlist)
+	foreach (lc, rel->indexlist)
 	{
-		IndexOptInfo *index = (IndexOptInfo *) lfirst(lc);
+		IndexOptInfo *index = (IndexOptInfo *)lfirst(lc);
 
 		/* Protect limited-size array in IndexClauseSets */
 		Assert(index->nkeycolumns <= INDEX_MAX_KEYS);
@@ -335,13 +334,13 @@ create_index_paths(PlannerInfo *root, RelOptInfo *rel)
 	 */
 	if (bitindexpaths != NIL)
 	{
-		Path	   *bitmapqual;
+		Path *bitmapqual;
 		BitmapHeapPath *bpath;
 
 		bitmapqual = choose_bitmap_and(root, rel, bitindexpaths);
 		bpath = create_bitmap_heap_path(root, rel, bitmapqual,
 										rel->lateral_relids, 1.0, 0);
-		add_path(rel, (Path *) bpath);
+		add_path(rel, (Path *)bpath);
 
 		/* create a partial bitmap heap path */
 		if (rel->consider_parallel && rel->lateral_relids == NULL)
@@ -360,35 +359,35 @@ create_index_paths(PlannerInfo *root, RelOptInfo *rel)
 	 */
 	if (bitjoinpaths != NIL)
 	{
-		List	   *all_path_outers;
+		List *all_path_outers;
 
 		/* Identify each distinct parameterization seen in bitjoinpaths */
 		all_path_outers = NIL;
-		foreach(lc, bitjoinpaths)
+		foreach (lc, bitjoinpaths)
 		{
-			Path	   *path = (Path *) lfirst(lc);
-			Relids		required_outer = PATH_REQ_OUTER(path);
+			Path *path = (Path *)lfirst(lc);
+			Relids required_outer = PATH_REQ_OUTER(path);
 
 			all_path_outers = list_append_unique(all_path_outers,
 												 required_outer);
 		}
 
 		/* Now, for each distinct parameterization set ... */
-		foreach(lc, all_path_outers)
+		foreach (lc, all_path_outers)
 		{
-			Relids		max_outers = (Relids) lfirst(lc);
-			List	   *this_path_set;
-			Path	   *bitmapqual;
-			Relids		required_outer;
-			double		loop_count;
+			Relids max_outers = (Relids)lfirst(lc);
+			List *this_path_set;
+			Path *bitmapqual;
+			Relids required_outer;
+			double loop_count;
 			BitmapHeapPath *bpath;
-			ListCell   *lcp;
+			ListCell *lcp;
 
 			/* Identify all the bitmap join paths needing no more than that */
 			this_path_set = NIL;
-			foreach(lcp, bitjoinpaths)
+			foreach (lcp, bitjoinpaths)
 			{
-				Path	   *path = (Path *) lfirst(lcp);
+				Path *path = (Path *)lfirst(lcp);
 
 				if (bms_is_subset(PATH_REQ_OUTER(path), max_outers))
 					this_path_set = lappend(this_path_set, path);
@@ -408,7 +407,7 @@ create_index_paths(PlannerInfo *root, RelOptInfo *rel)
 			loop_count = get_loop_count(root, rel->relid, required_outer);
 			bpath = create_bitmap_heap_path(root, rel, bitmapqual,
 											required_outer, loop_count, 0);
-			add_path(rel, (Path *) bpath);
+			add_path(rel, (Path *)bpath);
 		}
 	}
 }
@@ -436,9 +435,9 @@ consider_index_join_clauses(PlannerInfo *root, RelOptInfo *rel,
 							IndexClauseSet *eclauseset,
 							List **bitindexpaths)
 {
-	int			considered_clauses = 0;
-	List	   *considered_relids = NIL;
-	int			indexcol;
+	int considered_clauses = 0;
+	List *considered_relids = NIL;
+	int indexcol;
 
 	/*
 	 * The strategy here is to identify every potentially useful set of outer
@@ -505,15 +504,15 @@ consider_index_join_outer_rels(PlannerInfo *root, RelOptInfo *rel,
 							   int considered_clauses,
 							   List **considered_relids)
 {
-	ListCell   *lc;
+	ListCell *lc;
 
 	/* Examine relids of each joinclause in the given list */
-	foreach(lc, indexjoinclauses)
+	foreach (lc, indexjoinclauses)
 	{
-		IndexClause *iclause = (IndexClause *) lfirst(lc);
-		Relids		clause_relids = iclause->rinfo->clause_relids;
+		IndexClause *iclause = (IndexClause *)lfirst(lc);
+		Relids clause_relids = iclause->rinfo->clause_relids;
 		EquivalenceClass *parent_ec = iclause->rinfo->parent_ec;
-		int			num_considered_relids;
+		int num_considered_relids;
 
 		/* If we already tried its relids set, no need to do so again */
 		if (list_member(*considered_relids, clause_relids))
@@ -535,7 +534,7 @@ consider_index_join_outer_rels(PlannerInfo *root, RelOptInfo *rel,
 		num_considered_relids = list_length(*considered_relids);
 		for (int pos = 0; pos < num_considered_relids; pos++)
 		{
-			Relids		oldrelids = (Relids) list_nth(*considered_relids, pos);
+			Relids oldrelids = (Relids)list_nth(*considered_relids, pos);
 
 			/*
 			 * If either is a subset of the other, no new set is possible.
@@ -608,7 +607,7 @@ get_join_index_paths(PlannerInfo *root, RelOptInfo *rel,
 					 List **considered_relids)
 {
 	IndexClauseSet clauseset;
-	int			indexcol;
+	int indexcol;
 
 	/* If we already considered this relids set, don't repeat the work */
 	if (list_member(*considered_relids, relids))
@@ -619,12 +618,12 @@ get_join_index_paths(PlannerInfo *root, RelOptInfo *rel,
 
 	for (indexcol = 0; indexcol < index->nkeycolumns; indexcol++)
 	{
-		ListCell   *lc;
+		ListCell *lc;
 
 		/* First find applicable simple join clauses */
-		foreach(lc, jclauseset->indexclauses[indexcol])
+		foreach (lc, jclauseset->indexclauses[indexcol])
 		{
-			IndexClause *iclause = (IndexClause *) lfirst(lc);
+			IndexClause *iclause = (IndexClause *)lfirst(lc);
 
 			if (bms_is_subset(iclause->rinfo->clause_relids, relids))
 				clauseset.indexclauses[indexcol] =
@@ -637,9 +636,9 @@ get_join_index_paths(PlannerInfo *root, RelOptInfo *rel,
 		 * so we need at most one.  This is the only exception to the general
 		 * rule of using all available index clauses.
 		 */
-		foreach(lc, eclauseset->indexclauses[indexcol])
+		foreach (lc, eclauseset->indexclauses[indexcol])
 		{
-			IndexClause *iclause = (IndexClause *) lfirst(lc);
+			IndexClause *iclause = (IndexClause *)lfirst(lc);
 
 			if (bms_is_subset(iclause->rinfo->clause_relids, relids))
 			{
@@ -679,11 +678,11 @@ static bool
 eclass_already_used(EquivalenceClass *parent_ec, Relids oldrelids,
 					List *indexjoinclauses)
 {
-	ListCell   *lc;
+	ListCell *lc;
 
-	foreach(lc, indexjoinclauses)
+	foreach (lc, indexjoinclauses)
 	{
-		IndexClause *iclause = (IndexClause *) lfirst(lc);
+		IndexClause *iclause = (IndexClause *)lfirst(lc);
 		RestrictInfo *rinfo = iclause->rinfo;
 
 		if (rinfo->parent_ec == parent_ec &&
@@ -692,7 +691,6 @@ eclass_already_used(EquivalenceClass *parent_ec, Relids oldrelids,
 	}
 	return false;
 }
-
 
 /*
  * get_index_paths
@@ -714,10 +712,10 @@ get_index_paths(PlannerInfo *root, RelOptInfo *rel,
 				IndexOptInfo *index, IndexClauseSet *clauses,
 				List **bitindexpaths)
 {
-	List	   *indexpaths;
-	bool		skip_nonnative_saop = false;
-	bool		skip_lower_saop = false;
-	ListCell   *lc;
+	List *indexpaths;
+	bool skip_nonnative_saop = false;
+	bool skip_lower_saop = false;
+	ListCell *lc;
 
 	/*
 	 * Build simple index paths using the clauses.  Allow ScalarArrayOpExpr
@@ -760,12 +758,12 @@ get_index_paths(PlannerInfo *root, RelOptInfo *rel,
 	 * only interested in paths that have some selectivity; we should discard
 	 * anything that was generated solely for ordering purposes.
 	 */
-	foreach(lc, indexpaths)
+	foreach (lc, indexpaths)
 	{
-		IndexPath  *ipath = (IndexPath *) lfirst(lc);
+		IndexPath *ipath = (IndexPath *)lfirst(lc);
 
 		if (index->amhasgettuple)
-			add_path(rel, (Path *) ipath);
+			add_path(rel, (Path *)ipath);
 
 		if (index->amhasgetbitmap &&
 			(ipath->path.pathkeys == NIL ||
@@ -839,37 +837,38 @@ build_index_paths(PlannerInfo *root, RelOptInfo *rel,
 				  bool *skip_nonnative_saop,
 				  bool *skip_lower_saop)
 {
-	List	   *result = NIL;
-	IndexPath  *ipath;
-	List	   *index_clauses;
-	Relids		outer_relids;
-	double		loop_count;
-	List	   *orderbyclauses;
-	List	   *orderbyclausecols;
-	List	   *index_pathkeys;
-	List	   *useful_pathkeys;
-	bool		found_lower_saop_clause;
-	bool		pathkeys_possibly_useful;
-	bool		index_is_ordered;
-	bool		index_only_scan;
-	int			indexcol;
+	List *result = NIL;
+	bool is_vector_expr = false;
+	IndexPath *ipath;
+	List *index_clauses;
+	Relids outer_relids;
+	double loop_count;
+	List *orderbyclauses;
+	List *orderbyclausecols;
+	List *index_pathkeys;
+	List *useful_pathkeys;
+	bool found_lower_saop_clause;
+	bool pathkeys_possibly_useful;
+	bool index_is_ordered;
+	bool index_only_scan;
+	int indexcol;
 
 	/*
 	 * Check that index supports the desired scan type(s)
 	 */
 	switch (scantype)
 	{
-		case ST_INDEXSCAN:
-			if (!index->amhasgettuple)
-				return NIL;
-			break;
-		case ST_BITMAPSCAN:
-			if (!index->amhasgetbitmap)
-				return NIL;
-			break;
-		case ST_ANYSCAN:
-			/* either or both are OK */
-			break;
+	case ST_INDEXSCAN:
+		if (!index->amhasgettuple)
+			return NIL;
+		break;
+	case ST_BITMAPSCAN:
+		if (!index->amhasgetbitmap)
+			return NIL;
+		break;
+	case ST_ANYSCAN:
+		/* either or both are OK */
+		break;
 	}
 
 	/*
@@ -896,11 +895,11 @@ build_index_paths(PlannerInfo *root, RelOptInfo *rel,
 	outer_relids = bms_copy(rel->lateral_relids);
 	for (indexcol = 0; indexcol < index->nkeycolumns; indexcol++)
 	{
-		ListCell   *lc;
+		ListCell *lc;
 
-		foreach(lc, clauses->indexclauses[indexcol])
+		foreach (lc, clauses->indexclauses[indexcol])
 		{
-			IndexClause *iclause = (IndexClause *) lfirst(lc);
+			IndexClause *iclause = (IndexClause *)lfirst(lc);
 			RestrictInfo *rinfo = iclause->rinfo;
 
 			/* We might need to omit ScalarArrayOpExpr clauses */
@@ -974,10 +973,14 @@ build_index_paths(PlannerInfo *root, RelOptInfo *rel,
 	}
 	else if (index->amcanorderbyop && pathkeys_possibly_useful)
 	{
+		char *s = nodeToString(root->query_pathkeys);
+		char *f = format_node_dump(s);
+		elog(LOG, "query_path_keys:\n %s\n", f);
 		/* see if we can generate ordering operators for query_pathkeys */
+
 		match_pathkeys_to_index(index, root->query_pathkeys,
 								&orderbyclauses,
-								&orderbyclausecols);
+								&orderbyclausecols, &is_vector_expr);
 		if (orderbyclauses)
 			useful_pathkeys = root->query_pathkeys;
 		else
@@ -1016,7 +1019,7 @@ build_index_paths(PlannerInfo *root, RelOptInfo *rel,
 								  index_only_scan,
 								  outer_relids,
 								  loop_count,
-								  false);
+								  false, is_vector_expr);
 		result = lappend(result, ipath);
 
 		/*
@@ -1036,14 +1039,14 @@ build_index_paths(PlannerInfo *root, RelOptInfo *rel,
 									  index_only_scan,
 									  outer_relids,
 									  loop_count,
-									  true);
+									  true, is_vector_expr);
 
 			/*
 			 * if, after costing the path, we find that it's not worth using
 			 * parallel workers, just free it.
 			 */
 			if (ipath->path.parallel_workers > 0)
-				add_partial_path(rel, (Path *) ipath);
+				add_partial_path(rel, (Path *)ipath);
 			else
 				pfree(ipath);
 		}
@@ -1069,7 +1072,7 @@ build_index_paths(PlannerInfo *root, RelOptInfo *rel,
 									  index_only_scan,
 									  outer_relids,
 									  loop_count,
-									  false);
+									  false, is_vector_expr);
 			result = lappend(result, ipath);
 
 			/* If appropriate, consider parallel index scan */
@@ -1086,14 +1089,14 @@ build_index_paths(PlannerInfo *root, RelOptInfo *rel,
 										  index_only_scan,
 										  outer_relids,
 										  loop_count,
-										  true);
+										  true, is_vector_expr);
 
 				/*
 				 * if, after costing the path, we find that it's not worth
 				 * using parallel workers, just free it.
 				 */
 				if (ipath->path.parallel_workers > 0)
-					add_partial_path(rel, (Path *) ipath);
+					add_partial_path(rel, (Path *)ipath);
 				else
 					pfree(ipath);
 			}
@@ -1133,16 +1136,16 @@ static List *
 build_paths_for_OR(PlannerInfo *root, RelOptInfo *rel,
 				   List *clauses, List *other_clauses)
 {
-	List	   *result = NIL;
-	List	   *all_clauses = NIL;	/* not computed till needed */
-	ListCell   *lc;
+	List *result = NIL;
+	List *all_clauses = NIL; /* not computed till needed */
+	ListCell *lc;
 
-	foreach(lc, rel->indexlist)
+	foreach (lc, rel->indexlist)
 	{
-		IndexOptInfo *index = (IndexOptInfo *) lfirst(lc);
+		IndexOptInfo *index = (IndexOptInfo *)lfirst(lc);
 		IndexClauseSet clauseset;
-		List	   *indexpaths;
-		bool		useful_predicate;
+		List *indexpaths;
+		bool useful_predicate;
 
 		/* Ignore index if it doesn't support bitmap scans */
 		if (!index->amhasgetbitmap)
@@ -1174,7 +1177,7 @@ build_paths_for_OR(PlannerInfo *root, RelOptInfo *rel,
 					all_clauses = list_concat_copy(clauses, other_clauses);
 
 				if (!predicate_implied_by(index->indpred, all_clauses, false))
-					continue;	/* can't use it at all */
+					continue; /* can't use it at all */
 
 				if (!predicate_implied_by(index->indpred, other_clauses, false))
 					useful_predicate = true;
@@ -1228,9 +1231,9 @@ static List *
 generate_bitmap_or_paths(PlannerInfo *root, RelOptInfo *rel,
 						 List *clauses, List *other_clauses)
 {
-	List	   *result = NIL;
-	List	   *all_clauses;
-	ListCell   *lc;
+	List *result = NIL;
+	List *all_clauses;
+	ListCell *lc;
 
 	/*
 	 * We can use both the current and other clauses as context for
@@ -1238,12 +1241,12 @@ generate_bitmap_or_paths(PlannerInfo *root, RelOptInfo *rel,
 	 */
 	all_clauses = list_concat_copy(clauses, other_clauses);
 
-	foreach(lc, clauses)
+	foreach (lc, clauses)
 	{
 		RestrictInfo *rinfo = lfirst_node(RestrictInfo, lc);
-		List	   *pathlist;
-		Path	   *bitmapqual;
-		ListCell   *j;
+		List *pathlist;
+		Path *bitmapqual;
+		ListCell *j;
 
 		/* Ignore RestrictInfos that aren't ORs */
 		if (!restriction_is_or_clause(rinfo))
@@ -1254,15 +1257,15 @@ generate_bitmap_or_paths(PlannerInfo *root, RelOptInfo *rel,
 		 * the OR, else we can't use it.
 		 */
 		pathlist = NIL;
-		foreach(j, ((BoolExpr *) rinfo->orclause)->args)
+		foreach (j, ((BoolExpr *)rinfo->orclause)->args)
 		{
-			Node	   *orarg = (Node *) lfirst(j);
-			List	   *indlist;
+			Node *orarg = (Node *)lfirst(j);
+			List *indlist;
 
 			/* OR arguments should be ANDs or sub-RestrictInfos */
 			if (is_andclause(orarg))
 			{
-				List	   *andargs = ((BoolExpr *) orarg)->args;
+				List *andargs = ((BoolExpr *)orarg)->args;
 
 				indlist = build_paths_for_OR(root, rel,
 											 andargs,
@@ -1277,7 +1280,7 @@ generate_bitmap_or_paths(PlannerInfo *root, RelOptInfo *rel,
 			else
 			{
 				RestrictInfo *ri = castNode(RestrictInfo, orarg);
-				List	   *orargs;
+				List *orargs;
 
 				Assert(!restriction_is_or_clause(ri));
 				orargs = list_make1(ri);
@@ -1311,14 +1314,13 @@ generate_bitmap_or_paths(PlannerInfo *root, RelOptInfo *rel,
 		 */
 		if (pathlist != NIL)
 		{
-			bitmapqual = (Path *) create_bitmap_or_path(root, rel, pathlist);
+			bitmapqual = (Path *)create_bitmap_or_path(root, rel, pathlist);
 			result = lappend(result, bitmapqual);
 		}
 	}
 
 	return result;
 }
-
 
 /*
  * choose_bitmap_and
@@ -1334,19 +1336,19 @@ generate_bitmap_or_paths(PlannerInfo *root, RelOptInfo *rel,
 static Path *
 choose_bitmap_and(PlannerInfo *root, RelOptInfo *rel, List *paths)
 {
-	int			npaths = list_length(paths);
+	int npaths = list_length(paths);
 	PathClauseUsage **pathinfoarray;
 	PathClauseUsage *pathinfo;
-	List	   *clauselist;
-	List	   *bestpaths = NIL;
-	Cost		bestcost = 0;
-	int			i,
-				j;
-	ListCell   *l;
+	List *clauselist;
+	List *bestpaths = NIL;
+	Cost bestcost = 0;
+	int i,
+		j;
+	ListCell *l;
 
-	Assert(npaths > 0);			/* else caller error */
+	Assert(npaths > 0); /* else caller error */
 	if (npaths == 1)
-		return (Path *) linitial(paths);	/* easy case */
+		return (Path *)linitial(paths); /* easy case */
 
 	/*
 	 * In theory we should consider every nonempty subset of the given paths.
@@ -1407,9 +1409,9 @@ choose_bitmap_and(PlannerInfo *root, RelOptInfo *rel, List *paths)
 		palloc(npaths * sizeof(PathClauseUsage *));
 	clauselist = NIL;
 	npaths = 0;
-	foreach(l, paths)
+	foreach (l, paths)
 	{
-		Path	   *ipath = (Path *) lfirst(l);
+		Path *ipath = (Path *)lfirst(l);
 
 		pathinfo = classify_index_clause_usage(ipath, &clauselist);
 
@@ -1429,8 +1431,8 @@ choose_bitmap_and(PlannerInfo *root, RelOptInfo *rel, List *paths)
 		if (i < npaths)
 		{
 			/* duplicate clauseids, keep the cheaper one */
-			Cost		ncost;
-			Cost		ocost;
+			Cost ncost;
+			Cost ocost;
 			Selectivity nselec;
 			Selectivity oselec;
 
@@ -1465,9 +1467,9 @@ choose_bitmap_and(PlannerInfo *root, RelOptInfo *rel, List *paths)
 	 */
 	for (i = 0; i < npaths; i++)
 	{
-		Cost		costsofar;
-		List	   *qualsofar;
-		Bitmapset  *clauseidsofar;
+		Cost costsofar;
+		List *qualsofar;
+		Bitmapset *clauseidsofar;
 
 		pathinfo = pathinfoarray[i];
 		paths = list_make1(pathinfo->path);
@@ -1477,25 +1479,25 @@ choose_bitmap_and(PlannerInfo *root, RelOptInfo *rel, List *paths)
 
 		for (j = i + 1; j < npaths; j++)
 		{
-			Cost		newcost;
+			Cost newcost;
 
 			pathinfo = pathinfoarray[j];
 			/* Check for redundancy */
 			if (bms_overlap(pathinfo->clauseids, clauseidsofar))
-				continue;		/* consider it redundant */
+				continue; /* consider it redundant */
 			if (pathinfo->preds)
 			{
-				bool		redundant = false;
+				bool redundant = false;
 
 				/* we check each predicate clause separately */
-				foreach(l, pathinfo->preds)
+				foreach (l, pathinfo->preds)
 				{
-					Node	   *np = (Node *) lfirst(l);
+					Node *np = (Node *)lfirst(l);
 
 					if (predicate_implied_by(list_make1(np), qualsofar, false))
 					{
 						redundant = true;
-						break;	/* out of inner foreach loop */
+						break; /* out of inner foreach loop */
 					}
 				}
 				if (redundant)
@@ -1532,18 +1534,18 @@ choose_bitmap_and(PlannerInfo *root, RelOptInfo *rel, List *paths)
 	}
 
 	if (list_length(bestpaths) == 1)
-		return (Path *) linitial(bestpaths);	/* no need for AND */
-	return (Path *) create_bitmap_and_path(root, rel, bestpaths);
+		return (Path *)linitial(bestpaths); /* no need for AND */
+	return (Path *)create_bitmap_and_path(root, rel, bestpaths);
 }
 
 /* qsort comparator to sort in increasing index access cost order */
 static int
 path_usage_comparator(const void *a, const void *b)
 {
-	PathClauseUsage *pa = *(PathClauseUsage *const *) a;
-	PathClauseUsage *pb = *(PathClauseUsage *const *) b;
-	Cost		acost;
-	Cost		bcost;
+	PathClauseUsage *pa = *(PathClauseUsage *const *)a;
+	PathClauseUsage *pb = *(PathClauseUsage *const *)b;
+	Cost acost;
+	Cost bcost;
 	Selectivity aselec;
 	Selectivity bselec;
 
@@ -1615,9 +1617,8 @@ bitmap_and_cost_est(PlannerInfo *root, RelOptInfo *rel, List *paths)
 	 */
 	apath = create_bitmap_and_path(root, rel, paths);
 
-	return bitmap_scan_cost_est(root, rel, (Path *) apath);
+	return bitmap_scan_cost_est(root, rel, (Path *)apath);
 }
-
 
 /*
  * classify_index_clause_usage
@@ -1637,10 +1638,10 @@ static PathClauseUsage *
 classify_index_clause_usage(Path *path, List **clauselist)
 {
 	PathClauseUsage *result;
-	Bitmapset  *clauseids;
-	ListCell   *lc;
+	Bitmapset *clauseids;
+	ListCell *lc;
 
-	result = (PathClauseUsage *) palloc(sizeof(PathClauseUsage));
+	result = (PathClauseUsage *)palloc(sizeof(PathClauseUsage));
 	result->path = path;
 
 	/* Recursively find the quals and preds used by the path */
@@ -1665,16 +1666,16 @@ classify_index_clause_usage(Path *path, List **clauselist)
 
 	/* Build up a bitmapset representing the quals and preds */
 	clauseids = NULL;
-	foreach(lc, result->quals)
+	foreach (lc, result->quals)
 	{
-		Node	   *node = (Node *) lfirst(lc);
+		Node *node = (Node *)lfirst(lc);
 
 		clauseids = bms_add_member(clauseids,
 								   find_list_position(node, clauselist));
 	}
-	foreach(lc, result->preds)
+	foreach (lc, result->preds)
 	{
-		Node	   *node = (Node *) lfirst(lc);
+		Node *node = (Node *)lfirst(lc);
 
 		clauseids = bms_add_member(clauseids,
 								   find_list_position(node, clauselist));
@@ -1684,7 +1685,6 @@ classify_index_clause_usage(Path *path, List **clauselist)
 
 	return result;
 }
-
 
 /*
  * find_indexpath_quals
@@ -1706,32 +1706,32 @@ find_indexpath_quals(Path *bitmapqual, List **quals, List **preds)
 {
 	if (IsA(bitmapqual, BitmapAndPath))
 	{
-		BitmapAndPath *apath = (BitmapAndPath *) bitmapqual;
-		ListCell   *l;
+		BitmapAndPath *apath = (BitmapAndPath *)bitmapqual;
+		ListCell *l;
 
-		foreach(l, apath->bitmapquals)
+		foreach (l, apath->bitmapquals)
 		{
-			find_indexpath_quals((Path *) lfirst(l), quals, preds);
+			find_indexpath_quals((Path *)lfirst(l), quals, preds);
 		}
 	}
 	else if (IsA(bitmapqual, BitmapOrPath))
 	{
-		BitmapOrPath *opath = (BitmapOrPath *) bitmapqual;
-		ListCell   *l;
+		BitmapOrPath *opath = (BitmapOrPath *)bitmapqual;
+		ListCell *l;
 
-		foreach(l, opath->bitmapquals)
+		foreach (l, opath->bitmapquals)
 		{
-			find_indexpath_quals((Path *) lfirst(l), quals, preds);
+			find_indexpath_quals((Path *)lfirst(l), quals, preds);
 		}
 	}
 	else if (IsA(bitmapqual, IndexPath))
 	{
-		IndexPath  *ipath = (IndexPath *) bitmapqual;
-		ListCell   *l;
+		IndexPath *ipath = (IndexPath *)bitmapqual;
+		ListCell *l;
 
-		foreach(l, ipath->indexclauses)
+		foreach (l, ipath->indexclauses)
 		{
-			IndexClause *iclause = (IndexClause *) lfirst(l);
+			IndexClause *iclause = (IndexClause *)lfirst(l);
 
 			*quals = lappend(*quals, iclause->rinfo->clause);
 		}
@@ -1740,7 +1740,6 @@ find_indexpath_quals(Path *bitmapqual, List **quals, List **preds)
 	else
 		elog(ERROR, "unrecognized node type: %d", nodeTag(bitmapqual));
 }
-
 
 /*
  * find_list_position
@@ -1751,13 +1750,13 @@ find_indexpath_quals(Path *bitmapqual, List **quals, List **preds)
 static int
 find_list_position(Node *node, List **nodelist)
 {
-	int			i;
-	ListCell   *lc;
+	int i;
+	ListCell *lc;
 
 	i = 0;
-	foreach(lc, *nodelist)
+	foreach (lc, *nodelist)
 	{
-		Node	   *oldnode = (Node *) lfirst(lc);
+		Node *oldnode = (Node *)lfirst(lc);
 
 		if (equal(node, oldnode))
 			return i;
@@ -1769,7 +1768,6 @@ find_list_position(Node *node, List **nodelist)
 	return i;
 }
 
-
 /*
  * check_index_only
  *		Determine whether an index-only scan is possible for this index.
@@ -1777,11 +1775,11 @@ find_list_position(Node *node, List **nodelist)
 static bool
 check_index_only(RelOptInfo *rel, IndexOptInfo *index)
 {
-	bool		result;
-	Bitmapset  *attrs_used = NULL;
-	Bitmapset  *index_canreturn_attrs = NULL;
-	ListCell   *lc;
-	int			i;
+	bool result;
+	Bitmapset *attrs_used = NULL;
+	Bitmapset *index_canreturn_attrs = NULL;
+	ListCell *lc;
+	int i;
 
 	/* Index-only scans must be enabled */
 	if (!enable_indexonlyscan)
@@ -1797,7 +1795,7 @@ check_index_only(RelOptInfo *rel, IndexOptInfo *index)
 	 * Note: we must look at rel's targetlist, not the attr_needed data,
 	 * because attr_needed isn't computed for inheritance child rels.
 	 */
-	pull_varattnos((Node *) rel->reltarget->exprs, rel->relid, &attrs_used);
+	pull_varattnos((Node *)rel->reltarget->exprs, rel->relid, &attrs_used);
 
 	/*
 	 * Add all the attributes used by restriction clauses; but consider only
@@ -1810,11 +1808,11 @@ check_index_only(RelOptInfo *rel, IndexOptInfo *index)
 	 * matter in most cases, since we'd conclude that such attributes are
 	 * available from the index anyway.
 	 */
-	foreach(lc, index->indrestrictinfo)
+	foreach (lc, index->indrestrictinfo)
 	{
-		RestrictInfo *rinfo = (RestrictInfo *) lfirst(lc);
+		RestrictInfo *rinfo = (RestrictInfo *)lfirst(lc);
 
-		pull_varattnos((Node *) rinfo->clause, rel->relid, &attrs_used);
+		pull_varattnos((Node *)rinfo->clause, rel->relid, &attrs_used);
 	}
 
 	/*
@@ -1823,7 +1821,7 @@ check_index_only(RelOptInfo *rel, IndexOptInfo *index)
 	 */
 	for (i = 0; i < index->ncolumns; i++)
 	{
-		int			attno = index->indexkeys[i];
+		int attno = index->indexkeys[i];
 
 		/*
 		 * For the moment, we just ignore index expressions.  It might be nice
@@ -1876,8 +1874,8 @@ check_index_only(RelOptInfo *rel, IndexOptInfo *index)
 static double
 get_loop_count(PlannerInfo *root, Index cur_relid, Relids outer_relids)
 {
-	double		result;
-	int			outer_relid;
+	double result;
+	int outer_relid;
 
 	/* For a non-parameterized path, just return 1.0 quickly */
 	if (outer_relids == NULL)
@@ -1888,7 +1886,7 @@ get_loop_count(PlannerInfo *root, Index cur_relid, Relids outer_relids)
 	while ((outer_relid = bms_next_member(outer_relids, outer_relid)) >= 0)
 	{
 		RelOptInfo *outer_rel;
-		double		rowcount;
+		double rowcount;
 
 		/* Paranoia: ignore bogus relid indexes */
 		if (outer_relid >= root->simple_rel_array_size)
@@ -1896,7 +1894,7 @@ get_loop_count(PlannerInfo *root, Index cur_relid, Relids outer_relids)
 		outer_rel = root->simple_rel_array[outer_relid];
 		if (outer_rel == NULL)
 			continue;
-		Assert(outer_rel->relid == outer_relid);	/* sanity check on array */
+		Assert(outer_rel->relid == outer_relid); /* sanity check on array */
 
 		/* Other relation could be proven empty, if so ignore */
 		if (IS_DUMMY_REL(outer_rel))
@@ -1932,19 +1930,19 @@ adjust_rowcount_for_semijoins(PlannerInfo *root,
 							  Index outer_relid,
 							  double rowcount)
 {
-	ListCell   *lc;
+	ListCell *lc;
 
-	foreach(lc, root->join_info_list)
+	foreach (lc, root->join_info_list)
 	{
-		SpecialJoinInfo *sjinfo = (SpecialJoinInfo *) lfirst(lc);
+		SpecialJoinInfo *sjinfo = (SpecialJoinInfo *)lfirst(lc);
 
 		if (sjinfo->jointype == JOIN_SEMI &&
 			bms_is_member(cur_relid, sjinfo->syn_lefthand) &&
 			bms_is_member(outer_relid, sjinfo->syn_righthand))
 		{
 			/* Estimate number of unique-ified rows */
-			double		nraw;
-			double		nunique;
+			double nraw;
+			double nunique;
 
 			nraw = approximate_joinrel_size(root, sjinfo->syn_righthand);
 			nunique = estimate_num_groups(root,
@@ -1973,8 +1971,8 @@ adjust_rowcount_for_semijoins(PlannerInfo *root,
 static double
 approximate_joinrel_size(PlannerInfo *root, Relids relids)
 {
-	double		rowcount = 1.0;
-	int			relid;
+	double rowcount = 1.0;
+	int relid;
 
 	relid = -1;
 	while ((relid = bms_next_member(relids, relid)) >= 0)
@@ -1987,7 +1985,7 @@ approximate_joinrel_size(PlannerInfo *root, Relids relids)
 		rel = root->simple_rel_array[relid];
 		if (rel == NULL)
 			continue;
-		Assert(rel->relid == relid);	/* sanity check on array */
+		Assert(rel->relid == relid); /* sanity check on array */
 
 		/* Relation could be proven empty, if so ignore */
 		if (IS_DUMMY_REL(rel))
@@ -2001,7 +1999,6 @@ approximate_joinrel_size(PlannerInfo *root, Relids relids)
 	}
 	return rowcount;
 }
-
 
 /****************************************************************************
  *				----  ROUTINES TO CHECK QUERY CLAUSES  ----
@@ -2033,12 +2030,12 @@ match_join_clauses_to_index(PlannerInfo *root,
 							IndexClauseSet *clauseset,
 							List **joinorclauses)
 {
-	ListCell   *lc;
+	ListCell *lc;
 
 	/* Scan the rel's join clauses */
-	foreach(lc, rel->joininfo)
+	foreach (lc, rel->joininfo)
 	{
-		RestrictInfo *rinfo = (RestrictInfo *) lfirst(lc);
+		RestrictInfo *rinfo = (RestrictInfo *)lfirst(lc);
 
 		/* Check if clause can be moved to this rel */
 		if (!join_clause_is_movable_to(rinfo, rel))
@@ -2061,7 +2058,7 @@ static void
 match_eclass_clauses_to_index(PlannerInfo *root, IndexOptInfo *index,
 							  IndexClauseSet *clauseset)
 {
-	int			indexcol;
+	int indexcol;
 
 	/* No work if rel is not in any such ECs */
 	if (!index->rel->has_eclass_joins)
@@ -2070,7 +2067,7 @@ match_eclass_clauses_to_index(PlannerInfo *root, IndexOptInfo *index,
 	for (indexcol = 0; indexcol < index->nkeycolumns; indexcol++)
 	{
 		ec_member_matches_arg arg;
-		List	   *clauses;
+		List *clauses;
 
 		/* Generate clauses, skipping any that join to lateral_referencers */
 		arg.index = index;
@@ -2078,7 +2075,7 @@ match_eclass_clauses_to_index(PlannerInfo *root, IndexOptInfo *index,
 		clauses = generate_implied_equalities_for_column(root,
 														 index->rel,
 														 ec_member_matches_indexcol,
-														 (void *) &arg,
+														 (void *)&arg,
 														 index->rel->lateral_referencers);
 
 		/*
@@ -2101,11 +2098,11 @@ match_clauses_to_index(PlannerInfo *root,
 					   IndexOptInfo *index,
 					   IndexClauseSet *clauseset)
 {
-	ListCell   *lc;
+	ListCell *lc;
 
 	// SELECT * FROM t where val <=> '[3,3,3]' < 0.1; clauses->length => 1
 	// select * from t where val <=> '[1,2,3]' < 0.2 and val <=> '[1,3,4]' > 0.5; clauses->length => 2
-	foreach(lc, clauses)
+	foreach (lc, clauses)
 	{
 		RestrictInfo *rinfo = lfirst_node(RestrictInfo, lc);
 
@@ -2136,7 +2133,7 @@ match_clause_to_index(PlannerInfo *root,
 					  IndexOptInfo *index,
 					  IndexClauseSet *clauseset)
 {
-	int			indexcol;
+	int indexcol;
 
 	/*
 	 * Never match pseudoconstants to indexes.  (Normally a match could not
@@ -2158,12 +2155,12 @@ match_clause_to_index(PlannerInfo *root,
 	for (indexcol = 0; indexcol < index->nkeycolumns; indexcol++)
 	{
 		IndexClause *iclause;
-		ListCell   *lc;
+		ListCell *lc;
 
 		/* Ignore duplicates */
-		foreach(lc, clauseset->indexclauses[indexcol])
+		foreach (lc, clauseset->indexclauses[indexcol])
 		{
-			iclause = (IndexClause *) lfirst(lc);
+			iclause = (IndexClause *)lfirst(lc);
 
 			if (iclause->rinfo == rinfo)
 				return;
@@ -2256,8 +2253,8 @@ match_clause_to_indexcol(PlannerInfo *root,
 						 IndexOptInfo *index)
 {
 	IndexClause *iclause;
-	Expr	   *clause = rinfo->clause;
-	Oid			opfamily;
+	Expr *clause = rinfo->clause;
+	Oid opfamily;
 
 	Assert(indexcol < index->nkeycolumns);
 
@@ -2300,10 +2297,10 @@ match_clause_to_indexcol(PlannerInfo *root,
 	}
 	else if (index->amsearchnulls && IsA(clause, NullTest))
 	{
-		NullTest   *nt = (NullTest *) clause;
+		NullTest *nt = (NullTest *)clause;
 
 		if (!nt->argisrow &&
-			match_index_to_operand((Node *) nt->arg, indexcol, index))
+			match_index_to_operand((Node *)nt->arg, indexcol, index))
 		{
 			iclause = makeNode(IndexClause);
 			iclause->rinfo = rinfo;
@@ -2357,29 +2354,29 @@ match_boolean_index_clause(PlannerInfo *root,
 						   int indexcol,
 						   IndexOptInfo *index)
 {
-	Node	   *clause = (Node *) rinfo->clause;
-	Expr	   *op = NULL;
+	Node *clause = (Node *)rinfo->clause;
+	Expr *op = NULL;
 
 	/* Direct match? */
 	if (match_index_to_operand(clause, indexcol, index))
 	{
 		/* convert to indexkey = TRUE */
 		op = make_opclause(BooleanEqualOperator, BOOLOID, false,
-						   (Expr *) clause,
-						   (Expr *) makeBoolConst(true, false),
+						   (Expr *)clause,
+						   (Expr *)makeBoolConst(true, false),
 						   InvalidOid, InvalidOid);
 	}
 	/* NOT clause? */
 	else if (is_notclause(clause))
 	{
-		Node	   *arg = (Node *) get_notclausearg((Expr *) clause);
+		Node *arg = (Node *)get_notclausearg((Expr *)clause);
 
 		if (match_index_to_operand(arg, indexcol, index))
 		{
 			/* convert to indexkey = FALSE */
 			op = make_opclause(BooleanEqualOperator, BOOLOID, false,
-							   (Expr *) arg,
-							   (Expr *) makeBoolConst(false, false),
+							   (Expr *)arg,
+							   (Expr *)makeBoolConst(false, false),
 							   InvalidOid, InvalidOid);
 		}
 	}
@@ -2391,16 +2388,16 @@ match_boolean_index_clause(PlannerInfo *root,
 	 */
 	else if (clause && IsA(clause, BooleanTest))
 	{
-		BooleanTest *btest = (BooleanTest *) clause;
-		Node	   *arg = (Node *) btest->arg;
+		BooleanTest *btest = (BooleanTest *)clause;
+		Node *arg = (Node *)btest->arg;
 
 		if (btest->booltesttype == IS_TRUE &&
 			match_index_to_operand(arg, indexcol, index))
 		{
 			/* convert to indexkey = TRUE */
 			op = make_opclause(BooleanEqualOperator, BOOLOID, false,
-							   (Expr *) arg,
-							   (Expr *) makeBoolConst(true, false),
+							   (Expr *)arg,
+							   (Expr *)makeBoolConst(true, false),
 							   InvalidOid, InvalidOid);
 		}
 		else if (btest->booltesttype == IS_FALSE &&
@@ -2408,8 +2405,8 @@ match_boolean_index_clause(PlannerInfo *root,
 		{
 			/* convert to indexkey = FALSE */
 			op = make_opclause(BooleanEqualOperator, BOOLOID, false,
-							   (Expr *) arg,
-							   (Expr *) makeBoolConst(false, false),
+							   (Expr *)arg,
+							   (Expr *)makeBoolConst(false, false),
 							   InvalidOid, InvalidOid);
 		}
 	}
@@ -2445,14 +2442,14 @@ match_opclause_to_indexcol(PlannerInfo *root,
 						   IndexOptInfo *index)
 {
 	IndexClause *iclause;
-	OpExpr	   *clause = (OpExpr *) rinfo->clause;
-	Node	   *leftop,
-			   *rightop;
-	Oid			expr_op;
-	Oid			expr_coll;
-	Index		index_relid;
-	Oid			opfamily;
-	Oid			idxcollation;
+	OpExpr *clause = (OpExpr *)rinfo->clause;
+	Node *leftop,
+		*rightop;
+	Oid expr_op;
+	Oid expr_coll;
+	Index index_relid;
+	Oid opfamily;
+	Oid idxcollation;
 
 	/*
 	 * Only binary operators need apply.  (In theory, a planner support
@@ -2462,8 +2459,8 @@ match_opclause_to_indexcol(PlannerInfo *root,
 	if (list_length(clause->args) != 2)
 		return NULL;
 
-	leftop = (Node *) linitial(clause->args);
-	rightop = (Node *) lsecond(clause->args);
+	leftop = (Node *)linitial(clause->args);
+	rightop = (Node *)lsecond(clause->args);
 	expr_op = clause->opno;
 	expr_coll = clause->inputcollid;
 
@@ -2500,7 +2497,7 @@ match_opclause_to_indexcol(PlannerInfo *root,
 		 * If we didn't find a member of the index's opfamily, try the support
 		 * function for the operator's underlying function.
 		 */
-		set_opfuncid(clause);	/* make sure we have opfuncid */
+		set_opfuncid(clause); /* make sure we have opfuncid */
 		return get_index_clause_from_support(root,
 											 rinfo,
 											 clause->opfuncid,
@@ -2515,7 +2512,7 @@ match_opclause_to_indexcol(PlannerInfo *root,
 	{
 		if (IndexCollMatchesExprColl(idxcollation, expr_coll))
 		{
-			Oid			comm_op = get_commutator(expr_op);
+			Oid comm_op = get_commutator(expr_op);
 
 			if (OidIsValid(comm_op) &&
 				op_in_opfamily(comm_op, opfamily))
@@ -2540,7 +2537,7 @@ match_opclause_to_indexcol(PlannerInfo *root,
 		 * If we didn't find a member of the index's opfamily, try the support
 		 * function for the operator's underlying function.
 		 */
-		set_opfuncid(clause);	/* make sure we have opfuncid */
+		set_opfuncid(clause); /* make sure we have opfuncid */
 		return get_index_clause_from_support(root,
 											 rinfo,
 											 clause->opfuncid,
@@ -2559,7 +2556,7 @@ match_opclause_to_indexcol(PlannerInfo *root,
 			!bms_is_member(index_relid, rinfo->right_relids) &&
 			!contain_volatile_functions(right))
 		{
-			
+
 			char *name = get_am_name_me(index->relam);
 			if (strcmp(name, "spb") == 0 || strcmp(name, "mtree") == 0)
 			{
@@ -2595,9 +2592,9 @@ match_funcclause_to_indexcol(PlannerInfo *root,
 							 int indexcol,
 							 IndexOptInfo *index)
 {
-	FuncExpr   *clause = (FuncExpr *) rinfo->clause;
-	int			indexarg;
-	ListCell   *lc;
+	FuncExpr *clause = (FuncExpr *)rinfo->clause;
+	int indexarg;
+	ListCell *lc;
 
 	/*
 	 * We have no built-in intelligence about function clauses, but if there's
@@ -2610,9 +2607,9 @@ match_funcclause_to_indexcol(PlannerInfo *root,
 	 * only some of the other arguments need to be included in the indexqual.
 	 */
 	indexarg = 0;
-	foreach(lc, clause->args)
+	foreach (lc, clause->args)
 	{
-		Node	   *op = (Node *) lfirst(lc);
+		Node *op = (Node *)lfirst(lc);
 
 		if (match_index_to_operand(op, indexcol, index))
 		{
@@ -2643,9 +2640,9 @@ get_index_clause_from_support(PlannerInfo *root,
 							  int indexcol,
 							  IndexOptInfo *index)
 {
-	Oid			prosupport = get_func_support(funcid);
+	Oid prosupport = get_func_support(funcid);
 	SupportRequestIndexCondition req;
-	List	   *sresult;
+	List *sresult;
 
 	if (!OidIsValid(prosupport))
 		return NULL;
@@ -2653,14 +2650,14 @@ get_index_clause_from_support(PlannerInfo *root,
 	req.type = T_SupportRequestIndexCondition;
 	req.root = root;
 	req.funcid = funcid;
-	req.node = (Node *) rinfo->clause;
+	req.node = (Node *)rinfo->clause;
 	req.indexarg = indexarg;
 	req.index = index;
 	req.indexcol = indexcol;
 	req.opfamily = index->opfamily[indexcol];
 	req.indexcollation = index->indexcollations[indexcol];
 
-	req.lossy = true;			/* default assumption */
+	req.lossy = true; /* default assumption */
 
 	sresult = (List *)
 		DatumGetPointer(OidFunctionCall1(prosupport,
@@ -2669,16 +2666,16 @@ get_index_clause_from_support(PlannerInfo *root,
 	if (sresult != NIL)
 	{
 		IndexClause *iclause = makeNode(IndexClause);
-		List	   *indexquals = NIL;
-		ListCell   *lc;
+		List *indexquals = NIL;
+		ListCell *lc;
 
 		/*
 		 * The support function API says it should just give back bare
 		 * clauses, so here we must wrap each one in a RestrictInfo.
 		 */
-		foreach(lc, sresult)
+		foreach (lc, sresult)
 		{
-			Expr	   *clause = (Expr *) lfirst(lc);
+			Expr *clause = (Expr *)lfirst(lc);
 
 			indexquals = lappend(indexquals,
 								 make_simple_restrictinfo(root, clause));
@@ -2707,21 +2704,21 @@ match_saopclause_to_indexcol(PlannerInfo *root,
 							 int indexcol,
 							 IndexOptInfo *index)
 {
-	ScalarArrayOpExpr *saop = (ScalarArrayOpExpr *) rinfo->clause;
-	Node	   *leftop,
-			   *rightop;
-	Relids		right_relids;
-	Oid			expr_op;
-	Oid			expr_coll;
-	Index		index_relid;
-	Oid			opfamily;
-	Oid			idxcollation;
+	ScalarArrayOpExpr *saop = (ScalarArrayOpExpr *)rinfo->clause;
+	Node *leftop,
+		*rightop;
+	Relids right_relids;
+	Oid expr_op;
+	Oid expr_coll;
+	Index index_relid;
+	Oid opfamily;
+	Oid idxcollation;
 
 	/* We only accept ANY clauses, not ALL */
 	if (!saop->useOr)
 		return NULL;
-	leftop = (Node *) linitial(saop->args);
-	rightop = (Node *) lsecond(saop->args);
+	leftop = (Node *)linitial(saop->args);
+	rightop = (Node *)lsecond(saop->args);
 	right_relids = pull_varnos(root, rightop);
 	expr_op = saop->opno;
 	expr_coll = saop->inputcollid;
@@ -2775,15 +2772,15 @@ match_rowcompare_to_indexcol(PlannerInfo *root,
 							 int indexcol,
 							 IndexOptInfo *index)
 {
-	RowCompareExpr *clause = (RowCompareExpr *) rinfo->clause;
-	Index		index_relid;
-	Oid			opfamily;
-	Oid			idxcollation;
-	Node	   *leftop,
-			   *rightop;
-	bool		var_on_left;
-	Oid			expr_op;
-	Oid			expr_coll;
+	RowCompareExpr *clause = (RowCompareExpr *)rinfo->clause;
+	Index index_relid;
+	Oid opfamily;
+	Oid idxcollation;
+	Node *leftop,
+		*rightop;
+	bool var_on_left;
+	Oid expr_op;
+	Oid expr_coll;
 
 	/* Forget it if we're not dealing with a btree index */
 	if (index->relam != BTREE_AM_OID)
@@ -2803,8 +2800,8 @@ match_rowcompare_to_indexcol(PlannerInfo *root,
 	 * on the right).  We'll worry later about whether any additional
 	 * operators are matchable to the index.
 	 */
-	leftop = (Node *) linitial(clause->largs);
-	rightop = (Node *) linitial(clause->rargs);
+	leftop = (Node *)linitial(clause->largs);
+	rightop = (Node *)linitial(clause->rargs);
 	expr_op = linitial_oid(clause->opnos);
 	expr_coll = linitial_oid(clause->inputcollids);
 
@@ -2838,16 +2835,16 @@ match_rowcompare_to_indexcol(PlannerInfo *root,
 	/* We're good if the operator is the right type of opfamily member */
 	switch (get_op_opfamily_strategy(expr_op, opfamily))
 	{
-		case BTLessStrategyNumber:
-		case BTLessEqualStrategyNumber:
-		case BTGreaterEqualStrategyNumber:
-		case BTGreaterStrategyNumber:
-			return expand_indexqual_rowcompare(root,
-											   rinfo,
-											   indexcol,
-											   index,
-											   expr_op,
-											   var_on_left);
+	case BTLessStrategyNumber:
+	case BTLessEqualStrategyNumber:
+	case BTGreaterEqualStrategyNumber:
+	case BTGreaterStrategyNumber:
+		return expand_indexqual_rowcompare(root,
+										   rinfo,
+										   indexcol,
+										   index,
+										   expr_op,
+										   var_on_left);
 	}
 
 	return NULL;
@@ -2885,18 +2882,18 @@ expand_indexqual_rowcompare(PlannerInfo *root,
 							bool var_on_left)
 {
 	IndexClause *iclause = makeNode(IndexClause);
-	RowCompareExpr *clause = (RowCompareExpr *) rinfo->clause;
-	int			op_strategy;
-	Oid			op_lefttype;
-	Oid			op_righttype;
-	int			matching_cols;
-	List	   *expr_ops;
-	List	   *opfamilies;
-	List	   *lefttypes;
-	List	   *righttypes;
-	List	   *new_ops;
-	List	   *var_args;
-	List	   *non_var_args;
+	RowCompareExpr *clause = (RowCompareExpr *)rinfo->clause;
+	int op_strategy;
+	Oid op_lefttype;
+	Oid op_righttype;
+	int matching_cols;
+	List *expr_ops;
+	List *opfamilies;
+	List *lefttypes;
+	List *righttypes;
+	List *new_ops;
+	List *var_args;
+	List *non_var_args;
 
 	iclause->rinfo = rinfo;
 	iclause->indexcol = indexcol;
@@ -2936,9 +2933,9 @@ expand_indexqual_rowcompare(PlannerInfo *root,
 
 	while (matching_cols < list_length(var_args))
 	{
-		Node	   *varop = (Node *) list_nth(var_args, matching_cols);
-		Node	   *constop = (Node *) list_nth(non_var_args, matching_cols);
-		int			i;
+		Node *varop = (Node *)list_nth(var_args, matching_cols);
+		Node *constop = (Node *)list_nth(non_var_args, matching_cols);
+		int i;
 
 		expr_op = list_nth_oid(clause->opnos, matching_cols);
 		if (!var_on_left)
@@ -2946,12 +2943,12 @@ expand_indexqual_rowcompare(PlannerInfo *root,
 			/* indexkey is on right, so commute the operator */
 			expr_op = get_commutator(expr_op);
 			if (expr_op == InvalidOid)
-				break;			/* operator is not usable */
+				break; /* operator is not usable */
 		}
 		if (bms_is_member(index->rel->relid, pull_varnos(root, constop)))
-			break;				/* no good, Var on wrong side */
+			break; /* no good, Var on wrong side */
 		if (contain_volatile_functions(constop))
-			break;				/* no good, volatile comparison value */
+			break; /* no good, volatile comparison value */
 
 		/*
 		 * The Var side can match any key column of the index.
@@ -2967,7 +2964,7 @@ expand_indexqual_rowcompare(PlannerInfo *root,
 				break;
 		}
 		if (i >= index->nkeycolumns)
-			break;				/* no match found */
+			break; /* no match found */
 
 		/* Add column number to returned list */
 		iclause->indexcols = lappend_int(iclause->indexcols, i);
@@ -3015,9 +3012,9 @@ expand_indexqual_rowcompare(PlannerInfo *root,
 		}
 		else
 		{
-			ListCell   *opfamilies_cell;
-			ListCell   *lefttypes_cell;
-			ListCell   *righttypes_cell;
+			ListCell *opfamilies_cell;
+			ListCell *lefttypes_cell;
+			ListCell *righttypes_cell;
 
 			if (op_strategy == BTLessStrategyNumber)
 				op_strategy = BTLessEqualStrategyNumber;
@@ -3030,13 +3027,13 @@ expand_indexqual_rowcompare(PlannerInfo *root,
 					 lefttypes_cell, lefttypes,
 					 righttypes_cell, righttypes)
 			{
-				Oid			opfam = lfirst_oid(opfamilies_cell);
-				Oid			lefttype = lfirst_oid(lefttypes_cell);
-				Oid			righttype = lfirst_oid(righttypes_cell);
+				Oid opfam = lfirst_oid(opfamilies_cell);
+				Oid lefttype = lfirst_oid(lefttypes_cell);
+				Oid righttype = lfirst_oid(righttypes_cell);
 
 				expr_op = get_opfamily_member(opfam, lefttype, righttype,
 											  op_strategy);
-				if (!OidIsValid(expr_op))	/* should not happen */
+				if (!OidIsValid(expr_op)) /* should not happen */
 					elog(ERROR, "missing operator %d(%u,%u) in opfamily %u",
 						 op_strategy, lefttype, righttype, opfam);
 				new_ops = lappend_oid(new_ops, expr_op);
@@ -3048,7 +3045,7 @@ expand_indexqual_rowcompare(PlannerInfo *root,
 		{
 			RowCompareExpr *rc = makeNode(RowCompareExpr);
 
-			rc->rctype = (RowCompareType) op_strategy;
+			rc->rctype = (RowCompareType)op_strategy;
 			rc->opnos = new_ops;
 			rc->opfamilies = list_copy_head(clause->opfamilies,
 											matching_cols);
@@ -3057,11 +3054,11 @@ expand_indexqual_rowcompare(PlannerInfo *root,
 			rc->largs = list_copy_head(var_args, matching_cols);
 			rc->rargs = list_copy_head(non_var_args, matching_cols);
 			iclause->indexquals = list_make1(make_simple_restrictinfo(root,
-																	  (Expr *) rc));
+																	  (Expr *)rc));
 		}
 		else
 		{
-			Expr	   *op;
+			Expr *op;
 
 			/* We don't report an index column list in this case */
 			iclause->indexcols = NIL;
@@ -3077,7 +3074,6 @@ expand_indexqual_rowcompare(PlannerInfo *root,
 
 	return iclause;
 }
-
 
 /****************************************************************************
  *				----  ROUTINES TO CHECK ORDERING OPERATORS	----
@@ -3099,24 +3095,24 @@ expand_indexqual_rowcompare(PlannerInfo *root,
 static void
 match_pathkeys_to_index(IndexOptInfo *index, List *pathkeys,
 						List **orderby_clauses_p,
-						List **clause_columns_p)
+						List **clause_columns_p, bool *is_vector_expr)
 {
-	List	   *orderby_clauses = NIL;
-	List	   *clause_columns = NIL;
-	ListCell   *lc1;
+	List *orderby_clauses = NIL;
+	List *clause_columns = NIL;
+	ListCell *lc1;
 
-	*orderby_clauses_p = NIL;	/* set default results */
+	*orderby_clauses_p = NIL; /* set default results */
 	*clause_columns_p = NIL;
 
 	/* Only indexes with the amcanorderbyop property are interesting here */
 	if (!index->amcanorderbyop)
 		return;
 
-	foreach(lc1, pathkeys)
+	foreach (lc1, pathkeys)
 	{
-		PathKey    *pathkey = (PathKey *) lfirst(lc1);
-		bool		found = false;
-		ListCell   *lc2;
+		PathKey *pathkey = (PathKey *)lfirst(lc1);
+		bool found = false;
+		ListCell *lc2;
 
 		/*
 		 * Note: for any failure to match, we just return NIL immediately.
@@ -3140,10 +3136,10 @@ match_pathkeys_to_index(IndexOptInfo *index, List *pathkeys,
 		 * be considered to match more than one pathkey list, which is OK
 		 * here.  See also get_eclass_for_sort_expr.)
 		 */
-		foreach(lc2, pathkey->pk_eclass->ec_members)
+		foreach (lc2, pathkey->pk_eclass->ec_members)
 		{
-			EquivalenceMember *member = (EquivalenceMember *) lfirst(lc2);
-			int			indexcol;
+			EquivalenceMember *member = (EquivalenceMember *)lfirst(lc2);
+			int indexcol;
 
 			/* No possibility of match if it references other relations */
 			if (!bms_equal(member->em_relids, index->rel->relids))
@@ -3159,12 +3155,18 @@ match_pathkeys_to_index(IndexOptInfo *index, List *pathkeys,
 			 */
 			for (indexcol = 0; indexcol < index->nkeycolumns; indexcol++)
 			{
-				Expr	   *expr;
+				Expr *expr;
 
 				expr = match_clause_to_ordering_op(index,
 												   indexcol,
 												   member->em_expr,
 												   pathkey->pk_opfamily);
+
+				if (expr && IsA(expr, OpExpr) && ((OpExpr *)expr)->location == VectorExprFlag)
+				{
+					*is_vector_expr = true;
+				}
+
 				if (expr)
 				{
 					if (pathkey->limitCount != -1)
@@ -3176,19 +3178,20 @@ match_pathkeys_to_index(IndexOptInfo *index, List *pathkeys,
 					orderby_clauses = lappend(orderby_clauses, expr);
 					clause_columns = lappend_int(clause_columns, indexcol);
 					found = true;
+					if(*is_vector_expr) continue;
 					break;
 				}
 			}
 
-			if (found)			/* don't want to look at remaining members */
+			if (found) /* don't want to look at remaining members */
 				break;
 		}
 
-		if (!found)				/* fail if no match for this pathkey */
+		if (!found) /* fail if no match for this pathkey */
 			return;
 	}
 
-	*orderby_clauses_p = orderby_clauses;	/* success! */
+	*orderby_clauses_p = orderby_clauses; /* success! */
 	*clause_columns_p = clause_columns;
 }
 
@@ -3217,21 +3220,41 @@ match_pathkeys_to_index(IndexOptInfo *index, List *pathkeys,
  * If successful, return 'clause' as-is if the indexkey is on the left,
  * otherwise a commuted copy of 'clause'.  If no match, return NULL.
  */
+/**
+ * we need to support new pathkey for index scan.for m3v tree,we need to support like below:
+ * `SELECT * FROM t ORDER BY ((b <=> '[1,2,3]')*0.2 + (a <=> '[4,5,6]')*0.8);`
+ * so the pathkeys will be:
+ * 			Op: func '+'
+ * 			/			\
+ * 		   /			 \
+ * 		   * 			  *
+ * 		 /	\			/	\
+ * 		/	 \         /	 \
+ *  const	Op:      const    Op:
+ * 		  func '<=>'		func '<=>'
+ * 			/	\			  /	  \
+ * 	   	   /     \           /     \
+ *   	Var:b   const	   Var:a	const
+ * Unfortunately, postgres doesn't support this, for the sql above, it will generate only one path key.
+ * Let's see a origin support sql:
+ * sql: `select * from t order by a,b`
+ * we will get two pathkeys here.
+ */
 static Expr *
 match_clause_to_ordering_op(IndexOptInfo *index,
 							int indexcol,
 							Expr *clause,
 							Oid pk_opfamily)
 {
-	Oid			opfamily;
-	Oid			idxcollation;
-	Node	   *leftop,
-			   *rightop;
-	Oid			expr_op;
-	Oid			expr_coll;
-	Oid			sortfamily;
-	bool		commuted;
-
+	Oid opfamily;
+	Oid idxcollation;
+	Node *leftop,
+		*rightop;
+	Oid expr_op;
+	Oid expr_coll;
+	Oid sortfamily;
+	bool commuted;
+	Expr *vector_match_expr;
 	Assert(indexcol < index->nkeycolumns);
 
 	opfamily = index->opfamily[indexcol];
@@ -3246,8 +3269,9 @@ match_clause_to_ordering_op(IndexOptInfo *index,
 	rightop = get_rightop(clause);
 	if (!leftop || !rightop)
 		return NULL;
-	expr_op = ((OpExpr *) clause)->opno;
-	expr_coll = ((OpExpr *) clause)->inputcollid;
+
+	expr_op = ((OpExpr *)clause)->opno;
+	expr_coll = ((OpExpr *)clause)->inputcollid;
 
 	/*
 	 * We can forget the whole thing right away if wrong collation.
@@ -3263,6 +3287,7 @@ match_clause_to_ordering_op(IndexOptInfo *index,
 		!contain_var_clause(rightop) &&
 		!contain_volatile_functions(rightop))
 	{
+		// is_vector_type(rightop);
 		commuted = false;
 	}
 	else if (match_index_to_operand(rightop, indexcol, index) &&
@@ -3270,10 +3295,17 @@ match_clause_to_ordering_op(IndexOptInfo *index,
 			 !contain_volatile_functions(leftop))
 	{
 		/* Might match, but we need a commuted operator */
+		// is_vector_type(leftop);
 		expr_op = get_commutator(expr_op);
 		if (expr_op == InvalidOid)
 			return NULL;
 		commuted = true;
+	}
+	else if (vector_match_expr = match_vector_index_col(clause, indexcol, index), vector_match_expr)
+	{
+		// match multi col order by search for vector search.
+		((OpExpr *)vector_match_expr)->location = VectorExprFlag;
+		return vector_match_expr;
 	}
 	else
 		return NULL;
@@ -3289,7 +3321,7 @@ match_clause_to_ordering_op(IndexOptInfo *index,
 	/* We have a match.  Return clause or a commuted version thereof. */
 	if (commuted)
 	{
-		OpExpr	   *newclause = makeNode(OpExpr);
+		OpExpr *newclause = makeNode(OpExpr);
 
 		/* flat-copy all the fields of clause */
 		memcpy(newclause, clause, sizeof(OpExpr));
@@ -3299,12 +3331,11 @@ match_clause_to_ordering_op(IndexOptInfo *index,
 		newclause->opfuncid = InvalidOid;
 		newclause->args = list_make2(rightop, leftop);
 
-		clause = (Expr *) newclause;
+		clause = (Expr *)newclause;
 	}
 
 	return clause;
 }
-
 
 /****************************************************************************
  *				----  ROUTINES TO DO PARTIAL INDEX PREDICATE TESTS	----
@@ -3331,14 +3362,13 @@ match_clause_to_ordering_op(IndexOptInfo *index,
  * an index not predOK.  We must recompute indrestrictinfo each time, though,
  * to make sure any newly-added restrictions get into it if needed.
  */
-void
-check_index_predicates(PlannerInfo *root, RelOptInfo *rel)
+void check_index_predicates(PlannerInfo *root, RelOptInfo *rel)
 {
-	List	   *clauselist;
-	bool		have_partial;
-	bool		is_target_rel;
-	Relids		otherrels;
-	ListCell   *lc;
+	List *clauselist;
+	bool have_partial;
+	bool is_target_rel;
+	Relids otherrels;
+	ListCell *lc;
 
 	/* Indexes are available only on base or "other" member relations. */
 	Assert(IS_SIMPLE_REL(rel));
@@ -3349,9 +3379,9 @@ check_index_predicates(PlannerInfo *root, RelOptInfo *rel)
 	 * not, this is all we need to do.
 	 */
 	have_partial = false;
-	foreach(lc, rel->indexlist)
+	foreach (lc, rel->indexlist)
 	{
-		IndexOptInfo *index = (IndexOptInfo *) lfirst(lc);
+		IndexOptInfo *index = (IndexOptInfo *)lfirst(lc);
 
 		index->indrestrictinfo = rel->baserestrictinfo;
 		if (index->indpred)
@@ -3370,9 +3400,9 @@ check_index_predicates(PlannerInfo *root, RelOptInfo *rel)
 	clauselist = list_copy(rel->baserestrictinfo);
 
 	/* Scan the rel's join clauses */
-	foreach(lc, rel->joininfo)
+	foreach (lc, rel->joininfo)
 	{
-		RestrictInfo *rinfo = (RestrictInfo *) lfirst(lc);
+		RestrictInfo *rinfo = (RestrictInfo *)lfirst(lc);
 
 		/* Check if clause can be moved to this rel */
 		if (!join_clause_is_movable_to(rinfo, rel))
@@ -3428,15 +3458,15 @@ check_index_predicates(PlannerInfo *root, RelOptInfo *rel)
 	 * wasteful, but we may be able to use such indexes in OR clauses, cf
 	 * generate_bitmap_or_paths().
 	 */
-	foreach(lc, rel->indexlist)
+	foreach (lc, rel->indexlist)
 	{
-		IndexOptInfo *index = (IndexOptInfo *) lfirst(lc);
-		ListCell   *lcr;
+		IndexOptInfo *index = (IndexOptInfo *)lfirst(lc);
+		ListCell *lcr;
 
 		if (index->indpred == NIL)
-			continue;			/* ignore non-partial indexes here */
+			continue; /* ignore non-partial indexes here */
 
-		if (!index->predOK)		/* don't repeat work if already proven OK */
+		if (!index->predOK) /* don't repeat work if already proven OK */
 			index->predOK = predicate_implied_by(index->indpred, clauselist,
 												 false);
 
@@ -3446,12 +3476,12 @@ check_index_predicates(PlannerInfo *root, RelOptInfo *rel)
 
 		/* Else compute indrestrictinfo as the non-implied quals */
 		index->indrestrictinfo = NIL;
-		foreach(lcr, rel->baserestrictinfo)
+		foreach (lcr, rel->baserestrictinfo)
 		{
-			RestrictInfo *rinfo = (RestrictInfo *) lfirst(lcr);
+			RestrictInfo *rinfo = (RestrictInfo *)lfirst(lcr);
 
 			/* predicate_implied_by() assumes first arg is immutable */
-			if (contain_mutable_functions((Node *) rinfo->clause) ||
+			if (contain_mutable_functions((Node *)rinfo->clause) ||
 				!predicate_implied_by(list_make1(rinfo->clause),
 									  index->indpred, false))
 				index->indrestrictinfo = lappend(index->indrestrictinfo, rinfo);
@@ -3474,10 +3504,10 @@ ec_member_matches_indexcol(PlannerInfo *root, RelOptInfo *rel,
 						   EquivalenceClass *ec, EquivalenceMember *em,
 						   void *arg)
 {
-	IndexOptInfo *index = ((ec_member_matches_arg *) arg)->index;
-	int			indexcol = ((ec_member_matches_arg *) arg)->indexcol;
-	Oid			curFamily;
-	Oid			curCollation;
+	IndexOptInfo *index = ((ec_member_matches_arg *)arg)->index;
+	int indexcol = ((ec_member_matches_arg *)arg)->indexcol;
+	Oid curFamily;
+	Oid curCollation;
 
 	Assert(indexcol < index->nkeycolumns);
 
@@ -3502,7 +3532,7 @@ ec_member_matches_indexcol(PlannerInfo *root, RelOptInfo *rel,
 	if (!IndexCollMatchesExprColl(curCollation, ec->ec_collation))
 		return false;
 
-	return match_index_to_operand((Node *) em->em_expr, indexcol, index);
+	return match_index_to_operand((Node *)em->em_expr, indexcol, index);
 }
 
 /*
@@ -3527,12 +3557,11 @@ ec_member_matches_indexcol(PlannerInfo *root, RelOptInfo *rel,
  * this routine automatically adds in any usable baserestrictinfo clauses.
  * (Note that the passed-in restrictlist will be destructively modified!)
  */
-bool
-relation_has_unique_index_for(PlannerInfo *root, RelOptInfo *rel,
-							  List *restrictlist,
-							  List *exprlist, List *oprlist)
+bool relation_has_unique_index_for(PlannerInfo *root, RelOptInfo *rel,
+								   List *restrictlist,
+								   List *exprlist, List *oprlist)
 {
-	ListCell   *ic;
+	ListCell *ic;
 
 	Assert(list_length(exprlist) == list_length(oprlist));
 
@@ -3544,9 +3573,9 @@ relation_has_unique_index_for(PlannerInfo *root, RelOptInfo *rel,
 	 * Examine the rel's restriction clauses for usable var = const clauses
 	 * that we can add to the restrictlist.
 	 */
-	foreach(ic, rel->baserestrictinfo)
+	foreach (ic, rel->baserestrictinfo)
 	{
-		RestrictInfo *restrictinfo = (RestrictInfo *) lfirst(ic);
+		RestrictInfo *restrictinfo = (RestrictInfo *)lfirst(ic);
 
 		/*
 		 * Note: can_join won't be set for a restriction clause, but
@@ -3554,7 +3583,7 @@ relation_has_unique_index_for(PlannerInfo *root, RelOptInfo *rel,
 		 * doesn't contain volatile functions.
 		 */
 		if (restrictinfo->mergeopfamilies == NIL)
-			continue;			/* not mergejoinable */
+			continue; /* not mergejoinable */
 
 		/*
 		 * The clause certainly doesn't refer to anything but the given rel.
@@ -3582,10 +3611,10 @@ relation_has_unique_index_for(PlannerInfo *root, RelOptInfo *rel,
 		return false;
 
 	/* Examine each index of the relation ... */
-	foreach(ic, rel->indexlist)
+	foreach (ic, rel->indexlist)
 	{
-		IndexOptInfo *ind = (IndexOptInfo *) lfirst(ic);
-		int			c;
+		IndexOptInfo *ind = (IndexOptInfo *)lfirst(ic);
+		int c;
 
 		/*
 		 * If the index is not unique, or not immediately enforced, or if it's
@@ -3604,14 +3633,14 @@ relation_has_unique_index_for(PlannerInfo *root, RelOptInfo *rel,
 		 */
 		for (c = 0; c < ind->nkeycolumns; c++)
 		{
-			bool		matched = false;
-			ListCell   *lc;
-			ListCell   *lc2;
+			bool matched = false;
+			ListCell *lc;
+			ListCell *lc2;
 
-			foreach(lc, restrictlist)
+			foreach (lc, restrictlist)
 			{
-				RestrictInfo *rinfo = (RestrictInfo *) lfirst(lc);
-				Node	   *rexpr;
+				RestrictInfo *rinfo = (RestrictInfo *)lfirst(lc);
+				Node *rexpr;
 
 				/*
 				 * The condition's equality operator must be a member of the
@@ -3646,8 +3675,8 @@ relation_has_unique_index_for(PlannerInfo *root, RelOptInfo *rel,
 
 			forboth(lc, exprlist, lc2, oprlist)
 			{
-				Node	   *expr = (Node *) lfirst(lc);
-				Oid			opr = lfirst_oid(lc2);
+				Node *expr = (Node *)lfirst(lc);
+				Oid opr = lfirst_oid(lc2);
 
 				/* See if the expression matches the index key */
 				if (!match_index_to_operand(expr, c, ind))
@@ -3674,7 +3703,7 @@ relation_has_unique_index_for(PlannerInfo *root, RelOptInfo *rel,
 			}
 
 			if (!matched)
-				break;			/* no match; this index doesn't help us */
+				break; /* no match; this index doesn't help us */
 		}
 
 		/* Matched all key columns of this index? */
@@ -3701,21 +3730,20 @@ relation_has_unique_index_for(PlannerInfo *root, RelOptInfo *rel,
  * for non-boolean values, this function is provided to detect whether the
  * specified index column matches a boolean restriction clause.
  */
-bool
-indexcol_is_bool_constant_for_query(PlannerInfo *root,
-									IndexOptInfo *index,
-									int indexcol)
+bool indexcol_is_bool_constant_for_query(PlannerInfo *root,
+										 IndexOptInfo *index,
+										 int indexcol)
 {
-	ListCell   *lc;
+	ListCell *lc;
 
 	/* If the index isn't boolean, we can't possibly get a match */
 	if (!IsBooleanOpfamily(index->opfamily[indexcol]))
 		return false;
 
 	/* Check each restriction clause for the index's rel */
-	foreach(lc, index->rel->baserestrictinfo)
+	foreach (lc, index->rel->baserestrictinfo)
 	{
-		RestrictInfo *rinfo = (RestrictInfo *) lfirst(lc);
+		RestrictInfo *rinfo = (RestrictInfo *)lfirst(lc);
 
 		/*
 		 * As in match_clause_to_indexcol, never match pseudoconstants to
@@ -3733,11 +3761,192 @@ indexcol_is_bool_constant_for_query(PlannerInfo *root,
 	return false;
 }
 
-
 /****************************************************************************
  *				----  ROUTINES TO CHECK OPERANDS  ----
  ****************************************************************************/
+bool is_vector_type(Const *con)
+{
+	/* 获取 Const 节点的数据类型 OID */
+	Oid typeId = con->consttype;
 
+	/* 获取类型名称 */
+	HeapTuple typeTuple;
+	Form_pg_type typeForm;
+	char *typeName;
+
+	/* 通过 syscache 查找类型 */
+	typeTuple = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typeId));
+	if (HeapTupleIsValid(typeTuple))
+	{
+		typeForm = (Form_pg_type)GETSTRUCT(typeTuple);
+		typeName = NameStr(typeForm->typname);
+		/* 现在 typeName 包含了数据类型的名称 */
+		// elog(INFO, "typename:%s", typeName);
+		if (strcmp(typeName, "vector") == 0)
+		{
+			ReleaseSysCache(typeTuple);
+			return true;
+		}
+		/* 记得释放 syscache 的查询结果 */
+		ReleaseSysCache(typeTuple);
+	}
+	return false;
+}
+
+bool is_double_type(Const *con)
+{
+	// postgres=# select typname,oid from pg_type where  typname like '%float%';
+	//  typname | oid
+	// ---------+------
+	//  float4  |  700
+	//  float8  |  701
+	//  _float4 | 1021
+	//  _float8 | 1022
+	// (4 rows)
+	if (con->consttype == 700 || con->consttype == 701)
+	{
+		return true;
+	}
+	return false;
+}
+
+/**
+ * is_expected_vector_expr()
+ *	node should be like below:
+ *	      *
+ * 		 /	\
+ * 		/	 \
+ *  const	Op:func '<=>'
+ * 			/	\
+ * 	   	   /     \
+ *   	Var:b   const
+ */
+bool is_expected_vector_expr(Node *node, IndexOptInfo *index, int index_col)
+{
+	if (!is_opclause(node))
+		return false;
+	int indkey = index->indexkeys[index_col];
+	OpExpr *expr = (OpExpr *)node;
+	// // '*''s oid is 514
+	// Oid expr_op = expr->opno;
+	// if (expr_op != 514)
+	// 	return false;
+	Node *leftop = get_leftop(expr);
+	Node *rightop = get_rightop(expr);
+	if (leftop && IsA(leftop, Const) && rightop && IsA(rightop, OpExpr))
+	{
+		Const *con = (Const *)leftop;
+		if (is_double_type(con) && IsA(rightop, OpExpr))
+		{
+			OpExpr *op_expr = (OpExpr *)rightop;
+			Const *const_vector;
+			Var *indexcol;
+			if (IsA(get_leftop(op_expr), Var) && IsA(get_rightop(op_expr), Const))
+			{
+				const_vector = get_rightop(op_expr);
+				indexcol = get_leftop(op_expr);
+				/*
+				 * Simple index column; operand must be a matching Var.
+				 */
+				if (index->rel->relid == ((Var *)indexcol)->varno && indkey == ((Var *)indexcol)->varattno &&
+					((Var *)indexcol)->varnullingrels == NULL && const_vector && is_vector_type(const_vector))
+				{
+					return true;
+				}
+			}
+			else if ((IsA(get_rightop(op_expr), Var) && IsA(get_leftop(op_expr), Const)))
+			{
+				const_vector = get_leftop(op_expr);
+				indexcol = get_rightop(op_expr);
+				/*
+				 * Simple index column; operand must be a matching Var.
+				 */
+				if (index->rel->relid == ((Var *)indexcol)->varno && indkey == ((Var *)indexcol)->varattno &&
+					((Var *)indexcol)->varnullingrels == NULL && const_vector && is_vector_type(const_vector))
+				{
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+	else if (rightop && IsA(rightop, Const) && leftop && IsA(leftop, OpExpr))
+	{
+		Const *con = (Const *)rightop;
+
+		if (is_double_type(con) && IsA(leftop, OpExpr))
+		{
+			OpExpr *op_expr = (OpExpr *)leftop;
+			Const *const_vector;
+			Var *indexcol;
+			if (IsA(get_leftop(op_expr), Var) && IsA(get_rightop(op_expr), Const))
+			{
+				const_vector = get_rightop(op_expr);
+				indexcol = get_leftop(op_expr);
+				/*
+				 * Simple index column; operand must be a matching Var.
+				 */
+				if (index->rel->relid == ((Var *)indexcol)->varno && indkey == ((Var *)indexcol)->varattno &&
+					((Var *)indexcol)->varnullingrels == NULL && const_vector && is_vector_type(const_vector))
+				{
+					return true;
+				}
+			}
+			else if ((IsA(get_rightop(op_expr), Var) && IsA(get_leftop(op_expr), Const)))
+			{
+				const_vector = get_leftop(op_expr);
+				indexcol = get_rightop(op_expr);
+				/*
+				 * Simple index column; operand must be a matching Var.
+				 */
+				if (index->rel->relid == ((Var *)indexcol)->varno && indkey == ((Var *)indexcol)->varattno &&
+					((Var *)indexcol)->varnullingrels == NULL && const_vector && is_vector_type(const_vector))
+				{
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+	return false;
+}
+
+/**
+ * match_index_to_operand()
+ *		we support match_vector_index_col to extract the specified expr from the expresson tree.
+ *	for example:
+ * `select * from t order by 0.8 * (a<=>'[1,2,3]') + 0.2 * (b <=> '[4,5,6]')`, we can use this method
+ * to extract 0.8 * (a<=>'[1,2,3]') and 0.2 * (b <=> '[4,5,6]')`
+ */
+Expr *match_vector_index_col(Node *clause,
+							 int indexcol,
+							 IndexOptInfo *index)
+{
+
+	if (!clause || !is_opclause(clause))
+		return NULL;
+	Node *leftop = get_leftop(clause);
+	if (is_expected_vector_expr(leftop, index, indexcol))
+	{
+		return (Expr *)leftop;
+	}
+	Node *rightop = get_rightop(clause);
+	if (IsA(rightop, OpExpr))
+	{
+		if (is_expected_vector_expr(rightop, index, indexcol))
+		{
+			return (Expr *)rightop;
+		}
+		leftop = get_leftop(rightop);
+		if (is_expected_vector_expr(leftop, index, indexcol))
+		{
+			return (Expr *)leftop;
+		}
+		rightop = get_rightop(rightop);
+		return match_vector_index_col(rightop, indexcol, index);
+	}
+	return NULL;
+}
 /*
  * match_index_to_operand()
  *	  Generalized test for a match between an index's key
@@ -3752,12 +3961,11 @@ indexcol_is_bool_constant_for_query(PlannerInfo *root,
  *
  * This is exported for use in selfuncs.c.
  */
-bool
-match_index_to_operand(Node *operand,
-					   int indexcol,
-					   IndexOptInfo *index)
+bool match_index_to_operand(Node *operand,
+							int indexcol,
+							IndexOptInfo *index)
 {
-	int			indkey;
+	int indkey;
 
 	/*
 	 * Ignore any RelabelType node above the operand.   This is needed to be
@@ -3766,7 +3974,7 @@ match_index_to_operand(Node *operand,
 	 * eval_const_expressions() will have simplified if more than one.
 	 */
 	if (operand && IsA(operand, RelabelType))
-		operand = (Node *) ((RelabelType *) operand)->arg;
+		operand = (Node *)((RelabelType *)operand)->arg;
 
 	indkey = index->indexkeys[indexcol];
 	if (indkey != 0)
@@ -3775,9 +3983,9 @@ match_index_to_operand(Node *operand,
 		 * Simple index column; operand must be a matching Var.
 		 */
 		if (operand && IsA(operand, Var) &&
-			index->rel->relid == ((Var *) operand)->varno &&
-			indkey == ((Var *) operand)->varattno &&
-			((Var *) operand)->varnullingrels == NULL)
+			index->rel->relid == ((Var *)operand)->varno &&
+			indkey == ((Var *)operand)->varattno &&
+			((Var *)operand)->varnullingrels == NULL)
 			return true;
 	}
 	else
@@ -3787,9 +3995,9 @@ match_index_to_operand(Node *operand,
 		 * be avoided, at the cost of complicating all the callers of this
 		 * routine; doesn't seem worth it.)
 		 */
-		ListCell   *indexpr_item;
-		int			i;
-		Node	   *indexkey;
+		ListCell *indexpr_item;
+		int i;
+		Node *indexkey;
 
 		indexpr_item = list_head(index->indexprs);
 		for (i = 0; i < indexcol; i++)
@@ -3803,13 +4011,13 @@ match_index_to_operand(Node *operand,
 		}
 		if (indexpr_item == NULL)
 			elog(ERROR, "wrong number of index expressions");
-		indexkey = (Node *) lfirst(indexpr_item);
+		indexkey = (Node *)lfirst(indexpr_item);
 
 		/*
 		 * Does it match the operand?  Again, strip any relabeling.
 		 */
 		if (indexkey && IsA(indexkey, RelabelType))
-			indexkey = (Node *) ((RelabelType *) indexkey)->arg;
+			indexkey = (Node *)((RelabelType *)indexkey)->arg;
 
 		if (equal(indexkey, operand))
 			return true;
@@ -3838,13 +4046,12 @@ match_index_to_operand(Node *operand,
  * expr: the nodetree to be checked
  * index: the index of interest
  */
-bool
-is_pseudo_constant_for_index(PlannerInfo *root, Node *expr, IndexOptInfo *index)
+bool is_pseudo_constant_for_index(PlannerInfo *root, Node *expr, IndexOptInfo *index)
 {
 	/* pull_varnos is cheaper than volatility check, so do that first */
 	if (bms_is_member(index->rel->relid, pull_varnos(root, expr)))
-		return false;			/* no good, contains Var of table */
+		return false; /* no good, contains Var of table */
 	if (contain_volatile_functions(expr))
-		return false;			/* no good, volatile comparison value */
+		return false; /* no good, volatile comparison value */
 	return true;
 }

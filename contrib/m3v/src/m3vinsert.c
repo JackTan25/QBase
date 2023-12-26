@@ -66,6 +66,10 @@ void WriteLeafElementToPage(m3vElement e, Page page)
 
 /*
  * Insert a tuple into the index
+ * we use clustering algorithm :elkan_keamns https://cdn.aaai.org/ICML/2003/ICML03-022.pdf, the distance
+ * compute we chooes the W1.0. https://github.com/AdrianYu/hkmeans
+ * LSH: https://github.com/flann-lib/flann.git https://zhuanlan.zhihu.com/p/645577495
+ * https://zhuanlan.zhihu.com/p/667662224 spresh
  */
 bool m3vInsertTuple(Relation index, Datum *values, bool *isnull, ItemPointer heap_tid, Relation heapRel, m3vBuildState *buildstate, GenericXLogState *state)
 {

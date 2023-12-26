@@ -229,7 +229,7 @@ IndexNextWithReorder(IndexScanState *node)
 		 * has an ORDER BY value smaller than (or equal to) the value last
 		 * returned by the index, we can return it now.
 		 */
-		if (!pairingheap_is_empty(node->iss_ReorderQueue))
+		if (!node->is_multi_vector_search&&!pairingheap_is_empty(node->iss_ReorderQueue))
 		{
 			topmost = (ReorderTuple *) pairingheap_first(node->iss_ReorderQueue);
 
@@ -913,7 +913,7 @@ ExecInitIndexScan(IndexScan *node, EState *estate, int eflags)
 	indexstate->ss.ps.plan = (Plan *) node;
 	indexstate->ss.ps.state = estate;
 	indexstate->ss.ps.ExecProcNode = ExecIndexScan;
-
+	indexstate->is_multi_vector_search = node->is_multi_col_vector_search;
 	/*
 	 * Miscellaneous initialization
 	 *
@@ -990,7 +990,7 @@ ExecInitIndexScan(IndexScan *node, EState *estate, int eflags)
 						   &indexstate->iss_RuntimeKeys,
 						   &indexstate->iss_NumRuntimeKeys,
 						   NULL,	/* no ArrayKeys */
-						   NULL);
+						   NULL,node->is_multi_col_vector_search);
 
 	/*
 	 * any ORDER BY exprs have to be turned into scankeys in the same way
@@ -1004,10 +1004,10 @@ ExecInitIndexScan(IndexScan *node, EState *estate, int eflags)
 						   &indexstate->iss_RuntimeKeys,
 						   &indexstate->iss_NumRuntimeKeys,
 						   NULL,	/* no ArrayKeys */
-						   NULL);
+						   NULL,node->is_multi_col_vector_search);
 
 	/* Initialize sort support, if we need to re-check ORDER BY exprs */
-	if (indexstate->iss_NumOrderByKeys > 0)
+	if (indexstate->iss_NumOrderByKeys > 0&& !node->is_multi_col_vector_search)
 	{
 		int			numOrderByKeys = indexstate->iss_NumOrderByKeys;
 		int			i;
@@ -1153,7 +1153,7 @@ ExecIndexBuildScanKeys(PlanState *planstate, Relation index,
 					   List *quals, bool isorderby,
 					   ScanKey *scanKeys, int *numScanKeys,
 					   IndexRuntimeKeyInfo **runtimeKeys, int *numRuntimeKeys,
-					   IndexArrayKeyInfo **arrayKeys, int *numArrayKeys)
+					   IndexArrayKeyInfo **arrayKeys, int *numArrayKeys,bool is_multi_col_vector_search)
 {
 	ListCell   *qual_cell;
 	ScanKey		scan_keys;
@@ -1207,7 +1207,76 @@ ExecIndexBuildScanKeys(PlanState *planstate, Relation index,
 		indnkeyatts = IndexRelationGetNumberOfKeyAttributes(index);
 		if (IsA(clause, OpExpr))
 		{
-			if (!IsA((Expr*)get_leftop(clause), OpExpr))
+			if(is_multi_col_vector_search){
+				int			flags = 0;
+				if (isorderby)
+					flags |= SK_ORDER_BY;
+				Datum		scanvalue;
+				Datum		w;
+				OpExpr* 	op_expr;
+				if(IsA((Expr*)get_leftop(clause),OpExpr)){
+					// (indexkey <-> const) * w || (const <-> indexkey) * w 
+					op_expr = (OpExpr*)get_leftop(clause); 
+					opno = ((OpExpr*)op_expr)->opno;
+					opfuncid = ((OpExpr*)op_expr)->opfuncid;
+					Const* con = (Const*)get_rightop(clause);
+					w = con->constvalue;
+					float8 s1 = DatumGetFloat8(w);
+					float4 s = DatumGetFloat4(w);
+					if(IsA(get_leftop(op_expr),Const)){
+						// (const <-> indexkey)
+						scanvalue = ((Const*)get_leftop(op_expr))->constvalue;
+						varattno = ((Var*)get_rightop(op_expr))->varattno;
+					}else{
+						// (indexkey <-> const)
+						scanvalue = ((Const*)get_rightop(op_expr))->constvalue;
+						varattno = ((Var*)get_leftop(op_expr))->varattno;
+					}
+				}else{
+					//  w * (indexkey <-> const) || w * (const <-> indexkey)
+					op_expr = (OpExpr*)get_rightop(clause); 
+					opno = ((OpExpr*)op_expr)->opno;
+					opfuncid = ((OpExpr*)op_expr)->opfuncid;
+					Const* con = (Const*)get_leftop(clause);
+					w = con->constvalue;
+					float8 s1 = DatumGetFloat8(w);
+					float4 s = DatumGetFloat4(w);
+					if(IsA(get_leftop(op_expr),Const)){
+						// (const <-> indexkey)
+						scanvalue = ((Const*)get_leftop(op_expr))->constvalue;
+						varattno = ((Var*)get_rightop(op_expr))->varattno;
+					}else{
+						// (indexkey <-> const)
+						scanvalue = ((Const*)get_rightop(op_expr))->constvalue;
+						varattno = ((Var*)get_leftop(op_expr))->varattno;
+					}
+				}
+			
+				opfamily = index->rd_opfamily[varattno - 1];
+				const struct TableAmRoutine* tableam = index->rd_tableam;
+
+				get_op_opfamily_properties(opno, opfamily, isorderby,
+					&op_strategy,
+					&op_lefttype,
+					&op_righttype);
+				/*
+				 * initialize the scan key's fields appropriately
+				 */
+				ScanKeyEntryInitialize(this_scan_key,
+					flags,
+					varattno,	/* attribute number to scan */
+					op_strategy, /* op's strategy */
+					op_righttype,	/* strategy subtype */
+					((OpExpr*)op_expr)->inputcollid,	/* collation */
+					opfuncid,	/* reg proc to use */
+					scanvalue);	/* constant */
+				this_scan_key->w = w;
+				if (((OpExpr*)clause)->location > 0)
+				{
+					this_scan_key->KNNValues = ((OpExpr*)clause)->location;
+					// elog(INFO, "KNNValue:%d", this_scan_key->KNNValues);
+				}
+			}else if (!IsA((Expr*)get_leftop(clause), OpExpr))
 			{
 				/* indexkey op const or indexkey op expression */ // TODO: add the indexkey <-> const op const where search pattern
 				int			flags = 0;
@@ -1225,10 +1294,12 @@ ExecIndexBuildScanKeys(PlanState *planstate, Relation index,
 					leftop = ((RelabelType*)leftop)->arg;
 
 				Assert(leftop != NULL);
-
-				if (!(IsA(leftop, Var) &&
-					((Var*)leftop)->varno == INDEX_VAR))
-					elog(ERROR, "indexqual doesn't have key on left side");
+				
+				bool flag = IsA(leftop, Var); // remove me
+				Var* v = (Var*)leftop;
+				// if (!(IsA(leftop, Var) &&
+				// 	((Var*)leftop)->varno == INDEX_VAR))
+				// 	elog(ERROR, "indexqual doesn't have key on left side");
 
 				varattno = ((Var*)leftop)->varattno;
 				if (varattno < 1 || varattno > indnkeyatts)

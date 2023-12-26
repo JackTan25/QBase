@@ -16,7 +16,6 @@
 
 #include "nodes/pathnodes.h"
 
-
 /*
  * allpaths.c
  */
@@ -26,27 +25,26 @@ extern PGDLLIMPORT int min_parallel_table_scan_size;
 extern PGDLLIMPORT int min_parallel_index_scan_size;
 
 /* Hook for plugins to get control in set_rel_pathlist() */
-typedef void (*set_rel_pathlist_hook_type) (PlannerInfo *root,
-											RelOptInfo *rel,
-											Index rti,
-											RangeTblEntry *rte);
+typedef void (*set_rel_pathlist_hook_type)(PlannerInfo *root,
+										   RelOptInfo *rel,
+										   Index rti,
+										   RangeTblEntry *rte);
 extern PGDLLIMPORT set_rel_pathlist_hook_type set_rel_pathlist_hook;
 
 /* Hook for plugins to get control in add_paths_to_joinrel() */
-typedef void (*set_join_pathlist_hook_type) (PlannerInfo *root,
-											 RelOptInfo *joinrel,
-											 RelOptInfo *outerrel,
-											 RelOptInfo *innerrel,
-											 JoinType jointype,
-											 JoinPathExtraData *extra);
+typedef void (*set_join_pathlist_hook_type)(PlannerInfo *root,
+											RelOptInfo *joinrel,
+											RelOptInfo *outerrel,
+											RelOptInfo *innerrel,
+											JoinType jointype,
+											JoinPathExtraData *extra);
 extern PGDLLIMPORT set_join_pathlist_hook_type set_join_pathlist_hook;
 
 /* Hook for plugins to replace standard_join_search() */
-typedef RelOptInfo *(*join_search_hook_type) (PlannerInfo *root,
-											  int levels_needed,
-											  List *initial_rels);
+typedef RelOptInfo *(*join_search_hook_type)(PlannerInfo *root,
+											 int levels_needed,
+											 List *initial_rels);
 extern PGDLLIMPORT join_search_hook_type join_search_hook;
-
 
 extern RelOptInfo *make_one_rel(PlannerInfo *root, List *joinlist);
 extern RelOptInfo *standard_join_search(PlannerInfo *root, int levels_needed,
@@ -56,8 +54,8 @@ extern void generate_gather_paths(PlannerInfo *root, RelOptInfo *rel,
 								  bool override_rows);
 extern void generate_useful_gather_paths(PlannerInfo *root, RelOptInfo *rel,
 										 bool override_rows);
-extern int	compute_parallel_worker(RelOptInfo *rel, double heap_pages,
-									double index_pages, int max_workers);
+extern int compute_parallel_worker(RelOptInfo *rel, double heap_pages,
+								   double index_pages, int max_workers);
 extern void create_partial_bitmap_paths(PlannerInfo *root, RelOptInfo *rel,
 										Path *bitmapqual);
 extern void generate_partitionwise_join_paths(PlannerInfo *root,
@@ -80,6 +78,9 @@ extern bool indexcol_is_bool_constant_for_query(PlannerInfo *root,
 												int indexcol);
 extern bool match_index_to_operand(Node *operand, int indexcol,
 								   IndexOptInfo *index);
+extern Expr *match_vector_index_col(Node *clause,
+									int indexcol,
+									IndexOptInfo *index);
 extern void check_index_predicates(PlannerInfo *root, RelOptInfo *rel);
 
 /*
@@ -117,11 +118,11 @@ extern void mark_dummy_rel(RelOptInfo *rel);
  * equivclass.c
  *	  routines for managing EquivalenceClasses
  */
-typedef bool (*ec_matches_callback_type) (PlannerInfo *root,
-										  RelOptInfo *rel,
-										  EquivalenceClass *ec,
-										  EquivalenceMember *em,
-										  void *arg);
+typedef bool (*ec_matches_callback_type)(PlannerInfo *root,
+										 RelOptInfo *rel,
+										 EquivalenceClass *ec,
+										 EquivalenceMember *em,
+										 void *arg);
 
 extern bool process_equivalence(PlannerInfo *root,
 								RestrictInfo **p_restrictinfo,
@@ -196,10 +197,10 @@ extern bool is_redundant_with_indexclauses(RestrictInfo *rinfo,
  */
 typedef enum
 {
-	PATHKEYS_EQUAL,				/* pathkeys are identical */
-	PATHKEYS_BETTER1,			/* pathkey 1 is a superset of pathkey 2 */
-	PATHKEYS_BETTER2,			/* vice versa */
-	PATHKEYS_DIFFERENT			/* neither pathkey includes the other */
+	PATHKEYS_EQUAL,	   /* pathkeys are identical */
+	PATHKEYS_BETTER1,  /* pathkey 1 is a superset of pathkey 2 */
+	PATHKEYS_BETTER2,  /* vice versa */
+	PATHKEYS_DIFFERENT /* neither pathkey includes the other */
 } PathKeysComparison;
 
 extern PathKeysComparison compare_pathkeys(List *keys1, List *keys2);
@@ -263,4 +264,4 @@ extern PathKey *make_canonical_pathkey(PlannerInfo *root,
 extern void add_paths_to_append_rel(PlannerInfo *root, RelOptInfo *rel,
 									List *live_childrels);
 
-#endif							/* PATHS_H */
+#endif /* PATHS_H */
