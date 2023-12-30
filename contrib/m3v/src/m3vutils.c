@@ -95,7 +95,7 @@ bool m3vNormValue(FmgrInfo *procinfo, Oid collation, Datum *value, Vector *resul
 	return true;
 }
 
-void DebugEntirem3vTree(BlockNumber root, Relation index, int level)
+void DebugEntirem3vTree(BlockNumber root, Relation index, int level,int columns)
 {
 	Buffer buffer = ReadBuffer(index, root);
 	Page page = BufferGetPage(buffer);
@@ -104,15 +104,15 @@ void DebugEntirem3vTree(BlockNumber root, Relation index, int level)
 	elog(INFO, "level %d blkno %d parent_block_number: %d", level, root, parent_blkno);
 	if (PageType(m3vPageGetOpaque(page)->type) == M3V_INNER_PAGE_TYPE)
 	{
-		PrintInternalPageVectors("internal page", page);
+		PrintInternalPageVectors("internal page", page,columns);
 		for (OffsetNumber offset = FirstOffsetNumber; offset <= PageGetMaxOffsetNumber(page); offset = OffsetNumberNext(offset))
 		{
-			DebugEntirem3vTree(((m3vElementTuple)PageGetItem(page, PageGetItemId(page, offset)))->son_page, index, level + 1);
+			DebugEntirem3vTree(((m3vElementTuple)PageGetItem(page, PageGetItemId(page, offset)))->son_page, index, level + 1,columns);
 		}
 	}
 	else
 	{
-		PrintLeafPageVectors("leaf page", page);
+		PrintLeafPageVectors("leaf page", page,columns);
 	}
 }
 
@@ -195,25 +195,30 @@ void m3vUpdatePageOpaqueParentBlockNumber(BlockNumber blkno, Page page)
 /*
  * Set element tuple
  */
-void m3vSetElementTuple(m3vElementTuple etup, m3vElement element)
+void m3vSetElementTuple(m3vElementTuple etup, m3vElement element,int columns)
 {
 	etup->distance_to_parent = element->distance_to_parent;
 	// etup->parent_page = element->parent_page;
 	etup->radius = element->radius;
 	etup->son_page = element->son_page;
 	Assert(element->vec != NULL);
-	memcpy(&etup->vec, element->vec, VECTOR_SIZE(element->vec->dim));
+	for(int i = 0;i < columns;i++){
+		memcpy(&etup->vecs[i], element->vecs[i], VECTOR_SIZE(element->vecs[i]->dim));
+	}
+	
 }
 
 /*
  * Set element leaf tuple
  */
-void m3vSetLeafElementTuple(m3vElementLeafTuple etup, m3vElement element)
+void m3vSetLeafElementTuple(m3vElementLeafTuple etup, m3vElement element,int columns)
 {
 	etup->distance_to_parent = element->distance_to_parent;
 	// etup->parent_page = element->parent_page;
 	etup->data_tid = *(element->item_pointer);
-	memcpy(&etup->vec, element->vec, VECTOR_SIZE(element->vec->dim));
+	for(int i = 0;i < columns;i++){
+		memcpy(&etup->vecs[i], element->vecs[i], VECTOR_SIZE(element->vecs[i]->dim));
+	}
 	/**
 	 *	Don't use "etup->vec = *(element->vec);" directly, beacuse the FLEXIBLE_MEMEER_ARRAY
 	 *  can't copy by this way.
@@ -226,7 +231,7 @@ void m3vSetLeafElementTuple(m3vElementLeafTuple etup, m3vElement element)
  * Allocate an element
  */
 m3vElement
-m3vInitElement(ItemPointer tid, float8 radius, float8 distance_to_parent, BlockNumber son_page, Vector *vector)
+m3vInitElement(ItemPointer tid, float8 radius, float8 distance_to_parent, BlockNumber son_page, Datum *values,int columns)
 {
 	m3vElement element = palloc(sizeof(m3vElementData));
 	element->distance_to_parent = distance_to_parent;
@@ -234,7 +239,9 @@ m3vInitElement(ItemPointer tid, float8 radius, float8 distance_to_parent, BlockN
 	element->son_page = son_page;
 	// element->parent_page = parent_page;
 	element->item_pointer = tid;
-	element->vec = vector;
+	for(int i = 0;i < columns;i++){
+		element->vecs[i] = DatumGetVector(PointerGetDatum(PG_DETOAST_DATUM(values[i])));
+	}
 	return element;
 }
 
@@ -341,6 +348,16 @@ void m3vUpdateMetaPage(Relation index, BlockNumber root, ForkNumber forkNum)
 /**
  * Distance Computation for two vector
  */
+
+float GetDistances(Vector* vecs1,Vector* vecs2, FmgrInfo *procinfo, Oid collation,int columns)
+{
+	float res = 0;
+	for(int i = 0;i < columns;i++){
+		res+= DatumGetFloat8(FunctionCall2Coll(procinfo, collation, PointerGetDatum(&vecs1[i]), PointerGetDatum(&vecs2[i])));
+	}
+	return res;
+}
+
 float GetDistance(Datum q1, Datum q2, FmgrInfo *procinfo, Oid collation)
 {
 	return DatumGetFloat8(FunctionCall2Coll(procinfo, collation, q1, q2));
@@ -373,18 +390,18 @@ float8 max(float8 a, float8 b)
  *  Remember to do copy up, not pull up. this is different with Bplus Tree,
  *  because we need to maintain the child ball partition
  */
-Page SplitInternalPage(Page internal_page, Page new_page, FmgrInfo *procinfo, Oid collation, m3vElementTuple left_centor, m3vElementTuple insert_data, OffsetNumber left_off, Datum *left_copy_up, Datum *right_copy_up, float8 *left_radius, float8 *right_radius)
+Page SplitInternalPage(Page internal_page, Page new_page, FmgrInfo *procinfo, Oid collation, m3vElementTuple left_centor, m3vElementTuple insert_data, OffsetNumber left_off, Datum *left_copy_up, Datum *right_copy_up, float8 *left_radius, float8 *right_radius,int columns)
 {
-	PrintInternalPageVectors("Old Page Before Split Page Vector: ", internal_page);
-	PrintInternalPageVectors("New Page Before Spilt Page Vector: ", new_page);
+	PrintInternalPageVectors("Old Page Before Split Page Vector: ", internal_page,columns);
+	PrintInternalPageVectors("New Page Before Spilt Page Vector: ", new_page,columns);
 
 	Page temp_page;
 	m3vPairingHeapUtils heap;
 	OffsetNumber offsets;
 	m3vElementTuple elem;
-	Size etupSize;
+	Size etupSize = 0;
 	bool in_left = false;
-	etupSize = M3V_ELEMENT_TUPLE_SIZE(left_centor->vec.dim);
+	etupSize = M3V_ELEMENT_TUPLE_SIZE(left_centor->vecs[0].dim);
 
 	offsets = PageGetMaxOffsetNumber(internal_page);
 	// replace left_offset,right centor as a insert_data
@@ -398,8 +415,8 @@ Page SplitInternalPage(Page internal_page, Page new_page, FmgrInfo *procinfo, Oi
 	OffsetNumber leftRand = rand() % (offsets / 2) + 1;
 	OffsetNumber rightRand = rand() % (offsets - offsets / 2) + offsets / 2 + 1;
 
-	*left_copy_up = PointerGetDatum(&((m3vElementTuple)PageGetItem(internal_page, PageGetItemId(internal_page, leftRand)))->vec);
-	*right_copy_up = PointerGetDatum(&((m3vElementTuple)PageGetItem(internal_page, PageGetItemId(internal_page, rightRand)))->vec);
+	*left_copy_up = PointerGetDatum(&((m3vElementTuple)PageGetItem(internal_page, PageGetItemId(internal_page, leftRand)))->vecs);
+	*right_copy_up = PointerGetDatum(&((m3vElementTuple)PageGetItem(internal_page, PageGetItemId(internal_page, rightRand)))->vecs);
 
 	// update son block for left_copy_up and right_copy_up
 
@@ -417,13 +434,13 @@ Page SplitInternalPage(Page internal_page, Page new_page, FmgrInfo *procinfo, Oi
 		heap.visited[offset - 1] = false;
 		// left candidate
 		m3vCandidate *left_candidate = palloc0(sizeof(m3vCandidate));
-		left_candidate->distance = GetDistance(PointerGetDatum(&etup->vec), *left_copy_up, procinfo, collation);
+		left_candidate->distance = GetDistances(etup->vecs, *left_copy_up, procinfo, collation,columns);
 		left_candidate->element = PointerGetDatum(etup);
 		left_candidate->id = offset;
 		// elog(INFO, "left id: %d,distance: %f ", left_candidate->id, left_candidate->distance);
 		// right candidate
 		m3vCandidate *right_candidate = palloc0(sizeof(m3vCandidate));
-		right_candidate->distance = GetDistance(PointerGetDatum(&etup->vec), *right_copy_up, procinfo, collation);
+		right_candidate->distance = GetDistances(&etup->vecs, *right_copy_up, procinfo, collation,columns);
 		right_candidate->element = PointerGetDatum(etup);
 		right_candidate->id = offset;
 		// elog(INFO, "right id: %d,distance: %f ", right_candidate->id, right_candidate->distance);
@@ -478,14 +495,14 @@ Page SplitInternalPage(Page internal_page, Page new_page, FmgrInfo *procinfo, Oi
 		}
 	}
 
-	PrintInternalPageVectors("Old Page After Split Page Vector: ", temp_page);
-	PrintInternalPageVectors("New Page After Spilt Page Vector: ", new_page);
+	PrintInternalPageVectors("Old Page After Split Page Vector: ", temp_page,columns);
+	PrintInternalPageVectors("New Page After Spilt Page Vector: ", new_page,columns);
 	// Insert insert_data
-	PrintVector("left_copy_up vector", DatumGetVector(*left_copy_up));
-	PrintVector("right_copy_up vector", DatumGetVector(*right_copy_up));
-	PrintVector("insert_data vector", &insert_data->vec);
-	float8 left_distance = GetDistance(*left_copy_up, PointerGetDatum(&insert_data->vec), procinfo, collation);
-	float8 right_distance = GetDistance(*right_copy_up, PointerGetDatum(&insert_data->vec), procinfo, collation);
+	PrintVectors("left_copy_up vector", *left_copy_up,columns);
+	PrintVectors("right_copy_up vector", *right_copy_up,columns);
+	PrintVectors("insert_data vector", &insert_data->vecs);
+	float8 left_distance = GetDistances(*left_copy_up, insert_data->vecs, procinfo, collation,columns);
+	float8 right_distance = GetDistances(*right_copy_up, insert_data->vecs, procinfo, collation,columns);
 	elem = insert_data;
 	if (left_distance < right_distance)
 	{
@@ -531,18 +548,18 @@ Page SplitInternalPage(Page internal_page, Page new_page, FmgrInfo *procinfo, Oi
 		Datum temp = *left_copy_up;
 		*left_copy_up = *right_copy_up;
 		*right_copy_up = temp;
-		PrintInternalPageVectors("Old Page After Split in left Page Vector: ", temp_page);
-		PrintInternalPageVectors("New Page After Spilt in left Page Vector: ", new_page);
+		PrintInternalPageVectors("Old Page After Split in left Page Vector: ", temp_page,columns);
+		PrintInternalPageVectors("New Page After Spilt in left Page Vector: ", new_page,columns);
 	}
-	PrintInternalPageVectors("Old Page After Split Page2 Vector: ", temp_page);
-	PrintInternalPageVectors("New Page After Spilt Page2 Vector: ", new_page);
+	PrintInternalPageVectors("Old Page After Split Page2 Vector: ", temp_page,columns);
+	PrintInternalPageVectors("New Page After Spilt Page2 Vector: ", new_page,columns);
 	return temp_page;
 }
 
 /**
  *	SplitLeafPage
  */
-Page SplitLeafPage(Page page, Page new_page, FmgrInfo *procinfo, Oid collation, m3vElementLeafTuple insert_data, Datum *left_centor, Datum *right_centor, float8 *left_radius, float8 *right_radius)
+Page SplitLeafPage(Page page, Page new_page, FmgrInfo *procinfo, Oid collation, m3vElementLeafTuple insert_data, Datum *left_centor, Datum *right_centor, float8 *left_radius, float8 *right_radius,int columns)
 {
 	// PrintLeafPageVectors("Old Page Before Split Page Vector: ", page);
 	// PrintLeafPageVectors("New Page Before Spilt Page Vector: ", new_page);
@@ -556,8 +573,8 @@ Page SplitLeafPage(Page page, Page new_page, FmgrInfo *procinfo, Oid collation, 
 	OffsetNumber leftRand = rand() % (offsets / 2) + 1;
 	OffsetNumber rightRand = rand() % (offsets - offsets / 2) + offsets / 2 + 1;
 	// PrintLeafPageVectors("left page old: ", page);
-	*left_centor = PointerGetDatum(&((m3vElementLeafTuple)PageGetItem(page, PageGetItemId(page, leftRand)))->vec);
-	*right_centor = PointerGetDatum(&((m3vElementLeafTuple)PageGetItem(page, PageGetItemId(page, rightRand)))->vec);
+	*left_centor = PointerGetDatum(&((m3vElementLeafTuple)PageGetItem(page, PageGetItemId(page, leftRand)))->vecs);
+	*right_centor = PointerGetDatum(&((m3vElementLeafTuple)PageGetItem(page, PageGetItemId(page, rightRand)))->vecs);
 
 	PrintVector("Split left centor: ", DatumGetVector(*left_centor));
 	PrintVector("Split right centor: ", DatumGetVector(*right_centor));
@@ -572,7 +589,10 @@ Page SplitLeafPage(Page page, Page new_page, FmgrInfo *procinfo, Oid collation, 
 	 */
 	temp_page = PageGetTempPageCopySpecial(page);
 
-	Size etupSize = M3V_ELEMENT_LEAF_TUPLE_SIZE(insert_data->vec.dim);
+	Size etupSize = 0;
+	for(int i = 0;i < columns;i++){
+		etupSize += M3V_ELEMENT_LEAF_TUPLE_SIZE(insert_data->vecs[i].dim);
+	}
 
 	for (int offset = FirstOffsetNumber; offset <= offsets; offset = OffsetNumberNext(offset))
 	{
@@ -580,13 +600,13 @@ Page SplitLeafPage(Page page, Page new_page, FmgrInfo *procinfo, Oid collation, 
 		heap.visited[offset - 1] = false;
 		// left candidate
 		m3vCandidate *left_candidate = palloc0(sizeof(m3vCandidate));
-		left_candidate->distance = GetDistance(PointerGetDatum(&etup->vec), *left_centor, procinfo, collation);
+		left_candidate->distance = GetDistances(etup->vecs, *left_centor, procinfo, collation,columns);
 		left_candidate->element = PointerGetDatum(etup);
 		left_candidate->id = offset;
 		// elog(INFO, "left id: %d,distance: %f ", left_candidate->id, left_candidate->distance);
 		// right candidate
 		m3vCandidate *right_candidate = palloc0(sizeof(m3vCandidate));
-		right_candidate->distance = GetDistance(PointerGetDatum(&etup->vec), *right_centor, procinfo, collation);
+		right_candidate->distance = GetDistances(etup->vecs, *right_centor, procinfo, collation,columns);
 		right_candidate->element = PointerGetDatum(etup);
 		right_candidate->id = offset;
 		// elog(INFO, "right id: %d,distance: %f ", right_candidate->id, right_candidate->distance);
@@ -640,8 +660,8 @@ Page SplitLeafPage(Page page, Page new_page, FmgrInfo *procinfo, Oid collation, 
 	// PrintLeafPageVectors("test new leaf page before ", new_page);
 	// PrintVector("insert data", &insert_data->vec);
 	// Insert insert_data
-	float8 left_distance = GetDistance(*left_centor, PointerGetDatum(&insert_data->vec), procinfo, collation);
-	float8 right_distance = GetDistance(*right_centor, PointerGetDatum(&insert_data->vec), procinfo, collation);
+	float8 left_distance = GetDistances(*left_centor, insert_data->vecs, procinfo, collation,columns);
+	float8 right_distance = GetDistancs(*right_centor,insert_data->vecs, procinfo, collation);
 	elem = insert_data;
 	if (left_distance < right_distance)
 	{
@@ -672,8 +692,8 @@ Page SplitLeafPage(Page page, Page new_page, FmgrInfo *procinfo, Oid collation, 
 			PageAddItem(temp_page, (Item)(elem), etupSize, InvalidOffsetNumber, false, false);
 		}
 	}
-	PrintLeafPageVectors("temp page vectors:\n ", temp_page);
-	PrintLeafPageVectors("new page:\n ", new_page);
+	PrintLeafPageVectors("temp page vectors:\n ", temp_page,columns);
+	PrintLeafPageVectors("new page:\n ", new_page,columns);
 	return temp_page;
 	// PageRestoreTempPage(temp_page, page);
 	// Debug split page info

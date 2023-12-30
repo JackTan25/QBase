@@ -64,6 +64,7 @@ CreateMetaPage(m3vBuildState *buildstate)
 		metap->dimentions[i] = TupleDescAttr(index->rd_att, 0)->atttypmod;
 	}
 	metap->root = InvalidBlockNumber;
+	metap->columns = RelationGetNumberOfAttributes(index);
 	m3vCommitBuffer(buf, state);
 }
 
@@ -135,7 +136,7 @@ BuildCallback(Relation index, CALLBACK_ITEM_POINTER, Datum *values,
 
 		oldCtx = MemoryContextSwitchTo(buildstate->tmpCtx);
 
-		if (m3vInsertTuple(buildstate->index, values, isnull, tid, buildstate->heap, buildstate, state))
+		if (m3vInsertTuple(buildstate->index, values, isnull, tid, buildstate->heap, buildstate, state,RelationGetNumberOfAttributes(index)))
 			UpdateProgress(PROGRESS_CREATEIDX_TUPLES_DONE, ++buildstate->indtuples);
 
 		/* Reset memory context */
@@ -146,15 +147,15 @@ BuildCallback(Relation index, CALLBACK_ITEM_POINTER, Datum *values,
 	}
 
 	/* Allocate necessary memory outside of memory context */
-	element = m3vInitElement(tid, 0, 0, InvalidBlockNumber, InvalidBlockNumber);
-	element->vec = palloc(VECTOR_SIZE(buildstate->dimensions));
+	element = m3vInitElement(tid, 0, 0, InvalidBlockNumber,values,RelationGetNumberOfAttributes(index));
+	// element->vec = palloc(VECTOR_SIZE(buildstate->dimensions));
 
 	/* Use memory context since detoast can allocate */
 	oldCtx = MemoryContextSwitchTo(buildstate->tmpCtx);
 	XLogEnsureRecordSpace(XLR_MAX_BLOCK_ID, 150);
 	GenericXLogState *xlg_state = GenericXLogStart(index);
 	/* Insert tuple */
-	inserted = m3vInsertTuple(buildstate->index, values, isnull, tid, buildstate->heap, buildstate, xlg_state);
+	inserted = m3vInsertTuple(buildstate->index, values, isnull, tid, buildstate->heap, buildstate, xlg_state,RelationGetNumberOfAttributes(index));
 	GenericXLogFinish(xlg_state);
 	/* Reset memory context */
 	MemoryContextSwitchTo(oldCtx);

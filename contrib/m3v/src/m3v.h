@@ -62,8 +62,20 @@
 /* PROGRESS_CREATEIDX_SUBPHASE_INITIALIZE is 1 */
 #define PROGRESS_M3V_PHASE_LOAD 2
 
-#define M3V_ELEMENT_TUPLE_SIZE(_dim) MAXALIGN(offsetof(m3vElementTupleData, vec) + VECTOR_SIZE(_dim))
-#define M3V_ELEMENT_LEAF_TUPLE_SIZE(_dim) MAXALIGN(offsetof(m3vElementLeafTupleData, vec) + VECTOR_SIZE(_dim))
+#define M3V_ELEMENT_TUPLE_SIZE(_dim) MAXALIGN(offsetof(m3vElementTupleData, vecs) + VECTOR_SIZE(_dim))
+#define M3V_ELEMENT_TUPLE_SIZES(vecs,_columns,result) \
+	do { \
+        for (int i = (0); i <= (_columns); ++i) { \
+            (result) += M3V_ELEMENT_TUPLE_SIZE(vecs[i]->dim); \
+        } \
+    } while (0)
+#define M3V_ELEMENT_LEAF_TUPLE_SIZE(_dim) MAXALIGN(offsetof(m3vElementLeafTupleData, vecs) + VECTOR_SIZE(_dim))
+#define M3V_ELEMENT_LEAF_TUPLE_SIZES(vecs,_columns,result) \
+	do { \
+        for (int i = (0); i <= (_columns); ++i) { \
+            (result) += M3V_ELEMENT_LEAF_TUPLE_SIZE(vecs[i]->dim); \
+        } \
+    } while (0)
 #define M3V_NEIGHBOR_TUPLE_SIZE(level, m) MAXALIGN(offsetof(m3vNeighborTupleData, indextids) + ((level) + 2) * (m) * sizeof(ItemPointerData))
 
 #define m3vPageGetOpaque(page) ((m3vPageOpaque)PageGetSpecialPointer(page))
@@ -116,10 +128,10 @@ typedef struct m3vElementData
 	BlockNumber son_page;
 	// parent_buffer,we can get from Opaque
 	// BlockNumber parent_page;
-	// 4. center data
-	Vector *vec;
 	// 5. item_poniter
 	ItemPointer item_pointer;
+	// 4. center data
+	Vector *vecs[FLEXIBLE_ARRAY_MEMBER];
 } m3vElementData;
 
 // One block can only hold 200 entrys at most
@@ -261,14 +273,14 @@ typedef struct m3vElementTupleData
 	/* data */
 	// 1. the radius of this entry
 	float8 radius;
-	// 2. distance to parent
+	// 2. distance to parent(1.0)
 	float8 distance_to_parent;
 	// 3. the pointer to the leaf page
 	BlockNumber son_page;
 	// parent_blkno, we can get from Opaque
 	// BlockNumber parent_page;
 	// 4. center data
-	Vector vec;
+	Vector vecs[FLEXIBLE_ARRAY_MEMBER];
 } m3vElementTupleData;
 
 typedef m3vElementTupleData *m3vElementTuple;
@@ -283,7 +295,7 @@ typedef struct m3vElementLeafTupleData
 	// 2. heap tid
 	ItemPointerData data_tid;
 	// 3. real value data
-	Vector vec;
+	Vector vecs[FLEXIBLE_ARRAY_MEMBER];
 } m3vElementLeafTupleData;
 
 typedef m3vElementLeafTupleData *m3vElementLeafTuple;
@@ -354,8 +366,9 @@ uint8 PageType(uint8 union_data);
 List *m3vSearchLayer(Datum q, List *ep, int ef, int lc, Relation index, FmgrInfo *procinfo, Oid collation, int m, bool inserting, m3vElement skipElement);
 m3vElement m3vGetEntryPoint(Relation index);
 m3vMetaPageData m3vGetMetaPageInfo(Relation index);
-m3vElement m3vInitElement(ItemPointer tid, float8 radius, float8 distance_to_parent, BlockNumber son_page, Vector *vector);
+m3vElement m3vInitElement(ItemPointer tid, float8 radius, float8 distance_to_parent, BlockNumber son_page, Datum *values,int columns);
 float GetDistance(Datum q1, Datum q2, FmgrInfo *procinfo, Oid collation);
+float GetDistances(Vector* vecs1,Vector* vecs2, FmgrInfo *procinfo, Oid collation,int columns);
 void m3vFreeElement(m3vElement element);
 m3vElement m3vInitElementFromBlock(BlockNumber blkno, OffsetNumber offno);
 void m3vInsertElement(m3vElement element, m3vElement entryPoint, Relation index, FmgrInfo *procinfo, Oid collation, int m, int efConstruction, bool existing);
@@ -365,21 +378,21 @@ void m3vUpdateMetaPage(Relation index, BlockNumber root, ForkNumber forkNum);
 void m3vSetNeighborTuple(m3vNeighborTuple ntup, m3vElement e, int m);
 void m3vAddHeapTid(m3vElement element, ItemPointer heaptid);
 void m3vInitNeighbors(m3vElement element, int m);
-bool m3vInsertTuple(Relation index, Datum *values, bool *isnull, ItemPointer heap_tid, Relation heapRel, m3vBuildState *buildstate, GenericXLogState *state);
+bool m3vInsertTuple(Relation index, Datum *values, bool *isnull, ItemPointer heap_tid, Relation heapRel, m3vBuildState *buildstate, GenericXLogState *state,int columns);
 void m3vUpdateNeighborPages(Relation index, FmgrInfo *procinfo, Oid collation, m3vElement e, int m, bool checkExisting);
 void m3vLoadElementFromTuple(m3vElement element, m3vElementTuple etup, bool loadHeaptids, bool loadVec);
 void m3vLoadElement(m3vElement element, float *distance, Datum *q, Relation index, FmgrInfo *procinfo, Oid collation, bool loadVec);
-void m3vSetElementTuple(m3vElementTuple etup, m3vElement element);
-void m3vSetLeafElementTuple(m3vElementLeafTuple etup, m3vElement element);
+void m3vSetElementTuple(m3vElementTuple etup, m3vElement element,int columns);
+void m3vSetLeafElementTuple(m3vElementLeafTuple etup, m3vElement element,int columns);
 void m3vUpdateConnection(m3vElement element, m3vCandidate *hc, int m, int lc, int *updateIdx, Relation index, FmgrInfo *procinfo, Oid collation);
 void m3vLoadNeighbors(m3vElement element, Relation index, int m);
-Page SplitLeafPage(Page page, Page new_page, FmgrInfo *procinfo, Oid collation, m3vElementLeafTuple insert_data, Datum *left_centor, Datum *right_centor, float8 *left_radius, float8 *right_radius);
+Page SplitLeafPage(Page page, Page new_page, FmgrInfo *procinfo, Oid collation, m3vElementLeafTuple insert_data, Datum *left_centor, Datum *right_centor, float8 *left_radius, float8 *right_radius,int columns);
 void m3vUpdatePageOpaque(OffsetNumber offset, uint8 is_root, BlockNumber blkno, Page page, uint8 type);
 void m3vUpdatePageOpaqueParentBlockNumber(BlockNumber blkno, Page page);
 void DebugPageOpaque(char *msg, Page page, BlockNumber blkno);
 float8 max(float8 a, float8 b);
 void DebugMetaPage(m3vMetaPageData page);
-void UpdateParentRecurse(Page parent_page, BlockNumber parent_block_num, Relation index, FmgrInfo *procinfo, Oid collation, Page left_son_page, Page right_son_page, m3vElementTuple left_centor, m3vElementTuple right_centor, OffsetNumber left_offset, GenericXLogState *state);
+void UpdateParentRecurse(Page parent_page, BlockNumber parent_block_num, Relation index, FmgrInfo *procinfo, Oid collation, Page left_son_page, Page right_son_page, m3vElementTuple left_centor, m3vElementTuple right_centor, OffsetNumber left_offset, GenericXLogState *state,int columns);
 static int CompareNearestCandidates(const pairingheap_node *a, const pairingheap_node *b, void *arg);
 m3vPairingKNNNode *Createm3vPairingKNNNode(m3vKNNCandidate *c);
 static m3vPairingHeapNode *CreatePairingHeapNode(m3vCandidate *c);
@@ -387,9 +400,9 @@ m3vPairingDistanceOnlyHeapNode *CreatePairingDistanceOnlyHeapNode(m3vDistanceOnl
 int CompareDistanceOnlyNearestCandidates(const pairingheap_node *a, const pairingheap_node *b, void *arg);
 int CompareKNNCandidatesMinHeap(const pairingheap_node *a, const pairingheap_node *b, void *arg);
 int CompareKNNCandidates(const pairingheap_node *a, const pairingheap_node *b, void *arg);
-Page SplitInternalPage(Page internal_page, Page new_page, FmgrInfo *procinfo, Oid collation, m3vElementTuple left_centor, m3vElementTuple right_centor, OffsetNumber left_off, Datum *left_copy_up, Datum *right_copy_up, float8 *left_radius, float8 *right_radius);
+Page SplitInternalPage(Page internal_page, Page new_page, FmgrInfo *procinfo, Oid collation, m3vElementTuple left_centor, m3vElementTuple right_centor, OffsetNumber left_off, Datum *left_copy_up, Datum *right_copy_up, float8 *left_radius, float8 *right_radius,int columns);
 void PageReplaceItem(Page page, OffsetNumber offset, Item item, Size size);
-void DebugEntirem3vTree(BlockNumber root, Relation index, int level);
+void DebugEntirem3vTree(BlockNumber root, Relation index, int level,int columns);
 #define DatumGetm3vElementLeafTuple(x) ((m3vElementLeafTuple)PG_DETOAST_DATUM(x))
 #define DatumGetm3vElementTuple(x) ((m3vElementTuple)PG_DETOAST_DATUM(x))
 /* Index access methods */

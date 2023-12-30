@@ -13,12 +13,14 @@ typedef struct Vector
 	int32 vl_len_; /* varlena header (do not touch directly!) */
 	int16 dim;	   /* number of dimensions */
 	int16 unused;
+	// float distance_to_parent_in_dim;
+	// float radius_in_dim;
 	float x[FLEXIBLE_ARRAY_MEMBER];
 } Vector;
 
 Vector *InitVector(int dim);
-void PrintLeafPageVectors(char *msg, Page page);
-void PrintInternalPageVectors(char *msg, Page page);
+void PrintLeafPageVectors(char *msg, Page page,int columns);
+void PrintInternalPageVectors(char *msg, Page page,int columns);
 void PrintVector(char *msg, Vector *vector);
 int vector_cmp_internal(Vector *a, Vector *b);
 
