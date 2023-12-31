@@ -3279,6 +3279,9 @@ match_clause_to_ordering_op(IndexOptInfo *index,
 	if (!IndexCollMatchesExprColl(idxcollation, expr_coll))
 		return NULL;
 
+	char *s = nodeToString(clause);
+	char *f = format_node_dump(s);
+	elog(LOG, "clause see:\n %s\n", f);
 	/*
 	 * Check for clauses of the form: (indexkey operator constant) or
 	 * (constant operator indexkey).
@@ -3917,6 +3920,7 @@ bool is_expected_vector_expr(Node *node, IndexOptInfo *index, int index_col)
  *	for example:
  * `select * from t order by 0.8 * (a<=>'[1,2,3]') + 0.2 * (b <=> '[4,5,6]')`, we can use this method
  * to extract 0.8 * (a<=>'[1,2,3]') and 0.2 * (b <=> '[4,5,6]')`
+ * well, please remember is a left deep tree, not a right deep tree
  */
 Expr *match_vector_index_col(Node *clause,
 							 int indexcol,
@@ -3925,25 +3929,29 @@ Expr *match_vector_index_col(Node *clause,
 
 	if (!clause || !is_opclause(clause))
 		return NULL;
-	Node *leftop = get_leftop(clause);
-	if (is_expected_vector_expr(leftop, index, indexcol))
+	if (is_expected_vector_expr(clause, index, indexcol))
 	{
-		return (Expr *)leftop;
+		return (Expr *)clause;
 	}
 	Node *rightop = get_rightop(clause);
-	if (IsA(rightop, OpExpr))
+	if (is_expected_vector_expr(rightop, index, indexcol))
 	{
-		if (is_expected_vector_expr(rightop, index, indexcol))
-		{
-			return (Expr *)rightop;
-		}
-		leftop = get_leftop(rightop);
+		return (Expr *)rightop;
+	}
+	Node *leftop = get_leftop(clause);
+	if (IsA(leftop, OpExpr))
+	{
 		if (is_expected_vector_expr(leftop, index, indexcol))
 		{
 			return (Expr *)leftop;
 		}
-		rightop = get_rightop(rightop);
-		return match_vector_index_col(rightop, indexcol, index);
+		rightop = get_rightop(leftop);
+		if (is_expected_vector_expr(rightop, index, indexcol))
+		{
+			return (Expr *)rightop;
+		}
+		leftop = get_leftop(leftop);
+		return match_vector_index_col(leftop, indexcol, index);
 	}
 	return NULL;
 }

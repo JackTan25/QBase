@@ -981,7 +981,7 @@ ExecInitIndexScan(IndexScan *node, EState *estate, int eflags)
 	/*
 	 * build the index scan keys from the index qualification
 	 */
-	ExecIndexBuildScanKeys((PlanState *) indexstate,
+;	ExecIndexBuildScanKeys((PlanState *) indexstate,
 						   indexstate->iss_RelationDesc,
 						   node->indexqual,
 						   false,

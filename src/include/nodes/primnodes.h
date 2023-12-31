@@ -766,6 +766,7 @@ typedef struct OpExpr
 	int			location;
 } OpExpr;
 
+#define VectorExprFlag -1000
 /*
  * DistinctExpr - expression node for "x IS DISTINCT FROM y"
  *

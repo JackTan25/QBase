@@ -1683,6 +1683,7 @@ typedef struct IndexPath
 	ScanDirection indexscandir;
 	Cost		indextotalcost;
 	Selectivity indexselectivity;
+	bool		is_vector_search;
 } IndexPath;
 
 /*
