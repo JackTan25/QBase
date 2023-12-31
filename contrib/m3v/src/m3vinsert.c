@@ -73,14 +73,13 @@ void WriteLeafElementToPage(m3vElement e, Page page,int columns)
  * LSH: https://github.com/flann-lib/flann.git https://zhuanlan.zhihu.com/p/645577495
  * https://zhuanlan.zhihu.com/p/667662224 spresh
  */
-bool m3vInsertTuple(Relation index, Datum *values, bool *isnull, ItemPointer heap_tid, Relation heapRel, m3vBuildState *buildstate, GenericXLogState *state,int columns)
+bool m3vInsertTuple(Relation index, m3vElement element, bool *isnull, ItemPointer heap_tid, Relation heapRel, m3vBuildState *buildstate, GenericXLogState *state,int columns)
 {
 	elog(INFO, "numbers %d", MAX_GENERIC_XLOG_PAGES);
 	Datum value;
 	Page new_page;
 	FmgrInfo *normprocinfo;
 	m3vElement entryPoint;
-	m3vElement element;
 	
 	int m;
 	int efConstruction = m3vGetEfConstruction(index);
@@ -92,10 +91,10 @@ bool m3vInsertTuple(Relation index, Datum *values, bool *isnull, ItemPointer hea
 	Vector *normvec;
 	LOCKMODE lockmode = ShareLock;
 	/* Detoast once for all calls */
-	value = PointerGetDatum(PG_DETOAST_DATUM(values[0]));
-	Datum value2 = PointerGetDatum(PG_DETOAST_DATUM(values[1]));
-	PrintVector("vector0:",DatumGetVector(value));
-	PrintVector("vector1:",&DatumGetVector(value)[1]);
+	// value = PointerGetDatum(PG_DETOAST_DATUM(values[0]));
+	// Datum value2 = PointerGetDatum(PG_DETOAST_DATUM(values[1]));
+	// PrintVector("vector0:",DatumGetVector(value));
+	// PrintVector("vector1:",&DatumGetVector(value)[1]);
 	normprocinfo = m3vOptionalProcInfo(index, M3V_NORM_PROC);
 	/* Normalize if needed */
 	if (normprocinfo != NULL)
@@ -135,7 +134,7 @@ bool m3vInsertTuple(Relation index, Datum *values, bool *isnull, ItemPointer hea
 		// elog(INFO, "resgister %d 122", new_buffer);
 		// set parent page as InvalidBlockNumber
 		m3vInitPage(new_buffer, new_page, InvalidBlockNumber, M3V_LEAF_PAGE_TYPE, 1, InvalidOffsetNumber);
-		m3vElement element = m3vInitElement(heap_tid, 0, 0, InvalidBlockNumber, values,columns);
+		// m3vElement element = m3vInitElement(heap_tid, 0, 0, InvalidBlockNumber, values,columns);
 		// element->vecs = DatumGetVector(value);
 		// PrintVector("insert vector ", element->vec);
 		WriteLeafElementToPage(element, new_page,columns);
@@ -153,7 +152,7 @@ bool m3vInsertTuple(Relation index, Datum *values, bool *isnull, ItemPointer hea
 	// get root page by using meta_page
 	Assert(metap->root != InvalidBlockNumber);
 	// wrap value as a m3vElement
-	element = m3vInitElement(heap_tid, 0, 0, InvalidBlockNumber, values,columns);
+	// element = m3vInitElement(heap_tid, 0, 0, InvalidBlockNumber, values,columns);
 	// element->vec = DatumGetVector(value);
 
 	// PrintVector("insert vector ", element->vec);
@@ -182,7 +181,7 @@ bool m3vInsertTuple(Relation index, Datum *values, bool *isnull, ItemPointer hea
 // Insertm3v is recursive insert.
 bool Insertm3v(BlockNumber root_block, Relation index, m3vElement element, bool *isnull, Relation heapRel, FmgrInfo *procinfo, Oid collation, GenericXLogState *state,int columns)
 {
-	PrintVectors("insert vector: ", &element->vecs,columns);
+	PrintPointerVectors("insert vector: ", element->vecs,columns);
 	// elog(INFO, "item pointer2: %d %d", element->item_pointer->ip_blkid, element->item_pointer->ip_posid);
 	Buffer buf;
 	// old page
@@ -199,6 +198,7 @@ bool Insertm3v(BlockNumber root_block, Relation index, m3vElement element, bool 
 	float8 right_radius;
 	Datum left_centor;
 	Datum right_centor;
+
 	M3V_ELEMENT_TUPLE_SIZES(element->vecs,columns,etupSize);
 	// etupCombineSize = etupSize + sizeof(ItemIdData);
 	etupCombineSize = etupSize;
@@ -401,7 +401,7 @@ bool Insertm3v(BlockNumber root_block, Relation index, m3vElement element, bool 
 		{
 			m3vElementTuple etup = (m3vElementTuple)PageGetItem(page, PageGetItemId(page, offset));
 			m3vDistanceOnlyCandidate *candidate = palloc0(sizeof(m3vDistanceOnlyCandidate));
-			candidate->distance = GetDistances(etup->vecs, element->vecs, procinfo, collation,columns);
+			candidate->distance = GetPointerDistances(etup->vecs, element->vecs, procinfo, collation,columns);
 			candidate->son_page = etup->son_page;
 
 			elog(INFO, "distance: %f, son_page: %d, radius: %f", candidate->distance, candidate->son_page, etup->radius);
@@ -656,15 +656,18 @@ bool m3vinsert(Relation index, Datum *values, bool *isnull, ItemPointer heap_tid
 	insertCtx = AllocSetContextCreate(CurrentMemoryContext,
 									  "M3v insert temporary context",
 									  ALLOCSET_DEFAULT_SIZES);
+	
 	oldCtx = MemoryContextSwitchTo(insertCtx);
+	m3vElement element = m3vInitElement(heap_tid, 0, 0, InvalidBlockNumber,values,RelationGetNumberOfAttributes(index));
 	XLogEnsureRecordSpace(XLR_MAX_BLOCK_ID, 150);
 	GenericXLogState *state = GenericXLogStart(index);
 	/* Insert tuple */
-	m3vInsertTuple(index, values, isnull, heap_tid, heap, NULL, state,RelationGetNumberOfAttributes(index));
+	m3vInsertTuple(index, element, isnull, heap_tid, heap, NULL, state,RelationGetNumberOfAttributes(index));
+
 	GenericXLogFinish(state);
 	/* Delete memory context */
 	MemoryContextSwitchTo(oldCtx);
+	// m3vFreeElement(element);
 	MemoryContextDelete(insertCtx);
-
 	return false;
 }

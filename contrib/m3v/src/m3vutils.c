@@ -233,6 +233,8 @@ void m3vSetLeafElementTuple(m3vElementLeafTuple etup, m3vElement element,int col
 m3vElement
 m3vInitElement(ItemPointer tid, float8 radius, float8 distance_to_parent, BlockNumber son_page, Datum *values,int columns)
 {
+	PrintVector("vecs[0]: ",DatumGetVector(PointerGetDatum(PG_DETOAST_DATUM(values[0]))));
+	PrintVector("vecs[1]: ",DatumGetVector(PointerGetDatum(PG_DETOAST_DATUM(values[1]))));
 	m3vElement element = palloc(sizeof(m3vElementData));
 	element->distance_to_parent = distance_to_parent;
 	element->radius = radius;
@@ -241,6 +243,7 @@ m3vInitElement(ItemPointer tid, float8 radius, float8 distance_to_parent, BlockN
 	element->item_pointer = tid;
 	for(int i = 0;i < columns;i++){
 		element->vecs[i] = DatumGetVector(PointerGetDatum(PG_DETOAST_DATUM(values[i])));
+		PrintVector("vec: ",element->vecs[i]);
 	}
 	return element;
 }
@@ -354,6 +357,15 @@ float GetDistances(Vector* vecs1,Vector* vecs2, FmgrInfo *procinfo, Oid collatio
 	float res = 0;
 	for(int i = 0;i < columns;i++){
 		res+= DatumGetFloat8(FunctionCall2Coll(procinfo, collation, PointerGetDatum(&vecs1[i]), PointerGetDatum(&vecs2[i])));
+	}
+	return res;
+}
+
+float GetPointerDistances(Vector* vecs1,Vector** vecs2, FmgrInfo *procinfo, Oid collation,int columns)
+{
+	float res = 0;
+	for(int i = 0;i < columns;i++){
+		res+= DatumGetFloat8(FunctionCall2Coll(procinfo, collation, PointerGetDatum(&vecs1[i]), PointerGetDatum(vecs2[i])));
 	}
 	return res;
 }
@@ -500,7 +512,7 @@ Page SplitInternalPage(Page internal_page, Page new_page, FmgrInfo *procinfo, Oi
 	// Insert insert_data
 	PrintVectors("left_copy_up vector", *left_copy_up,columns);
 	PrintVectors("right_copy_up vector", *right_copy_up,columns);
-	PrintVectors("insert_data vector", &insert_data->vecs);
+	PrintVectors("insert_data vector", &insert_data->vecs,columns);
 	float8 left_distance = GetDistances(*left_copy_up, insert_data->vecs, procinfo, collation,columns);
 	float8 right_distance = GetDistances(*right_copy_up, insert_data->vecs, procinfo, collation,columns);
 	elem = insert_data;
@@ -661,7 +673,7 @@ Page SplitLeafPage(Page page, Page new_page, FmgrInfo *procinfo, Oid collation, 
 	// PrintVector("insert data", &insert_data->vec);
 	// Insert insert_data
 	float8 left_distance = GetDistances(*left_centor, insert_data->vecs, procinfo, collation,columns);
-	float8 right_distance = GetDistancs(*right_centor,insert_data->vecs, procinfo, collation);
+	float8 right_distance = GetDistances(*right_centor,insert_data->vecs, procinfo, collation,columns);
 	elem = insert_data;
 	if (left_distance < right_distance)
 	{

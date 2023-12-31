@@ -22,6 +22,8 @@ Vector *InitVector(int dim);
 void PrintLeafPageVectors(char *msg, Page page,int columns);
 void PrintInternalPageVectors(char *msg, Page page,int columns);
 void PrintVector(char *msg, Vector *vector);
+void PrintVectors(char *msg, Vector *vector,int columns);
+void PrintPointerVectors(char *msg, Vector **vector,int columns);
 int vector_cmp_internal(Vector *a, Vector *b);
 
 #endif

@@ -380,6 +380,16 @@ void PrintVector(char *msg, Vector *vector)
 	pfree(out);
 }
 
+void PrintPointerVectors(char *msg, Vector **vector,int columns)
+{
+	char *out = DatumGetPointer(DirectFunctionCall1(vector_out, PointerGetDatum(vector[0])));
+	for(int i = 1;i < columns;i++){
+		strcat(out,DatumGetPointer(DirectFunctionCall1(vector_out, PointerGetDatum(vector[i]))));
+	}
+	elog(INFO, "%s = %s", msg, out);
+	pfree(out);
+}
+
 void PrintVectors(char *msg, Vector *vector,int columns)
 {
 	char *out = DatumGetPointer(DirectFunctionCall1(vector_out, PointerGetDatum(vector)));

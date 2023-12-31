@@ -133,10 +133,10 @@ BuildCallback(Relation index, CALLBACK_ITEM_POINTER, Datum *values,
 
 			FlushPages(buildstate);
 		}
-
+		
 		oldCtx = MemoryContextSwitchTo(buildstate->tmpCtx);
-
-		if (m3vInsertTuple(buildstate->index, values, isnull, tid, buildstate->heap, buildstate, state,RelationGetNumberOfAttributes(index)))
+		element = m3vInitElement(tid, 0, 0, InvalidBlockNumber,values,RelationGetNumberOfAttributes(index));
+		if (m3vInsertTuple(buildstate->index, element, isnull, tid, buildstate->heap, buildstate, state,RelationGetNumberOfAttributes(index)))
 			UpdateProgress(PROGRESS_CREATEIDX_TUPLES_DONE, ++buildstate->indtuples);
 
 		/* Reset memory context */
@@ -147,15 +147,20 @@ BuildCallback(Relation index, CALLBACK_ITEM_POINTER, Datum *values,
 	}
 
 	/* Allocate necessary memory outside of memory context */
-	element = m3vInitElement(tid, 0, 0, InvalidBlockNumber,values,RelationGetNumberOfAttributes(index));
+	// element = m3vInitElement(tid, 0, 0, InvalidBlockNumber,values,RelationGetNumberOfAttributes(index));
 	// element->vec = palloc(VECTOR_SIZE(buildstate->dimensions));
 
 	/* Use memory context since detoast can allocate */
 	oldCtx = MemoryContextSwitchTo(buildstate->tmpCtx);
+	PrintVector("vecs[0]: ",DatumGetVector(PointerGetDatum(PG_DETOAST_DATUM(values[0]))));
+	PrintVector("vecs[1]: ",DatumGetVector(PointerGetDatum(PG_DETOAST_DATUM(values[1]))));
+	element = m3vInitElement(tid, 0, 0, InvalidBlockNumber,values,RelationGetNumberOfAttributes(index));
+	// element = m3vInitElement(tid, 0, 0, InvalidBlockNumber,values,RelationGetNumberOfAttributes(index));
 	XLogEnsureRecordSpace(XLR_MAX_BLOCK_ID, 150);
 	GenericXLogState *xlg_state = GenericXLogStart(index);
 	/* Insert tuple */
-	inserted = m3vInsertTuple(buildstate->index, values, isnull, tid, buildstate->heap, buildstate, xlg_state,RelationGetNumberOfAttributes(index));
+
+	inserted = m3vInsertTuple(buildstate->index, element, isnull, tid, buildstate->heap, buildstate, xlg_state,RelationGetNumberOfAttributes(index));
 	GenericXLogFinish(xlg_state);
 	/* Reset memory context */
 	MemoryContextSwitchTo(oldCtx);
@@ -166,10 +171,11 @@ BuildCallback(Relation index, CALLBACK_ITEM_POINTER, Datum *values,
 		m3vAddHeapTid(dup, tid);
 
 	/* Add to buildstate or free */
-	if (inserted)
-		buildstate->elements = lappend(buildstate->elements, element);
-	else
-		m3vFreeElement(element);
+	// if (inserted)
+	// 	buildstate->elements = lappend(buildstate->elements, element);
+	// else
+	// if(inserted)
+	// 	m3vFreeElement(element);
 }
 
 /*

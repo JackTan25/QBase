@@ -63,17 +63,19 @@
 #define PROGRESS_M3V_PHASE_LOAD 2
 
 #define M3V_ELEMENT_TUPLE_SIZE(_dim) MAXALIGN(offsetof(m3vElementTupleData, vecs) + VECTOR_SIZE(_dim))
-#define M3V_ELEMENT_TUPLE_SIZES(vecs,_columns,result) \
+#define M3V_ELEMENT_TUPLE_SIZES(_vecs,_columns,result) \
 	do { \
-        for (int i = (0); i <= (_columns); ++i) { \
-            (result) += M3V_ELEMENT_TUPLE_SIZE(vecs[i]->dim); \
+        (result) += (MAXALIGN(offsetof(m3vElementTupleData, vecs))); \
+        for (int i = (0); i < (_columns); ++i) { \
+            (result) += VECTOR_SIZE(_vecs[i]->dim); \
         } \
     } while (0)
 #define M3V_ELEMENT_LEAF_TUPLE_SIZE(_dim) MAXALIGN(offsetof(m3vElementLeafTupleData, vecs) + VECTOR_SIZE(_dim))
-#define M3V_ELEMENT_LEAF_TUPLE_SIZES(vecs,_columns,result) \
+#define M3V_ELEMENT_LEAF_TUPLE_SIZES(_vecs,_columns,result) \
 	do { \
-        for (int i = (0); i <= (_columns); ++i) { \
-            (result) += M3V_ELEMENT_LEAF_TUPLE_SIZE(vecs[i]->dim); \
+		(result) += (MAXALIGN(offsetof(m3vElementLeafTupleData, vecs))); \
+        for (int i = (0); i < (_columns); ++i) { \
+            (result) += VECTOR_SIZE(_vecs[i]->dim); \
         } \
     } while (0)
 #define M3V_NEIGHBOR_TUPLE_SIZE(level, m) MAXALIGN(offsetof(m3vNeighborTupleData, indextids) + ((level) + 2) * (m) * sizeof(ItemPointerData))
@@ -320,6 +322,7 @@ typedef struct m3vScanOpaqueData
 	FmgrInfo *procinfo;
 	FmgrInfo *normprocinfo;
 	Oid collation;
+	int columns;
 } m3vScanOpaqueData;
 
 typedef m3vScanOpaqueData *m3vScanOpaque;
@@ -369,6 +372,7 @@ m3vMetaPageData m3vGetMetaPageInfo(Relation index);
 m3vElement m3vInitElement(ItemPointer tid, float8 radius, float8 distance_to_parent, BlockNumber son_page, Datum *values,int columns);
 float GetDistance(Datum q1, Datum q2, FmgrInfo *procinfo, Oid collation);
 float GetDistances(Vector* vecs1,Vector* vecs2, FmgrInfo *procinfo, Oid collation,int columns);
+float GetPointerDistances(Vector* vecs1,Vector** vecs2, FmgrInfo *procinfo, Oid collation,int columns);
 void m3vFreeElement(m3vElement element);
 m3vElement m3vInitElementFromBlock(BlockNumber blkno, OffsetNumber offno);
 void m3vInsertElement(m3vElement element, m3vElement entryPoint, Relation index, FmgrInfo *procinfo, Oid collation, int m, int efConstruction, bool existing);
@@ -378,7 +382,7 @@ void m3vUpdateMetaPage(Relation index, BlockNumber root, ForkNumber forkNum);
 void m3vSetNeighborTuple(m3vNeighborTuple ntup, m3vElement e, int m);
 void m3vAddHeapTid(m3vElement element, ItemPointer heaptid);
 void m3vInitNeighbors(m3vElement element, int m);
-bool m3vInsertTuple(Relation index, Datum *values, bool *isnull, ItemPointer heap_tid, Relation heapRel, m3vBuildState *buildstate, GenericXLogState *state,int columns);
+bool m3vInsertTuple(Relation index, m3vElement element, bool *isnull, ItemPointer heap_tid, Relation heapRel, m3vBuildState *buildstate, GenericXLogState *state,int columns);
 void m3vUpdateNeighborPages(Relation index, FmgrInfo *procinfo, Oid collation, m3vElement e, int m, bool checkExisting);
 void m3vLoadElementFromTuple(m3vElement element, m3vElementTuple etup, bool loadHeaptids, bool loadVec);
 void m3vLoadElement(m3vElement element, float *distance, Datum *q, Relation index, FmgrInfo *procinfo, Oid collation, bool loadVec);

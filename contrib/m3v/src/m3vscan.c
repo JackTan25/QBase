@@ -26,8 +26,9 @@ float8 getKDistance(pairingheap *heap, int k, int nn_size);
  *
  * For now, this is a bad implementation, we should add node when visiting inner node into nn, and then when we use this func,
  * remove the correlated node in nn. But this is a tricky implementation, so hold on for now.
+ * q should be a vector**, it's a two dimension pointer array
  */
-void getKNNRecurse(Relation index, BlockNumber blkno, Datum q, int k, float8 distance, pairingheap *p, pairingheap *nn, FmgrInfo *procinfo, Oid collation, int *nn_size)
+void getKNNRecurse(Relation index, BlockNumber blkno, Datum q, int k, float8 distance, pairingheap *p, pairingheap *nn, FmgrInfo *procinfo, Oid collation, int *nn_size,int columns)
 {
 	// elog(INFO, "get knn blkno: %d", blkno);
 	Buffer buf = ReadBuffer(index, blkno);
@@ -43,8 +44,7 @@ void getKNNRecurse(Relation index, BlockNumber blkno, Datum q, int k, float8 dis
 			m3vElementTuple etup = (m3vElementTuple)PageGetItem(page, PageGetItemId(page, offset));
 			if (!root_flag && ((abs(etup->distance_to_parent - distance)) - etup->radius <= getKDistance(nn, k, *nn_size)) || root_flag)
 			{
-				Datum e = PointerGetDatum(&etup->vec);
-				float8 target_to_parent_dist = GetDistance(e, q, procinfo, collation);
+				float8 target_to_parent_dist = GetPointerDistances(etup->vecs, DatumGetPointer(q), procinfo, collation,columns);
 				float8 estimated_dist = max((target_to_parent_dist - etup->radius), 0);
 				if (estimated_dist <= getKDistance(nn, k, *nn_size))
 				{
@@ -87,8 +87,7 @@ void getKNNRecurse(Relation index, BlockNumber blkno, Datum q, int k, float8 dis
 			m3vElementLeafTuple etup = (m3vElementLeafTuple)PageGetItem(page, PageGetItemId(page, offset));
 			if ((abs(etup->distance_to_parent - distance)) <= getKDistance(nn, k, *nn_size))
 			{
-				Datum e = PointerGetDatum(&etup->vec);
-				float8 dist = GetDistance(e, q, procinfo, collation);
+				float8 dist = GetDistance(etup->vecs, q, procinfo, collation);
 				if (dist <= getKDistance(nn, k, *nn_size))
 				{
 					// NN_Update task
@@ -145,6 +144,7 @@ GetKNNScanItems(IndexScanDesc scan, Datum q)
 	/* Get MetaPageData */
 	m3vMetaPageData meta = m3vGetMetaPageInfo(index);
 	metap = &meta;
+	int columns = metap->columns;
 	BlockNumber root_block = metap->root;
 	// limit push down
 	int limits = scan->orderByData->KNNValues;
@@ -184,7 +184,7 @@ GetKNNScanItems(IndexScanDesc scan, Datum q)
 		{
 			continue;
 		}
-		getKNNRecurse(index, node->inner->son_blkno, q, limits, node->inner->target_parent_distance, p, nn, procinfo, collation, &nn_size);
+		getKNNRecurse(index, node->inner->son_blkno, q, limits, node->inner->target_parent_distance, p, nn, procinfo, collation, &nn_size,columns);
 	}
 
 	while (!pairingheap_is_empty(nn))
@@ -195,7 +195,7 @@ GetKNNScanItems(IndexScanDesc scan, Datum q)
 	return w;
 }
 
-void range_query(Relation index, Datum q, List **w, BlockNumber blkno, float8 radius, float8 distance, FmgrInfo *procinfo, Oid collation)
+void range_query(Relation index, Datum q, List **w, BlockNumber blkno, float8 radius, float8 distance, FmgrInfo *procinfo, Oid collation,int columns)
 {
 	Buffer buf = ReadBuffer(index, blkno);
 	LockBuffer(buf, BUFFER_LOCK_SHARE);
@@ -207,10 +207,9 @@ void range_query(Relation index, Datum q, List **w, BlockNumber blkno, float8 ra
 		for (OffsetNumber offset = FirstOffsetNumber; offset <= offsets; offset = OffsetNumberNext(offset))
 		{
 			m3vElementLeafTuple etup = (m3vElementLeafTuple)PageGetItem(page, PageGetItemId(page, offset));
-			Datum e = PointerGetDatum(&etup->vec);
 			if (abs(etup->distance_to_parent - distance) <= radius)
 			{
-				float8 dist = GetDistance(e, q, procinfo, collation);
+				float8 dist = GetPointerDistances(etup->vecs, q, procinfo, collation,columns);
 				if (dist <= radius)
 				{
 					*w = lappend(*w, &etup->data_tid);
@@ -225,11 +224,10 @@ void range_query(Relation index, Datum q, List **w, BlockNumber blkno, float8 ra
 			for (OffsetNumber offset = FirstOffsetNumber; offset <= offsets; offset = OffsetNumberNext(offset))
 			{
 				m3vElementTuple etup = (m3vElementTuple)PageGetItem(page, PageGetItemId(page, offset));
-				Datum e = PointerGetDatum(&etup->vec);
-				float8 dist = GetDistance(e, q, procinfo, collation);
+				float8 dist = GetPointerDistances(etup->vecs, q, procinfo, collation,columns);
 				if (etup->radius + radius >= dist)
 				{
-					range_query(index, q, w, etup->son_page, radius, dist, procinfo, collation);
+					range_query(index, q, w, etup->son_page, radius, dist, procinfo, collation,columns);
 				}
 			}
 		}
@@ -238,14 +236,13 @@ void range_query(Relation index, Datum q, List **w, BlockNumber blkno, float8 ra
 			for (OffsetNumber offset = FirstOffsetNumber; offset <= offsets; offset = OffsetNumberNext(offset))
 			{
 				m3vElementTuple etup = (m3vElementTuple)PageGetItem(page, PageGetItemId(page, offset));
-				PrintVector("range scan vector: ", &etup->vec);
+				PrintVectors("range scan vector: ", etup->vecs,columns);
 				if (abs(etup->distance_to_parent - distance) <= radius + etup->radius)
 				{
-					Datum e = PointerGetDatum(&etup->vec);
-					float8 dist = GetDistance(e, q, procinfo, collation);
+					float8 dist = GetDistance(etup->vecs, q, procinfo, collation);
 					if (dist <= radius + etup->radius)
 					{
-						range_query(index, q, w, etup->son_page, radius, dist, procinfo, collation);
+						range_query(index, q, w, etup->son_page, radius, dist, procinfo, collation,columns);
 					}
 				}
 			}
@@ -258,7 +255,7 @@ void range_query(Relation index, Datum q, List **w, BlockNumber blkno, float8 ra
  * Range Query
  */
 static List *
-GetRangeScanItems(IndexScanDesc scan, Datum q, float8 radius)
+GetRangeScanItems(IndexScanDesc scan, Datum q, float8 radius,int columns)
 {
 	/*
 	 * range query 查询算法流程:
@@ -285,23 +282,31 @@ GetRangeScanItems(IndexScanDesc scan, Datum q, float8 radius)
 	/* Get MetaPageData */
 	Relation index = scan->indexRelation;
 	m3vMetaPageData meta = m3vGetMetaPageInfo(index);
-	m3vMetaPageData *metap = &meta;
+	m3vMetaPage metap = &meta;
 	BlockNumber root_block = metap->root;
 	FmgrInfo *procinfo = so->procinfo;
 	Oid collation = so->collation;
-	range_query(index, q, &w, root_block, radius, 0, procinfo, collation);
+	range_query(index, q, &w, root_block, radius, 0, procinfo, collation,metap->columns);
 	return w;
 }
 
 /*
- * Get scan value
+ * Get scan value, value should be a Vector** 
  */
 static Datum
-GetKNNScanValue(IndexScanDesc scan)
+GetScanValue(IndexScanDesc scan,float8 ** weights)
 {
 	m3vScanOpaque so = (m3vScanOpaque)scan->opaque;
 	Datum value;
-
+	*weights = palloc0(sizeof(float8) * scan->numberOfOrderBys);
+	Vector** values = palloc0(sizeof(Vector*) * scan->numberOfOrderBys);
+	// get multi vector columns
+	for(int i = 0;i < scan->numberOfOrderBys; i++){
+		*weights[i] = DatumGetFloat8(scan->orderByData[i].w);
+		values[i] = DatumGetVector(scan->orderByData[i].sk_argument);
+		elog(INFO,"w: %lf",weights[i]);
+		PrintVector("vector knn: ",values[i]);
+	}
 	if (scan->orderByData->sk_flags & SK_ISNULL)
 		value = PointerGetDatum(InitVector(GetDimensions(scan->indexRelation)));
 	else
@@ -317,7 +322,7 @@ GetKNNScanValue(IndexScanDesc scan)
 			m3vNormValue(so->normprocinfo, so->collation, &value, NULL);
 	}
 
-	return value;
+	return PointerGetDatum(values);
 }
 
 /*
@@ -341,12 +346,14 @@ m3vbeginscan(Relation index, int nkeys, int norderbys)
 	so->tmpCtx = AllocSetContextCreate(CurrentMemoryContext,
 									   "M3v scan temporary context",
 									   ALLOCSET_DEFAULT_SIZES);
-
+	m3vMetaPageData meta = m3vGetMetaPageInfo(index);
+	m3vMetaPage metap = &meta;
+	int columns = metap->columns;
 	/* Set support functions */
 	so->procinfo = index_getprocinfo(index, 1, M3V_DISTANCE_PROC);
 	so->normprocinfo = m3vOptionalProcInfo(index, M3V_NORM_PROC);
 	so->collation = index->rd_indcollation[0];
-
+	so->columns = columns;
 	scan->opaque = so;
 
 	/*
@@ -413,7 +420,8 @@ bool m3vgettuple(IndexScanDesc scan, ScanDirection dir)
 				elog(ERROR, "cannot scan m3v index without order");
 
 			/* Get scan value */
-			value = GetKNNScanValue(scan);
+			float8* weights;
+			value = GetScanValue(scan,&weights);
 
 			so->w = GetKNNScanItems(scan, value);
 
@@ -428,8 +436,9 @@ bool m3vgettuple(IndexScanDesc scan, ScanDirection dir)
 		if (so->first)
 		{
 			float8 radius = DatumGetFloat8(scan->keyData->sk_argument);
-			Datum q = scan->keyData->query;
-			so->w = GetRangeScanItems(scan, q, radius);
+			float8* weights;
+			Datum q = GetScanValue(scan,&weights);
+			so->w = GetRangeScanItems(scan, q, radius,so->columns);
 			so->first = false;
 		}
 		// elog(ERROR, "just support KNN Query for Now!");
