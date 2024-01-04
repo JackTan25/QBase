@@ -87,7 +87,7 @@ void getKNNRecurse(Relation index, BlockNumber blkno, Datum q, int k, float8 dis
 			m3vElementLeafTuple etup = (m3vElementLeafTuple)PageGetItem(page, PageGetItemId(page, offset));
 			if ((abs(etup->distance_to_parent - distance)) <= getKDistance(nn, k, *nn_size))
 			{
-				float8 dist = GetDistance(etup->vecs, q, procinfo, collation);
+				float8 dist = GetPointerDistances(etup->vecs, q, procinfo, collation,columns);
 				if (dist <= getKDistance(nn, k, *nn_size))
 				{
 					// NN_Update task
@@ -294,33 +294,42 @@ GetRangeScanItems(IndexScanDesc scan, Datum q, float8 radius,int columns)
  * Get scan value, value should be a Vector** 
  */
 static Datum
-GetScanValue(IndexScanDesc scan,float8 ** weights)
+GetScanValue(IndexScanDesc scan,Vector** values,float8 * weights,bool is_knn,int nums)
 {
 	m3vScanOpaque so = (m3vScanOpaque)scan->opaque;
-	Datum value;
-	*weights = palloc0(sizeof(float8) * scan->numberOfOrderBys);
-	Vector** values = palloc0(sizeof(Vector*) * scan->numberOfOrderBys);
 	// get multi vector columns
-	for(int i = 0;i < scan->numberOfOrderBys; i++){
-		*weights[i] = DatumGetFloat8(scan->orderByData[i].w);
-		values[i] = DatumGetVector(scan->orderByData[i].sk_argument);
-		elog(INFO,"w: %lf",weights[i]);
-		PrintVector("vector knn: ",values[i]);
+	if(is_knn){
+		for(int i = 0;i < scan->numberOfOrderBys; i++){
+			weights[i] = DatumGetFloat8(scan->orderByData[i].w);
+			values[i] = DatumGetVector(scan->orderByData[i].sk_argument);
+			elog(INFO,"w: %lf",weights[i]);
+			PrintVector("vector knn: ",values[i]);
+		}
+	}else{
+		for(int i = 0;i < scan->numberOfKeys; i++){
+			weights[i] = DatumGetFloat8(scan->keyData[i].w);
+			values[i] = DatumGetVector(scan->keyData[0].sk_argument);
+			elog(INFO,"w: %lf",DatumGetFloat8(weights[i]));
+			PrintVector("vector range query: ",values[i]);
+		}
+		elog(INFO,"radius: %lf",DatumGetFloat8(scan->keyData[0].query));
 	}
-	if (scan->orderByData->sk_flags & SK_ISNULL)
-		value = PointerGetDatum(InitVector(GetDimensions(scan->indexRelation)));
-	else
-	{
-		value = scan->orderByData->sk_argument;
-		// PrintVector("norm vector: ", DatumGetVector(value));
-		/* Value should not be compressed or toasted */
-		Assert(!VARATT_IS_COMPRESSED(DatumGetPointer(value)));
-		Assert(!VARATT_IS_EXTENDED(DatumGetPointer(value)));
 
-		/* Fine if normalization fails */
-		if (so->normprocinfo != NULL)
-			m3vNormValue(so->normprocinfo, so->collation, &value, NULL);
-	}
+	// if (is_knn&&scan->orderByData->sk_flags & SK_ISNULL)
+	// 	value = PointerGetDatum(InitVector(GetDimensions(scan->indexRelation)));
+	// else
+	// {
+	// 	no need to norm.
+	// 	value = scan->orderByData->sk_argument;
+	// 	// PrintVector("norm vector: ", DatumGetVector(value));
+	// 	/* Value should not be compressed or toasted */
+	// 	Assert(!VARATT_IS_COMPRESSED(DatumGetPointer(value)));
+	// 	Assert(!VARATT_IS_EXTENDED(DatumGetPointer(value)));
+
+	// 	/* Fine if normalization fails */
+	// 	if (so->normprocinfo != NULL)
+	// 		m3vNormValue(so->normprocinfo, so->collation, &value, NULL);
+	// }
 
 	return PointerGetDatum(values);
 }
@@ -420,9 +429,9 @@ bool m3vgettuple(IndexScanDesc scan, ScanDirection dir)
 				elog(ERROR, "cannot scan m3v index without order");
 
 			/* Get scan value */
-			float8* weights;
-			value = GetScanValue(scan,&weights);
-
+			float8* weights = palloc0(sizeof(float8) * scan->numberOfOrderBys);
+			Vector** values = palloc0(sizeof(Vector* )* scan->numberOfOrderBys);
+			value = GetScanValue(scan,values,weights,true,scan->numberOfOrderBys);
 			so->w = GetKNNScanItems(scan, value);
 
 			// /* Release shared lock */
@@ -436,9 +445,12 @@ bool m3vgettuple(IndexScanDesc scan, ScanDirection dir)
 		if (so->first)
 		{
 			float8 radius = DatumGetFloat8(scan->keyData->sk_argument);
-			float8* weights;
-			Datum q = GetScanValue(scan,&weights);
-			so->w = GetRangeScanItems(scan, q, radius,so->columns);
+			float8* weights = palloc0(sizeof(float8) * scan->numberOfKeys);
+			Vector** values = palloc0(sizeof(Vector* )* scan->numberOfKeys);
+			Datum q = GetScanValue(scan,values,weights,false,scan->numberOfKeys);
+			// let's optmize this after meta index and vector separate idea.
+			// so->w = GetRangeScanItems(scan, q, radius,so->columns);
+			so->w = NULL;
 			so->first = false;
 		}
 		// elog(ERROR, "just support KNN Query for Now!");

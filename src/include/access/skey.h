@@ -70,7 +70,7 @@ typedef struct ScanKeyData
 	Oid			sk_collation;	/* collation to use, if needed */
 	FmgrInfo	sk_func;		/* lookup info for function to call */
 	Datum		sk_argument;	/* data to compare */
-	Datum 		query;
+	Datum 		query;			// for multi_vector_col search, it's radius.
 	int 		KNNValues;
 	Datum		w;
 	bool 		is_multi_vector_search;

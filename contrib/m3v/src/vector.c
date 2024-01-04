@@ -342,9 +342,15 @@ void PrintLeafPageVectors(char *msg, Page page,int columns)
 		float8 distance = ((m3vElementLeafTuple)PageGetItem(page, PageGetItemId(page, i)))->distance_to_parent;
 		ItemPointerData data_tid = ((m3vElementLeafTuple)PageGetItem(page, PageGetItemId(page, i)))->data_tid;
 		// char *out = DatumGetPointer(DirectFunctionCall1(vector_out, PointerGetDatum(&((m3vElementLeafTuple)PageGetItem(page, PageGetItemId(page, i)))->vec)));
-		char *out = DatumGetPointer(DirectFunctionCall1(vector_out, PointerGetDatum(&((m3vElementLeafTuple)PageGetItem(page, PageGetItemId(page, i)))->vecs[0])));
+		m3vElementLeafTuple etup = (m3vElementLeafTuple)PageGetItem(page, PageGetItemId(page, i));
+		int offset = 0;
+		Vector* vec = (Vector*)(PointerGetDatum(&etup->vecs[0]) + offset);
+		char *out = DatumGetPointer(DirectFunctionCall1(vector_out, PointerGetDatum(vec)));
+		offset += VECTOR_SIZE(vec->dim);
 		for(int i = 1;i < columns;i++){
-			strcat(out,DatumGetPointer(DirectFunctionCall1(vector_out, PointerGetDatum(&((m3vElementLeafTuple)PageGetItem(page, PageGetItemId(page, i)))->vecs[i]))));
+			vec = (Vector*)(PointerGetDatum(&etup->vecs[0]) + offset);
+			offset += VECTOR_SIZE(vec->dim);
+			strcat(out,DatumGetPointer(DirectFunctionCall1(vector_out, PointerGetDatum(vec))));
 		}
 		elog(INFO, "%s = %s --> leaf parent distance: %f, data_tid: (%d,%d)", msg, out, distance, data_tid.ip_blkid, data_tid.ip_posid);
 	}
@@ -360,12 +366,17 @@ void PrintInternalPageVectors(char *msg, Page page,int columns)
 		float8 radius = ((m3vElementTuple)PageGetItem(page, PageGetItemId(page, i)))->radius;
 		BlockNumber son_page = ((m3vElementTuple)PageGetItem(page, PageGetItemId(page, i)))->son_page;
 		// char *out = DatumGetPointer(DirectFunctionCall1(vector_out, PointerGetDatum(&((m3vElementTuple)PageGetItem(page, PageGetItemId(page, i)))->vec)));
-		char *out = DatumGetPointer(DirectFunctionCall1(vector_out, PointerGetDatum(&((m3vElementTuple)PageGetItem(page, PageGetItemId(page, i)))->vecs[0])));
+		m3vElementTuple etup = (m3vElementTuple)PageGetItem(page, PageGetItemId(page, i));
+		int offset = 0;
+		Vector* vec = (Vector*)(PointerGetDatum(&etup->vecs[0]) + offset);
+		char *out = DatumGetPointer(DirectFunctionCall1(vector_out, PointerGetDatum(vec)));
+		offset += VECTOR_SIZE(vec->dim);
 		for(int i = 1;i < columns;i++){
-			strcat(out,DatumGetPointer(DirectFunctionCall1(vector_out, PointerGetDatum(&((m3vElementTuple)PageGetItem(page, PageGetItemId(page, i)))->vecs[i]))));
+			vec = (Vector*)(PointerGetDatum(&etup->vecs[0]) + offset);
+			offset += VECTOR_SIZE(vec->dim);
+			strcat(out,DatumGetPointer(DirectFunctionCall1(vector_out, PointerGetDatum(vec))));
 		}
 		elog(INFO, "%s = %s --> internal parent distance: %f, radius: %f, son: %d", msg, out, distance, radius, son_page);
-
 	}
 }
 

@@ -202,8 +202,15 @@ void m3vSetElementTuple(m3vElementTuple etup, m3vElement element,int columns)
 	etup->radius = element->radius;
 	etup->son_page = element->son_page;
 	Assert(element->vec != NULL);
+	// for(int i = 0;i < columns;i++){
+	// 	memcpy(&etup->vecs[i], element->vecs[i], VECTOR_SIZE(element->vecs[i]->dim));
+	// }
+	int offset = 0;
 	for(int i = 0;i < columns;i++){
-		memcpy(&etup->vecs[i], element->vecs[i], VECTOR_SIZE(element->vecs[i]->dim));
+		// PrintVector("element vec: ",element->vecs[i]);
+		memcpy(PointerGetDatum(&etup->vecs[0]) + offset, element->vecs[i], VECTOR_SIZE(element->vecs[i]->dim));
+		offset += VECTOR_SIZE(element->vecs[i]->dim);
+		// PrintVector("append vec: ",&etup->vecs[i]);
 	}
 	
 }
@@ -216,8 +223,19 @@ void m3vSetLeafElementTuple(m3vElementLeafTuple etup, m3vElement element,int col
 	etup->distance_to_parent = element->distance_to_parent;
 	// etup->parent_page = element->parent_page;
 	etup->data_tid = *(element->item_pointer);
+	int offset = 0;
 	for(int i = 0;i < columns;i++){
-		memcpy(&etup->vecs[i], element->vecs[i], VECTOR_SIZE(element->vecs[i]->dim));
+		// PrintVector("element vec: ",element->vecs[i]);
+		memcpy(PointerGetDatum(&etup->vecs[0]) + offset, element->vecs[i], VECTOR_SIZE(element->vecs[i]->dim));
+		offset += VECTOR_SIZE(element->vecs[i]->dim);
+		// PrintVector("append vec: ",&etup->vecs[i]);
+	}
+	offset = 0;
+	for(int i = 0;i < columns;i++){
+		Vector* vec = (Vector*)(PointerGetDatum(&etup->vecs[0]) + offset);
+		offset += VECTOR_SIZE(element->vecs[i]->dim);
+		PrintVector("element vec: ",element->vecs[i]);
+		PrintVector("append vec: ",vec);
 	}
 	/**
 	 *	Don't use "etup->vec = *(element->vec);" directly, beacuse the FLEXIBLE_MEMEER_ARRAY
@@ -233,9 +251,9 @@ void m3vSetLeafElementTuple(m3vElementLeafTuple etup, m3vElement element,int col
 m3vElement
 m3vInitElement(ItemPointer tid, float8 radius, float8 distance_to_parent, BlockNumber son_page, Datum *values,int columns)
 {
-	PrintVector("vecs[0]: ",DatumGetVector(PointerGetDatum(PG_DETOAST_DATUM(values[0]))));
-	PrintVector("vecs[1]: ",DatumGetVector(PointerGetDatum(PG_DETOAST_DATUM(values[1]))));
-	m3vElement element = palloc(sizeof(m3vElementData));
+	// PrintVector("vecs[0]: ",DatumGetVector(PointerGetDatum(PG_DETOAST_DATUM(values[0]))));
+	// PrintVector("vecs[1]: ",DatumGetVector(PointerGetDatum(PG_DETOAST_DATUM(values[1]))));
+	m3vElement element = palloc(MAXALIGN(offsetof(m3vElementData, vecs)+sizeof(Vector*)*columns));
 	element->distance_to_parent = distance_to_parent;
 	element->radius = radius;
 	element->son_page = son_page;
@@ -244,6 +262,31 @@ m3vInitElement(ItemPointer tid, float8 radius, float8 distance_to_parent, BlockN
 	for(int i = 0;i < columns;i++){
 		element->vecs[i] = DatumGetVector(PointerGetDatum(PG_DETOAST_DATUM(values[i])));
 		PrintVector("vec: ",element->vecs[i]);
+	}
+	// hack!! I don't know why the post values[i]'s visit will cause the fisrt one's bug, let's 
+	// fix it like this firstly, and we will do research on it in the future.
+	element->vecs[0] = DatumGetVector(PointerGetDatum(PG_DETOAST_DATUM(values[0])));
+	PrintVector("detoast ",DatumGetVector(PointerGetDatum(PG_DETOAST_DATUM(values[0]))));
+	return element;
+}
+
+m3vElement
+m3vInitVectorElement(ItemPointer tid, float8 radius, float8 distance_to_parent, BlockNumber son_page, Vector* vec,int columns)
+{
+	m3vElement element = palloc(MAXALIGN(offsetof(m3vElementData, vecs)+sizeof(Vector*)*columns));
+	element->distance_to_parent = distance_to_parent;
+	element->radius = radius;
+	element->son_page = son_page;
+	element->item_pointer = tid;
+	int offset = 0;
+	for(int i = 0;i < columns;i++){
+		PrintVector("element vec: ",vec);
+		element->vecs[i] = vec;
+		offset = VECTOR_SIZE(vec->dim);
+		vec = PointerGetDatum(vec) + offset;
+	}
+	for(int i = 0;i < columns;i++){
+		PrintVector("element vec: ",element->vecs[i]);
 	}
 	return element;
 }
@@ -355,8 +398,14 @@ void m3vUpdateMetaPage(Relation index, BlockNumber root, ForkNumber forkNum)
 float GetDistances(Vector* vecs1,Vector* vecs2, FmgrInfo *procinfo, Oid collation,int columns)
 {
 	float res = 0;
+	int offset = 0;
+	Vector* vec1 = vecs1,*vec2 = vecs2;
 	for(int i = 0;i < columns;i++){
-		res+= DatumGetFloat8(FunctionCall2Coll(procinfo, collation, PointerGetDatum(&vecs1[i]), PointerGetDatum(&vecs2[i])));
+		res+= DatumGetFloat8(FunctionCall2Coll(procinfo, collation, PointerGetDatum(vec1), PointerGetDatum(vec2)));
+		Assert(vec1->dim == vec2->dim);
+		offset += VECTOR_SIZE(vec1->dim);
+		vec1 = PointerGetDatum(vecs1) + offset;
+		vec2 = PointerGetDatum(vecs2) + offset;
 	}
 	return res;
 }
@@ -364,8 +413,12 @@ float GetDistances(Vector* vecs1,Vector* vecs2, FmgrInfo *procinfo, Oid collatio
 float GetPointerDistances(Vector* vecs1,Vector** vecs2, FmgrInfo *procinfo, Oid collation,int columns)
 {
 	float res = 0;
+	int offset = 0;
+	Vector* vec1 = vecs1;
 	for(int i = 0;i < columns;i++){
-		res+= DatumGetFloat8(FunctionCall2Coll(procinfo, collation, PointerGetDatum(&vecs1[i]), PointerGetDatum(vecs2[i])));
+		res+= DatumGetFloat8(FunctionCall2Coll(procinfo, collation, PointerGetDatum(vec1), PointerGetDatum(vecs2[i])));
+		offset += VECTOR_SIZE(vec1->dim);
+		vec1 = PointerGetDatum(vecs1) + offset;
 	}
 	return res;
 }
@@ -413,7 +466,7 @@ Page SplitInternalPage(Page internal_page, Page new_page, FmgrInfo *procinfo, Oi
 	m3vElementTuple elem;
 	Size etupSize = 0;
 	bool in_left = false;
-	etupSize = M3V_ELEMENT_TUPLE_SIZE(left_centor->vecs[0].dim);
+	M3V_ELEMENT_POINTER_TUPLE_SIZES(left_centor->vecs,columns,etupSize);
 
 	offsets = PageGetMaxOffsetNumber(internal_page);
 	// replace left_offset,right centor as a insert_data
@@ -602,9 +655,7 @@ Page SplitLeafPage(Page page, Page new_page, FmgrInfo *procinfo, Oid collation, 
 	temp_page = PageGetTempPageCopySpecial(page);
 
 	Size etupSize = 0;
-	for(int i = 0;i < columns;i++){
-		etupSize += M3V_ELEMENT_LEAF_TUPLE_SIZE(insert_data->vecs[i].dim);
-	}
+	M3V_ELEMENT_POINTER_LEAF_TUPLE_SIZES(insert_data->vecs,columns,etupSize);
 
 	for (int offset = FirstOffsetNumber; offset <= offsets; offset = OffsetNumberNext(offset))
 	{

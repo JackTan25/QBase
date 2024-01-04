@@ -38,6 +38,9 @@ void WriteElementToPage(m3vElement e, Page page,int columns)
 {
 	/* Calculate sizes */
 	Size etupSize = 0;
+	for(int i = 0;i < columns;i++){
+		PrintVector("element vec: ",e->vecs[i]);
+	}
 	M3V_ELEMENT_TUPLE_SIZES(e->vecs,columns,etupSize);
 
 	/* Prepare element tuple */
@@ -58,8 +61,15 @@ void WriteLeafElementToPage(m3vElement e, Page page,int columns)
 
 	/* Prepare element tuple */
 	m3vElementLeafTuple etup = palloc0(etupLeafSize);
+	int result = 0;
+	(result) += (MAXALIGN(offsetof(m3vElementLeafTupleData, vecs))); 
+	for (int i = (0); i < (columns); ++i) { 
+		(result) += VECTOR_SIZE(e->vecs[i]->dim); 
+	} 
 	m3vSetLeafElementTuple(etup, e,columns);
+	etup->distance_to_parent = 10.0;
 	PageAddItem(page, (Item)etup, etupLeafSize, InvalidOffsetNumber, false, false);
+	PrintLeafPageVectors("leaf page vectors ",page,columns);
 	// PrintVector("write vector: ", &(((m3vElementLeafTuple)PageGetItem(page, PageGetItemId(page, FirstOffsetNumber)))->vec));
 	// don't pfree it, because we will free it in m3vinsert() func when MemoryContextDelete(insertCtx);
 	// more info about memort context for pg https://www.cybertec-postgresql.com/en/memory-context-for-postgresql-memory-management/
@@ -75,6 +85,7 @@ void WriteLeafElementToPage(m3vElement e, Page page,int columns)
  */
 bool m3vInsertTuple(Relation index, m3vElement element, bool *isnull, ItemPointer heap_tid, Relation heapRel, m3vBuildState *buildstate, GenericXLogState *state,int columns)
 {
+	PrintPointerVectors("insert element",element->vecs,columns);
 	elog(INFO, "numbers %d", MAX_GENERIC_XLOG_PAGES);
 	Datum value;
 	Page new_page;
@@ -262,8 +273,8 @@ bool Insertm3v(BlockNumber root_block, Relation index, m3vElement element, bool 
 			{
 				// do split
 				Page temp_page = SplitLeafPage(page, new_page, procinfo, collation, etup_leaf, &left_centor, &right_centor, &left_radius, &right_radius,columns);
-				// PrintVector("Split left centor: ", DatumGetVector(left_centor));
-				// PrintVector("Split right centor: ", DatumGetVector(right_centor));
+				PrintVector("Split left centor: ", DatumGetVector(left_centor));
+				PrintVector("Split right centor: ", DatumGetVector(right_centor));
 				/**
 				 * 1. new root page
 				 * 2. update page and new_page's Opaque data
@@ -289,10 +300,13 @@ bool Insertm3v(BlockNumber root_block, Relation index, m3vElement element, bool 
 				m3vUpdatePageOpaque(OffsetNumberNext(FirstOffsetNumber), 0, new_root_page_block_number, new_page, M3V_LEAF_PAGE_TYPE);
 
 				// 3.add left_centor and right_centor to root page
-				m3vElement left_element = m3vInitElement(NULL, left_radius, 0, root_block, DatumGetVector(left_centor),columns);
-				m3vElement right_element = m3vInitElement(NULL, right_radius, 0, right_page_block_number, DatumGetVector(right_centor),columns);
-				Assert(PageGetFreeSpace(new_root_page) > 2 * etupCombineSize);
+				Vector* v = DatumGetVector(left_centor);
+				m3vElement left_element = m3vInitVectorElement(NULL, left_radius, 0, root_block, DatumGetVector(left_centor),columns);
+				// append left_element_first, otherwise the next `m3vInitVectorElement()`'s palloc() will
+				// influence the left_element's vecs.
 				WriteElementToPage(left_element, new_root_page,columns);
+				m3vElement right_element = m3vInitVectorElement(NULL, right_radius, 0, right_page_block_number, DatumGetVector(right_centor),columns);
+				Assert(PageGetFreeSpace(new_root_page) > 2 * etupCombineSize);
 				WriteElementToPage(right_element, new_root_page,columns);
 				// restore
 				PageRestoreTempPage(temp_page, page);
@@ -343,8 +357,8 @@ bool Insertm3v(BlockNumber root_block, Relation index, m3vElement element, bool 
 				m3vUpdatePageOpaque(OffsetNumberNext(PageGetMaxOffsetNumber(parent_page)), 0, parent_blkno, new_page, M3V_LEAF_PAGE_TYPE);
 
 				// 3.add left_centor and right_centor to root page
-				m3vElement left_element = m3vInitElement(NULL, left_radius, 0, root_block, DatumGetVector(left_centor),columns);
-				m3vElement right_element = m3vInitElement(NULL, right_radius, 0, right_page_block_number, DatumGetVector(right_centor),columns);
+				m3vElement left_element = m3vInitVectorElement(NULL, left_radius, 0, root_block, DatumGetVector(left_centor),columns);
+				m3vElement right_element = m3vInitVectorElement(NULL, right_radius, 0, right_page_block_number, DatumGetVector(right_centor),columns);
 
 				m3vElementTuple left_etup = palloc0(etupSize);
 				m3vElementTuple right_etup = palloc0(etupSize);

@@ -132,3 +132,8 @@ CREATE OPERATOR CLASS vector_l2_ops
 	OPERATOR 1 <-> (vector, vector) FOR ORDER BY float_ops,
 	FUNCTION 1 vector_l2_squared_distance(vector, vector),
 	FUNCTION 3 l2_distance(vector, vector);
+
+-- ALTER OPERATOR FAMILY vector_l2_ops USING m3v ADD
+--   -- cross-type comparisons int8 vs int2
+--   OPERATOR 1 <> (vector, vector),
+--   FUNCTION 1 l2_distance(vector, vector);

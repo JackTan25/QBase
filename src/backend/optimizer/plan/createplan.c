@@ -5011,7 +5011,6 @@ fix_indexqual_references(PlannerInfo *root, IndexPath *index_path,
 		IndexClause *iclause = lfirst_node(IndexClause, lc);
 		int indexcol = iclause->indexcol;
 		ListCell *lc2;
-
 		foreach (lc2, iclause->indexquals)
 		{
 			RestrictInfo *rinfo = lfirst_node(RestrictInfo, lc2);

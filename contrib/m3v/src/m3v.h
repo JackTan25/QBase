@@ -70,6 +70,19 @@
             (result) += VECTOR_SIZE(_vecs[i]->dim); \
         } \
     } while (0)
+
+#define M3V_ELEMENT_POINTER_TUPLE_SIZES(_vecs,_columns,result) \
+	do { \
+		(result) += (MAXALIGN(offsetof(m3vElementTupleData, vecs))); \
+		Vector* vec = &_vecs[0]; \
+		int offset = 0;	\
+        for (int i = (0); i < (_columns); ++i) { \
+            (result) += VECTOR_SIZE(vec->dim); \
+			offset = VECTOR_SIZE(vec->dim); \
+			vec = PointerGetDatum(vec) + offset; \
+        } \
+    } while (0)
+
 #define M3V_ELEMENT_LEAF_TUPLE_SIZE(_dim) MAXALIGN(offsetof(m3vElementLeafTupleData, vecs) + VECTOR_SIZE(_dim))
 #define M3V_ELEMENT_LEAF_TUPLE_SIZES(_vecs,_columns,result) \
 	do { \
@@ -78,6 +91,19 @@
             (result) += VECTOR_SIZE(_vecs[i]->dim); \
         } \
     } while (0)
+
+#define M3V_ELEMENT_POINTER_LEAF_TUPLE_SIZES(_vecs,_columns,result) \
+	do { \
+		(result) += (MAXALIGN(offsetof(m3vElementLeafTupleData, vecs))); \
+		Vector* vec = &_vecs[0]; \
+		int offset = 0;	\
+        for (int i = (0); i < (_columns); ++i) { \
+            (result) += VECTOR_SIZE(vec->dim); \
+			offset = VECTOR_SIZE(vec->dim); \
+			vec = PointerGetDatum(vec) + offset; \
+        } \
+    } while (0)
+
 #define M3V_NEIGHBOR_TUPLE_SIZE(level, m) MAXALIGN(offsetof(m3vNeighborTupleData, indextids) + ((level) + 2) * (m) * sizeof(ItemPointerData))
 
 #define m3vPageGetOpaque(page) ((m3vPageOpaque)PageGetSpecialPointer(page))
@@ -296,7 +322,8 @@ typedef struct m3vElementLeafTupleData
 	// BlockNumber parent_page;
 	// 2. heap tid
 	ItemPointerData data_tid;
-	// 3. real value data
+	// 3. real value data,in fact this struct doesn't cost m3vElementLeafTupleData's real size.
+	// but it pointer to the first Vector(if there is over one Vector).
 	Vector vecs[FLEXIBLE_ARRAY_MEMBER];
 } m3vElementLeafTupleData;
 
@@ -370,6 +397,7 @@ List *m3vSearchLayer(Datum q, List *ep, int ef, int lc, Relation index, FmgrInfo
 m3vElement m3vGetEntryPoint(Relation index);
 m3vMetaPageData m3vGetMetaPageInfo(Relation index);
 m3vElement m3vInitElement(ItemPointer tid, float8 radius, float8 distance_to_parent, BlockNumber son_page, Datum *values,int columns);
+m3vElement m3vInitVectorElement(ItemPointer tid, float8 radius, float8 distance_to_parent, BlockNumber son_page, Vector* vec,int columns);
 float GetDistance(Datum q1, Datum q2, FmgrInfo *procinfo, Oid collation);
 float GetDistances(Vector* vecs1,Vector* vecs2, FmgrInfo *procinfo, Oid collation,int columns);
 float GetPointerDistances(Vector* vecs1,Vector** vecs2, FmgrInfo *procinfo, Oid collation,int columns);

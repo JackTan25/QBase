@@ -149,6 +149,10 @@ static void match_clause_to_index(PlannerInfo *root,
 								  RestrictInfo *rinfo,
 								  IndexOptInfo *index,
 								  IndexClauseSet *clauseset);
+static IndexClause*
+match_multi_vector_to_indexcol(PlannerInfo *root,
+						 RestrictInfo *rinfo,int indexcol,
+						 IndexOptInfo *index);
 static IndexClause *match_clause_to_indexcol(PlannerInfo *root,
 											 RestrictInfo *rinfo,
 											 int indexcol,
@@ -900,8 +904,8 @@ build_index_paths(PlannerInfo *root, RelOptInfo *rel,
 		foreach (lc, clauses->indexclauses[indexcol])
 		{
 			IndexClause *iclause = (IndexClause *)lfirst(lc);
+			is_vector_expr =  iclause->is_multi_vector_range_search;
 			RestrictInfo *rinfo = iclause->rinfo;
-
 			/* We might need to omit ScalarArrayOpExpr clauses */
 			if (IsA(rinfo->clause, ScalarArrayOpExpr))
 			{
@@ -1010,6 +1014,7 @@ build_index_paths(PlannerInfo *root, RelOptInfo *rel,
 	if (index_clauses != NIL || useful_pathkeys != NIL || useful_predicate ||
 		index_only_scan)
 	{
+		// if index_cluases is multi vector col qual.
 		ipath = create_index_path(root, index,
 								  index_clauses,
 								  orderbyclauses,
@@ -2167,10 +2172,11 @@ match_clause_to_index(PlannerInfo *root,
 		}
 
 		/* OK, try to match the clause to the index column */
+
 		iclause = match_clause_to_indexcol(root,
-										   rinfo,
-										   indexcol,
-										   index);
+						rinfo,
+						indexcol,
+						index);
 		if (iclause)
 		{
 			/* Success, so record it */
@@ -2180,6 +2186,114 @@ match_clause_to_index(PlannerInfo *root,
 			return;
 		}
 	}
+	
+	Expr *clause = rinfo->clause;
+	if(!IsA(clause, OpExpr)){
+		return;
+	}
+
+
+	char *name = get_am_name_me(index->relam);
+	if(strcmp(name,"m3v")==0){
+		// for where (a <-> '[4,4]')*0.3 + (b <-> '[4,4]')*0.2 + (c <-> '[4,4]')*0.5 < 2.6
+		// we will spilt it into below: 
+		// 		(a <-> '[4,4]')*0.3    2.6
+		//		(b <-> '[4,4]')*0.2    2.6
+		//      (c <-> '[4,4]')*0.5    2.6
+		// Todo!: think about there are more other filter for other indexes. In fact,it won't be hard.
+		for(int i = 0;i < index->nkeycolumns;i++){
+			clauseset->indexclauses[i] = 
+				lappend(clauseset->indexclauses[i], match_multi_vector_to_indexcol(root,rinfo,i,index));
+			ListCell* lc;
+			foreach(lc,clauseset->indexclauses[i]){
+
+				char *ss1 = nodeToString(rinfo->clause);
+				char *f1 = format_node_dump(ss1);
+				elog(LOG, "rinfo :\n %s\n", f1);
+			}
+			clauseset->nonempty = true;
+		}
+		return;
+	}
+}
+
+static IndexClause*
+match_multi_vector_to_indexcol(PlannerInfo *root,
+						 RestrictInfo *rinfo,
+						 int indexcol,
+						 IndexOptInfo *index){
+	IndexClause *iclause;
+	OpExpr *clause = (OpExpr *)rinfo->clause;
+	Node *leftop,
+		*rightop;
+	Oid expr_op;
+	Oid expr_coll;
+	Index index_relid;
+	Oid opfamily;
+	Oid idxcollation;
+
+	/*
+	 * Only binary operators need apply.  (In theory, a planner support
+	 * function could do something with a unary operator, but it seems
+	 * unlikely to be worth the cycles to check.)
+	 */
+	if (list_length(clause->args) != 2)
+		return NULL;
+
+	leftop = (Node *)linitial(clause->args);
+	rightop = (Node *)lsecond(clause->args);
+	expr_op = clause->opno;
+	expr_coll = clause->inputcollid;
+
+	index_relid = index->rel->relid;
+	opfamily = index->opfamily[0];
+	idxcollation = index->indexcollations[0];
+
+	if (leftop && IsA(leftop, OpExpr) && strcmp(get_opname(expr_op), "<") == 0 || leftop && IsA(leftop, OpExpr) && strcmp(get_opname(expr_op), "<") == 0)
+	{
+
+		// OpExpr *opert = (OpExpr *)leftop;
+		// Node *left = (Node *)linitial(opert->args);
+		// Node *right = (Node *)lsecond(opert->args);
+		// expr_op = opert->opno;
+		// FIXME:: We need to do check like below in the future.
+		// if (left && match_index_to_operand(left, indexcol, index) &&
+		// 	!bms_is_member(index_relid, rinfo->right_relids) &&
+		// 	!contain_volatile_functions(right))
+		char *name = get_am_name_me(index->relam);
+		if (strcmp(name, "m3v") == 0)
+		{
+			iclause = makeNode(IndexClause);
+			RestrictInfo *rinfo_ = makeNode(RestrictInfo);
+			memcpy(rinfo_,rinfo,sizeof(RestrictInfo));
+			// we just add the matched col expr into the indexes.
+			/* 假设 expr 和 constant 是您已经有的 Expr* 和 Const* */
+			Assert(IsA(rightop,Const));
+			Expr* expr = match_vector_index_col(leftop,indexcol,index);
+			Assert(IsA(expr,OpExpr));
+			Const *constant = (Const*) rightop;;
+			/* 创建一个 OpExpr 结构 */
+			OpExpr *opexpr = makeNode(OpExpr);
+			/* 设置操作符的 OID，对于小于操作符 */
+			opexpr->opno = expr_op;
+			/* 将您的 Expr 和 Const 添加到操作数列表中 */
+			opexpr->args = list_make2(expr, constant);
+			// char *s = nodeToString(linitial(opexpr->args));
+			// char *f = format_node_dump(s);
+			// elog(LOG, "expr see:\n %s\n", f);
+			/* 设置操作符结果类型 */
+			opexpr->opresulttype = BOOLOID;  /* 布尔类型 */
+			rinfo_->clause = opexpr;
+			iclause->rinfo = rinfo_;
+			iclause->indexquals = list_make1(rinfo_);
+			iclause->lossy = false;
+			iclause->indexcol = indexcol;
+			iclause->indexcols = NIL;
+			iclause->is_multi_vector_range_search = true;
+			return iclause;
+		}
+	}
+	return NULL;
 }
 
 /*
@@ -2545,7 +2659,6 @@ match_opclause_to_indexcol(PlannerInfo *root,
 											 indexcol,
 											 index);
 	}
-
 	if (leftop && IsA(leftop, OpExpr) && strcmp(get_opname(expr_op), "<") == 0 || leftop && IsA(leftop, OpExpr) && strcmp(get_opname(expr_op), "<") == 0)
 	{
 		OpExpr *opert = (OpExpr *)leftop;

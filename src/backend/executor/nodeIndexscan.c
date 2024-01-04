@@ -1209,8 +1209,18 @@ ExecIndexBuildScanKeys(PlanState *planstate, Relation index,
 		{
 			if(is_multi_col_vector_search){
 				int			flags = 0;
-				if (isorderby)
+				if(isorderby)
 					flags |= SK_ORDER_BY;
+				else{
+					// we need to extract the radius here.
+					// (col op vector_const) * w < radius
+					Assert(IsA(get_rightop(clause),Const));
+					this_scan_key->query = ((Const*)get_rightop(clause))->constvalue;
+					// elog(INFO,"radius :%lf",DatumGetFloat8(this_scan_key->query));
+					clause = get_leftop(clause);
+					// (col op vector_const) * w
+					Assert(IsA(clause,OpExpr));
+				}
 				Datum		scanvalue;
 				Datum		w;
 				OpExpr* 	op_expr;
@@ -1218,11 +1228,15 @@ ExecIndexBuildScanKeys(PlanState *planstate, Relation index,
 					// (indexkey <-> const) * w || (const <-> indexkey) * w 
 					op_expr = (OpExpr*)get_leftop(clause); 
 					opno = ((OpExpr*)op_expr)->opno;
+					// for get_op_opfamily_properties,we need to force treat 
+					// as a order by to process this. 
 					opfuncid = ((OpExpr*)op_expr)->opfuncid;
 					Const* con = (Const*)get_rightop(clause);
 					w = con->constvalue;
-					float8 s1 = DatumGetFloat8(w);
-					float4 s = DatumGetFloat4(w);
+					// elog(INFO,"w1 :%lf",DatumGetFloat8(w));
+					// float8 s1 = DatumGetFloat8(w);
+					// float4 s = DatumGetFloat4(w);
+				
 					if(IsA(get_leftop(op_expr),Const)){
 						// (const <-> indexkey)
 						scanvalue = ((Const*)get_leftop(op_expr))->constvalue;
@@ -1239,6 +1253,7 @@ ExecIndexBuildScanKeys(PlanState *planstate, Relation index,
 					opfuncid = ((OpExpr*)op_expr)->opfuncid;
 					Const* con = (Const*)get_leftop(clause);
 					w = con->constvalue;
+					// elog(INFO,"w2 :%lf",DatumGetFloat8(w));
 					float8 s1 = DatumGetFloat8(w);
 					float4 s = DatumGetFloat4(w);
 					if(IsA(get_leftop(op_expr),Const)){
@@ -1254,14 +1269,17 @@ ExecIndexBuildScanKeys(PlanState *planstate, Relation index,
 			
 				opfamily = index->rd_opfamily[varattno - 1];
 				const struct TableAmRoutine* tableam = index->rd_tableam;
-
-				get_op_opfamily_properties(opno, opfamily, isorderby,
+				// elog(INFO,"opfamily: %s", get_opname(opfamily));
+				// elog(INFO,"opno: %s", get_opname(opno));
+				// even if it's where ((a <-> '[4,4]')*0.3 + (b <-> '[4,4]')*0.2 + (c <-> '[4,4]')*0.5) < 2.6;
+				// we need to give true. otherwise we can find it out.
+				get_op_opfamily_properties(opno, opfamily, true,
 					&op_strategy,
 					&op_lefttype,
 					&op_righttype);
 				/*
-				 * initialize the scan key's fields appropriately
-				 */
+				* initialize the scan key's fields appropriately
+				*/
 				ScanKeyEntryInitialize(this_scan_key,
 					flags,
 					varattno,	/* attribute number to scan */

@@ -1730,6 +1730,7 @@ typedef struct IndexClause
 	bool		lossy;			/* are indexquals a lossy version of clause? */
 	AttrNumber	indexcol;		/* index column the clause uses (zero-based) */
 	List	   *indexcols;		/* multiple index columns, if RowCompare */
+	bool 		is_multi_vector_range_search;
 } IndexClause;
 
 /*
