@@ -1,12 +1,15 @@
-#include "postgres.h"
-
-#include <math.h>
+#pragma once
 #include "m3v.h"
-#include "storage/bufmgr.h"
-#include "storage/lmgr.h"
-#include "utils/memutils.h"
 #include "vector.h"
-#include "storage/bufmgr.h"
+extern "C"{
+	#include "postgres.h"
+	#include <math.h>
+
+	#include "storage/bufmgr.h"
+	#include "storage/lmgr.h"
+	#include "utils/memutils.h"
+}
+
 
 bool Insertm3v(BlockNumber root_block, Relation index, m3vElement element, bool *isnull, Relation heapRel, FmgrInfo *procinfo, Oid collation, GenericXLogState *state,int columns);
 /*
@@ -44,7 +47,7 @@ void WriteElementToPage(m3vElement e, Page page,int columns)
 	M3V_ELEMENT_TUPLE_SIZES(e->vecs,columns,etupSize);
 
 	/* Prepare element tuple */
-	m3vElementTuple etup = palloc0(etupSize);
+	m3vElementTuple etup = static_cast<m3vElementTuple>(palloc0(etupSize));
 	m3vSetElementTuple(etup, e,columns);
 	PageAddItem(page, (Item)etup, etupSize, InvalidOffsetNumber, false, false);
 	// PrintVector("write vector: ", &(((m3vElementLeafTuple)PageGetItem(page, PageGetItemId(page, FirstOffsetNumber)))->vec));
@@ -60,7 +63,7 @@ void WriteLeafElementToPage(m3vElement e, Page page,int columns)
 	M3V_ELEMENT_LEAF_TUPLE_SIZES(e->vecs,columns,etupLeafSize);
 
 	/* Prepare element tuple */
-	m3vElementLeafTuple etup = palloc0(etupLeafSize);
+	m3vElementLeafTuple etup = static_cast<m3vElementLeafTuple>(palloc0(etupLeafSize));
 	int result = 0;
 	(result) += (MAXALIGN(offsetof(m3vElementLeafTupleData, vecs))); 
 	for (int i = (0); i < (columns); ++i) { 
@@ -263,7 +266,7 @@ bool Insertm3v(BlockNumber root_block, Relation index, m3vElement element, bool 
 			// elog(INFO, "resgister %d 235", right_buf);
 			// set parent page
 			m3vInitPage(right_buf, new_page, m3vPageGetOpaque(page)->parent_blkno, M3V_LEAF_PAGE_TYPE, 0, InvalidOffsetNumber);
-			m3vElementLeafTuple etup_leaf = palloc0(etupLeafSize);
+			m3vElementLeafTuple etup_leaf = static_cast<m3vElementLeafTuple>(palloc0(etupLeafSize));
 			m3vSetLeafElementTuple(etup_leaf, element,columns);
 
 			/**
@@ -360,8 +363,8 @@ bool Insertm3v(BlockNumber root_block, Relation index, m3vElement element, bool 
 				m3vElement left_element = m3vInitVectorElement(NULL, left_radius, 0, root_block, DatumGetVector(left_centor),columns);
 				m3vElement right_element = m3vInitVectorElement(NULL, right_radius, 0, right_page_block_number, DatumGetVector(right_centor),columns);
 
-				m3vElementTuple left_etup = palloc0(etupSize);
-				m3vElementTuple right_etup = palloc0(etupSize);
+				m3vElementTuple left_etup = static_cast<m3vElementTuple>(palloc0(etupSize));
+				m3vElementTuple right_etup = static_cast<m3vElementTuple>(palloc0(etupSize));
 				m3vSetElementTuple(left_etup, left_element,columns);
 				m3vSetElementTuple(right_etup, right_element,columns);
 
@@ -414,7 +417,7 @@ bool Insertm3v(BlockNumber root_block, Relation index, m3vElement element, bool 
 		for (int offset = FirstOffsetNumber; offset <= offsets; offset = OffsetNumberNext(offset))
 		{
 			m3vElementTuple etup = (m3vElementTuple)PageGetItem(page, PageGetItemId(page, offset));
-			m3vDistanceOnlyCandidate *candidate = palloc0(sizeof(m3vDistanceOnlyCandidate));
+			m3vDistanceOnlyCandidate *candidate = static_cast<m3vDistanceOnlyCandidate*>(palloc0(sizeof(m3vDistanceOnlyCandidate)));
 			candidate->distance = GetPointerDistances(etup->vecs, element->vecs, procinfo, collation,columns);
 			candidate->son_page = etup->son_page;
 
@@ -476,8 +479,8 @@ bool Insertm3v(BlockNumber root_block, Relation index, m3vElement element, bool 
  */
 void UpdateParentRecurse(Page parent_page, BlockNumber parent_block_num, Relation index, FmgrInfo *procinfo, Oid collation, Page left_son_page, Page right_son_page, m3vElementTuple left_centor, m3vElementTuple right_centor, OffsetNumber left_offset, GenericXLogState *state,int columns)
 {
-	PrintVectors("UpdateParentRecurse left centor: ", &left_centor->vecs,columns);
-	PrintVectors("UpdateParentRecurse right centor: ", &right_centor->vecs,columns);
+	PrintVectors("UpdateParentRecurse left centor: ",static_cast<Vector*>(left_centor->vecs),columns);
+	PrintVectors("UpdateParentRecurse right centor: ",static_cast<Vector*>(right_centor->vecs),columns);
 	Size etupSize = 0;
 	Size etupCombineSize = 0;
 	for(int i = 0;i < columns;i++){
@@ -565,8 +568,8 @@ void UpdateParentRecurse(Page parent_page, BlockNumber parent_block_num, Relatio
 			m3vUpdatePageOpaque(OffsetNumberNext(FirstOffsetNumber), 0, new_root_page_block_number, new_page, M3V_INNER_PAGE_TYPE);
 
 			// 3.add left_centor and right_centor to root page
-			m3vElement left_element = DatumGetm3vElementTuple(left_copy_up);
-			m3vElement right_element = DatumGetm3vElementTuple(right_copy_up);
+			m3vElementTuple left_element = static_cast<m3vElementTuple>(DatumGetm3vElementTuple(left_copy_up));
+			m3vElementTuple right_element = static_cast<m3vElementTuple>(DatumGetm3vElementTuple(right_copy_up));
 			left_element->son_page = parent_block_num;
 			right_element->son_page = right_page_block_number;
 			Assert(PageGetFreeSpace(new_root_page) > 2 * etupCombineSize);
@@ -590,8 +593,8 @@ void UpdateParentRecurse(Page parent_page, BlockNumber parent_block_num, Relatio
 		else
 		{
 			// update son page
-			m3vElement left_element = DatumGetm3vElementTuple(left_copy_up);
-			m3vElement right_element = DatumGetm3vElementTuple(right_copy_up);
+			m3vElementTuple left_element = DatumGetm3vElementTuple(left_copy_up);
+			m3vElementTuple right_element = DatumGetm3vElementTuple(right_copy_up);
 			left_element->son_page = parent_block_num;
 			right_element->son_page = right_page_block_number;
 

@@ -44,3 +44,4 @@ lib*.pc
 /tmp_install/
 /portlock/
 /contrib/pgvector/*
+/contrib/m3v/build/*

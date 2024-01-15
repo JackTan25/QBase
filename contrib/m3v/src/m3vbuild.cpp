@@ -1,40 +1,42 @@
-
-#include "postgres.h"
-
-#include <math.h>
-
-#include "catalog/index.h"
+#pragma once
 #include "m3v.h"
-#include "miscadmin.h"
-#include "lib/pairingheap.h"
-#include "nodes/pg_list.h"
-#include "storage/bufmgr.h"
-#include "utils/memutils.h"
+extern "C"{
+	#include "postgres.h"
+	#include <math.h>
 
-#if PG_VERSION_NUM >= 140000
-#include "utils/backend_progress.h"
-#elif PG_VERSION_NUM >= 120000
-#include "pgstat.h"
-#endif
+	#include "catalog/index.h"
+	#include "miscadmin.h"
+	#include "lib/pairingheap.h"
+	#include "nodes/pg_list.h"
+	#include "storage/bufmgr.h"
+	#include "utils/memutils.h"
 
-#if PG_VERSION_NUM >= 120000
-#include "access/tableam.h"
-#include "commands/progress.h"
-#else
-#define PROGRESS_CREATEIDX_TUPLES_DONE 0
-#endif
+	#if PG_VERSION_NUM >= 140000
+	#include "utils/backend_progress.h"
+	#elif PG_VERSION_NUM >= 120000
+	#include "pgstat.h"
+	#endif
 
-#if PG_VERSION_NUM >= 130000
-#define CALLBACK_ITEM_POINTER ItemPointer tid
-#else
-#define CALLBACK_ITEM_POINTER HeapTuple hup
-#endif
+	#if PG_VERSION_NUM >= 120000
+	#include "access/tableam.h"
+	#include "commands/progress.h"
+	#else
+	#define PROGRESS_CREATEIDX_TUPLES_DONE 0
+	#endif
 
-#if PG_VERSION_NUM >= 120000
-#define UpdateProgress(index, val) pgstat_progress_update_param(index, val)
-#else
-#define UpdateProgress(index, val) ((void)val)
-#endif
+	#if PG_VERSION_NUM >= 130000
+	#define CALLBACK_ITEM_POINTER ItemPointer tid
+	#else
+	#define CALLBACK_ITEM_POINTER HeapTuple hup
+	#endif
+
+	#if PG_VERSION_NUM >= 120000
+	#define UpdateProgress(index, val) pgstat_progress_update_param(index, val)
+	#else
+	#define UpdateProgress(index, val) ((void)val)
+	#endif
+}
+
 
 /*
  * Create the metapage
@@ -77,7 +79,7 @@ FreeElements(m3vBuildState *buildstate)
 	ListCell *lc;
 
 	foreach (lc, buildstate->elements)
-		m3vFreeElement(lfirst(lc));
+		m3vFreeElement(static_cast<m3vElement>(lfirst(lc)));
 
 	list_free(buildstate->elements);
 }
@@ -136,7 +138,7 @@ BuildCallback(Relation index, CALLBACK_ITEM_POINTER, Datum *values,
 		
 		oldCtx = MemoryContextSwitchTo(buildstate->tmpCtx);
 		element = m3vInitElement(tid, 0, 0, InvalidBlockNumber,values,RelationGetNumberOfAttributes(index));
-		if (m3vInsertTuple(buildstate->index, element, isnull, tid, buildstate->heap, buildstate, state,RelationGetNumberOfAttributes(index)))
+		if (m3vInsertTuple(buildstate->index, element, isnull, tid, buildstate->heap, buildstate,static_cast<GenericXLogState*>(state),RelationGetNumberOfAttributes(index)))
 			UpdateProgress(PROGRESS_CREATEIDX_TUPLES_DONE, ++buildstate->indtuples);
 
 		/* Reset memory context */

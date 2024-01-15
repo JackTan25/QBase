@@ -1,12 +1,15 @@
-#include "postgres.h"
-
-#include "access/relscan.h"
+#pragma once
 #include "m3v.h"
-#include "pgstat.h"
-#include "storage/bufmgr.h"
-#include "storage/lmgr.h"
-#include "utils/memutils.h"
-#include "utils/float.h"
+extern "C"{
+	#include "postgres.h"
+	#include "access/relscan.h"
+	#include "pgstat.h"
+	#include "storage/bufmgr.h"
+	#include "storage/lmgr.h"
+	#include "utils/memutils.h"
+	#include "utils/float.h"
+}
+
 
 #define MAX_KNN_DISTANCE get_float8_infinity()
 #define KNN_QUERY(scan) (scan->orderByData != NULL && ((scan->orderByData->sk_flags & SK_ISNULL) == false))
@@ -44,26 +47,26 @@ void getKNNRecurse(Relation index, BlockNumber blkno, Datum q, int k, float8 dis
 			m3vElementTuple etup = (m3vElementTuple)PageGetItem(page, PageGetItemId(page, offset));
 			if (!root_flag && ((abs(etup->distance_to_parent - distance)) - etup->radius <= getKDistance(nn, k, *nn_size)) || root_flag)
 			{
-				float8 target_to_parent_dist = GetPointerDistances(etup->vecs, DatumGetPointer(q), procinfo, collation,columns);
+				float8 target_to_parent_dist = GetPointerDistances(etup->vecs, reinterpret_cast<Vector**>(DatumGetPointer(q)), procinfo, collation,columns);
 				float8 estimated_dist = max((target_to_parent_dist - etup->radius), 0);
 				if (estimated_dist <= getKDistance(nn, k, *nn_size))
 				{
-					m3vKNNCandidate *candidate = palloc0(sizeof(m3vKNNCandidate));
+					m3vKNNCandidate *candidate = static_cast<m3vKNNCandidate*>(palloc0(sizeof(m3vKNNCandidate)));
 					// tid is invalid now.
 					candidate->son_blkno = etup->son_page;
 					candidate->distance = estimated_dist;
 					candidate->target_parent_distance = target_to_parent_dist;
 					// min heap
-					pairingheap_add(p, Createm3vPairingKNNNode(candidate));
+					pairingheap_add(p,reinterpret_cast<pairingheap_node*>(Createm3vPairingKNNNode(candidate)));
 				}
 
 				if (target_to_parent_dist + etup->radius <= getKDistance(nn, k, *nn_size))
 				{
 					// NN_Update task
-					m3vKNNCandidate *candidate_nn = palloc0(sizeof(m3vKNNCandidate));
+					m3vKNNCandidate *candidate_nn = static_cast<m3vKNNCandidate*>(palloc0(sizeof(m3vKNNCandidate)));
 					// not leaf, don't update tid
 					candidate_nn->distance = target_to_parent_dist + etup->radius;
-					candidate_nn->tid = NIL;
+					candidate_nn->tid = NULL;
 					// elog(INFO, "KNN Internal Distance: %f, addr: %p", candidate_nn->distance, candidate_nn->tid);
 					// PrintVector("and again knn vec: ", &etup->vec);
 					// max heap
@@ -87,18 +90,18 @@ void getKNNRecurse(Relation index, BlockNumber blkno, Datum q, int k, float8 dis
 			m3vElementLeafTuple etup = (m3vElementLeafTuple)PageGetItem(page, PageGetItemId(page, offset));
 			if ((abs(etup->distance_to_parent - distance)) <= getKDistance(nn, k, *nn_size))
 			{
-				float8 dist = GetPointerDistances(etup->vecs, q, procinfo, collation,columns);
+				float8 dist = GetPointerDistances(etup->vecs,reinterpret_cast<Vector**>(q), procinfo, collation,columns);
 				if (dist <= getKDistance(nn, k, *nn_size))
 				{
 					// NN_Update task
-					m3vKNNCandidate *candidate_nn = palloc0(sizeof(m3vKNNCandidate));
+					m3vKNNCandidate *candidate_nn = static_cast<m3vKNNCandidate*>(palloc0(sizeof(m3vKNNCandidate)));
 					// not leaf, don't update tid
 					// this is accurate distance
 					candidate_nn->distance = dist;
 					candidate_nn->tid = &etup->data_tid;
 					// elog(INFO, "KNN Leaf Distance: %f, addr: %p", candidate_nn->distance, candidate_nn->tid);
 					// max heap
-					pairingheap_add(nn, Createm3vPairingKNNNode(candidate_nn));
+					pairingheap_add(nn, reinterpret_cast<pairingheap_node*>(Createm3vPairingKNNNode(candidate_nn)));
 					*nn_size = *nn_size + 1;
 					while (*nn_size > k)
 					{
@@ -170,12 +173,12 @@ GetKNNScanItems(IndexScanDesc scan, Datum q)
 	pairingheap *p = pairingheap_allocate(CompareKNNCandidatesMinHeap, NULL);
 	// max heap (use nn to return)
 	pairingheap *nn = pairingheap_allocate(CompareKNNCandidates, NULL);
-	m3vKNNCandidate *candidate = palloc0(sizeof(m3vKNNCandidate));
+	m3vKNNCandidate *candidate = static_cast<m3vKNNCandidate*>(palloc0(sizeof(m3vKNNCandidate)));
 	// if son_blkno is InvalidBlockNumber, so it's a leaf
 	candidate->son_blkno = root_block;
 	int nn_size = 0;
 	// DebugEntirem3vTree(root_block, index, 0);
-	pairingheap_add(p, Createm3vPairingKNNNode(candidate));
+	pairingheap_add(p, reinterpret_cast<pairingheap_node*>(Createm3vPairingKNNNode(candidate)));
 	while (!pairingheap_is_empty(p))
 	{
 		m3vPairingKNNNode *node = (m3vPairingKNNNode *)pairingheap_remove_first(p);
@@ -209,7 +212,7 @@ void range_query(Relation index, Datum q, List **w, BlockNumber blkno, float8 ra
 			m3vElementLeafTuple etup = (m3vElementLeafTuple)PageGetItem(page, PageGetItemId(page, offset));
 			if (abs(etup->distance_to_parent - distance) <= radius)
 			{
-				float8 dist = GetPointerDistances(etup->vecs, q, procinfo, collation,columns);
+				float8 dist = GetPointerDistances(etup->vecs, reinterpret_cast<Vector**>(q), procinfo, collation,columns);
 				if (dist <= radius)
 				{
 					*w = lappend(*w, &etup->data_tid);
@@ -224,7 +227,7 @@ void range_query(Relation index, Datum q, List **w, BlockNumber blkno, float8 ra
 			for (OffsetNumber offset = FirstOffsetNumber; offset <= offsets; offset = OffsetNumberNext(offset))
 			{
 				m3vElementTuple etup = (m3vElementTuple)PageGetItem(page, PageGetItemId(page, offset));
-				float8 dist = GetPointerDistances(etup->vecs, q, procinfo, collation,columns);
+				float8 dist = GetPointerDistances(etup->vecs, reinterpret_cast<Vector**>(q), procinfo, collation,columns);
 				if (etup->radius + radius >= dist)
 				{
 					range_query(index, q, w, etup->son_page, radius, dist, procinfo, collation,columns);
@@ -239,7 +242,8 @@ void range_query(Relation index, Datum q, List **w, BlockNumber blkno, float8 ra
 				PrintVectors("range scan vector: ", etup->vecs,columns);
 				if (abs(etup->distance_to_parent - distance) <= radius + etup->radius)
 				{
-					float8 dist = GetDistance(etup->vecs, q, procinfo, collation);
+					// bug !!!!
+					float8 dist = GetDistance(reinterpret_cast<Datum>(etup->vecs), q, procinfo, collation);
 					if (dist <= radius + etup->radius)
 					{
 						range_query(index, q, w, etup->son_page, radius, dist, procinfo, collation,columns);
@@ -429,8 +433,8 @@ bool m3vgettuple(IndexScanDesc scan, ScanDirection dir)
 				elog(ERROR, "cannot scan m3v index without order");
 
 			/* Get scan value */
-			float8* weights = palloc0(sizeof(float8) * scan->numberOfOrderBys);
-			Vector** values = palloc0(sizeof(Vector* )* scan->numberOfOrderBys);
+			float8* weights = static_cast<float8*>(palloc0(sizeof(float8) * scan->numberOfOrderBys));
+			Vector** values = static_cast<Vector**>(palloc0(sizeof(Vector* )* scan->numberOfOrderBys));
 			value = GetScanValue(scan,values,weights,true,scan->numberOfOrderBys);
 			so->w = GetKNNScanItems(scan, value);
 
@@ -445,8 +449,9 @@ bool m3vgettuple(IndexScanDesc scan, ScanDirection dir)
 		if (so->first)
 		{
 			float8 radius = DatumGetFloat8(scan->keyData->sk_argument);
-			float8* weights = palloc0(sizeof(float8) * scan->numberOfKeys);
-			Vector** values = palloc0(sizeof(Vector* )* scan->numberOfKeys);
+			float8* weights = static_cast<float8*>(palloc0(sizeof(float8) * scan->numberOfKeys));
+			// maybe bug!!!!
+			Vector** values = static_cast<Vector**>(palloc0(sizeof(Vector* )* scan->numberOfKeys));
 			Datum q = GetScanValue(scan,values,weights,false,scan->numberOfKeys);
 			// let's optmize this after meta index and vector separate idea.
 			// so->w = GetRangeScanItems(scan, q, radius,so->columns);
@@ -458,7 +463,7 @@ bool m3vgettuple(IndexScanDesc scan, ScanDirection dir)
 
 	while (list_length(so->w) > 0)
 	{
-		ItemPointer tid = llast(so->w);
+		ItemPointer tid = static_cast<ItemPointer>(llast(so->w));
 		list_delete_last(so->w);
 #if PG_VERSION_NUM >= 120000
 		scan->xs_heaptid = *tid;

@@ -1,12 +1,14 @@
-#include "postgres.h"
-
-#include <math.h>
-
-#include "commands/vacuum.h"
+#pragma once
 #include "m3v.h"
-#include "storage/bufmgr.h"
-#include "storage/lmgr.h"
-#include "utils/memutils.h"
+extern "C"{
+	#include "postgres.h"
+	#include <math.h>
+	#include "commands/vacuum.h"
+	#include "storage/bufmgr.h"
+	#include "storage/lmgr.h"
+	#include "utils/memutils.h"
+}
+
 
 /*
  * Check if deleted list contains an index TID
@@ -49,15 +51,15 @@ m3vbulkdelete(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
 {
 	M3vVacuumState vacuumstate;
 
-	InitVacuumState(&vacuumstate, info, stats, callback, callback_state);
+	// InitVacuumState(&vacuumstate, info, stats, callback, callback_state);
 
-	/* Pass 1: Remove heap TIDs */
-	RemoveHeapTids(&vacuumstate);
+	// /* Pass 1: Remove heap TIDs */
+	// RemoveHeapTids(&vacuumstate);
 
-	/* Pass 3: Mark as deleted */
-	MarkDeleted(&vacuumstate);
+	// /* Pass 3: Mark as deleted */
+	// MarkDeleted(&vacuumstate);
 
-	FreeVacuumState(&vacuumstate);
+	// FreeVacuumState(&vacuumstate);
 
 	return vacuumstate.stats;
 }

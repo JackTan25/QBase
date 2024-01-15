@@ -1,14 +1,16 @@
-#ifndef M3V_H
-#define M3V_H
 
-#include "postgres.h"
+extern "C"{
+	#ifndef M3V_H
+	#define M3V_H
 
-#include "access/generic_xlog.h"
-#include "access/reloptions.h"
-#include "nodes/execnodes.h"
-#include "port.h" /* for random() */
-#include "utils/sampling.h"
-#include "vector.h"
+	#include "postgres.h"
+	#include "vector.h"
+	#include "access/generic_xlog.h"
+	#include "access/reloptions.h"
+	#include "nodes/execnodes.h"
+	#include "port.h" /* for random() */
+	#include "utils/sampling.h"
+}
 
 #if PG_VERSION_NUM < 110000
 #error "Requires PostgreSQL 11+"
@@ -79,7 +81,7 @@
         for (int i = (0); i < (_columns); ++i) { \
             (result) += VECTOR_SIZE(vec->dim); \
 			offset = VECTOR_SIZE(vec->dim); \
-			vec = PointerGetDatum(vec) + offset; \
+			vec = reinterpret_cast<Vector*>(PointerGetDatum(vec) + offset); \
         } \
     } while (0)
 
@@ -100,7 +102,7 @@
         for (int i = (0); i < (_columns); ++i) { \
             (result) += VECTOR_SIZE(vec->dim); \
 			offset = VECTOR_SIZE(vec->dim); \
-			vec = PointerGetDatum(vec) + offset; \
+			vec = reinterpret_cast<Vector*>(PointerGetDatum(vec) + offset); \
         } \
     } while (0)
 
@@ -374,7 +376,8 @@ typedef struct m3vVacuumState
 	HTAB *deleted;
 	BufferAccessStrategy bas;
 	m3vNeighborTuple ntup;
-	m3vElementData highestPoint;
+	// we don't care about this for now.
+	// m3vElementData highestPoint;
 
 	/* Memory */
 	MemoryContext tmpCtx;

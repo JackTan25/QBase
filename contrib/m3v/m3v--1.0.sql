@@ -124,8 +124,7 @@ CREATE OPERATOR CLASS vector_cosine_ops
 	FUNCTION 1 cosine_distance(vector, vector),
 	FUNCTION 2 vector_norm(vector),
 	FUNCTION 3 vector_spherical_distance(vector, vector),
-	FUNCTION 4 vector_norm(vector),
-	FUNCTION 5 Print();
+	FUNCTION 4 vector_norm(vector);
 
 CREATE OPERATOR CLASS vector_l2_ops
 	DEFAULT FOR TYPE vector USING m3v AS

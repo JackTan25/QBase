@@ -54,7 +54,8 @@ SUBDIRS = \
 		vacuumlo	\
 		pgvector	\
 		mtree_am2	\
-		m3v
+		# m3v			\
+		blackhole	
 
 ifeq ($(with_ssl),openssl)
 SUBDIRS += pgcrypto sslinfo

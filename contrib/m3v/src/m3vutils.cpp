@@ -1,10 +1,15 @@
-#include "postgres.h"
+#pragma once
 
-#include <math.h>
 
 #include "m3v.h"
-#include "storage/bufmgr.h"
 #include "vector.h"
+extern "C"{
+	#include "postgres.h"
+	#include <math.h>
+	#include "storage/bufmgr.h"
+}
+
+
 
 /**
  * Hacking !!!!!
@@ -208,7 +213,7 @@ void m3vSetElementTuple(m3vElementTuple etup, m3vElement element,int columns)
 	int offset = 0;
 	for(int i = 0;i < columns;i++){
 		// PrintVector("element vec: ",element->vecs[i]);
-		memcpy(PointerGetDatum(&etup->vecs[0]) + offset, element->vecs[i], VECTOR_SIZE(element->vecs[i]->dim));
+		memcpy(reinterpret_cast<char*>((PointerGetDatum(&etup->vecs[0]) + offset)), element->vecs[i], VECTOR_SIZE(element->vecs[i]->dim));
 		offset += VECTOR_SIZE(element->vecs[i]->dim);
 		// PrintVector("append vec: ",&etup->vecs[i]);
 	}
@@ -226,7 +231,7 @@ void m3vSetLeafElementTuple(m3vElementLeafTuple etup, m3vElement element,int col
 	int offset = 0;
 	for(int i = 0;i < columns;i++){
 		// PrintVector("element vec: ",element->vecs[i]);
-		memcpy(PointerGetDatum(&etup->vecs[0]) + offset, element->vecs[i], VECTOR_SIZE(element->vecs[i]->dim));
+		memcpy(reinterpret_cast<char*>((PointerGetDatum(&etup->vecs[0]) + offset)), element->vecs[i], VECTOR_SIZE(element->vecs[i]->dim));
 		offset += VECTOR_SIZE(element->vecs[i]->dim);
 		// PrintVector("append vec: ",&etup->vecs[i]);
 	}
@@ -253,7 +258,7 @@ m3vInitElement(ItemPointer tid, float8 radius, float8 distance_to_parent, BlockN
 {
 	// PrintVector("vecs[0]: ",DatumGetVector(PointerGetDatum(PG_DETOAST_DATUM(values[0]))));
 	// PrintVector("vecs[1]: ",DatumGetVector(PointerGetDatum(PG_DETOAST_DATUM(values[1]))));
-	m3vElement element = palloc(MAXALIGN(offsetof(m3vElementData, vecs)+sizeof(Vector*)*columns));
+	m3vElement element = static_cast<m3vElement>(palloc(MAXALIGN(offsetof(m3vElementData, vecs)+sizeof(Vector*)*columns)));
 	element->distance_to_parent = distance_to_parent;
 	element->radius = radius;
 	element->son_page = son_page;
@@ -273,7 +278,7 @@ m3vInitElement(ItemPointer tid, float8 radius, float8 distance_to_parent, BlockN
 m3vElement
 m3vInitVectorElement(ItemPointer tid, float8 radius, float8 distance_to_parent, BlockNumber son_page, Vector* vec,int columns)
 {
-	m3vElement element = palloc(MAXALIGN(offsetof(m3vElementData, vecs)+sizeof(Vector*)*columns));
+	m3vElement element = static_cast<m3vElement>(palloc0(MAXALIGN(offsetof(m3vElementData, vecs)+sizeof(Vector*)*columns)));
 	element->distance_to_parent = distance_to_parent;
 	element->radius = radius;
 	element->son_page = son_page;
@@ -283,7 +288,7 @@ m3vInitVectorElement(ItemPointer tid, float8 radius, float8 distance_to_parent, 
 		PrintVector("element vec: ",vec);
 		element->vecs[i] = vec;
 		offset = VECTOR_SIZE(vec->dim);
-		vec = PointerGetDatum(vec) + offset;
+		vec = reinterpret_cast<Vector*>(PointerGetDatum(vec) + offset);
 	}
 	for(int i = 0;i < columns;i++){
 		PrintVector("element vec: ",element->vecs[i]);
@@ -404,8 +409,8 @@ float GetDistances(Vector* vecs1,Vector* vecs2, FmgrInfo *procinfo, Oid collatio
 		res+= DatumGetFloat8(FunctionCall2Coll(procinfo, collation, PointerGetDatum(vec1), PointerGetDatum(vec2)));
 		Assert(vec1->dim == vec2->dim);
 		offset += VECTOR_SIZE(vec1->dim);
-		vec1 = PointerGetDatum(vecs1) + offset;
-		vec2 = PointerGetDatum(vecs2) + offset;
+		vec1 = reinterpret_cast<Vector*>(PointerGetDatum(vecs1) + offset);
+		vec2 = reinterpret_cast<Vector*>(PointerGetDatum(vecs2) + offset);
 	}
 	return res;
 }
@@ -418,7 +423,7 @@ float GetPointerDistances(Vector* vecs1,Vector** vecs2, FmgrInfo *procinfo, Oid 
 	for(int i = 0;i < columns;i++){
 		res+= DatumGetFloat8(FunctionCall2Coll(procinfo, collation, PointerGetDatum(vec1), PointerGetDatum(vecs2[i])));
 		offset += VECTOR_SIZE(vec1->dim);
-		vec1 = PointerGetDatum(vecs1) + offset;
+		vec1 = reinterpret_cast<Vector*>(PointerGetDatum(vecs1) + offset);
 	}
 	return res;
 }
@@ -498,14 +503,14 @@ Page SplitInternalPage(Page internal_page, Page new_page, FmgrInfo *procinfo, Oi
 		m3vElementTuple etup = (m3vElementTuple)PageGetItem(internal_page, PageGetItemId(internal_page, offset));
 		heap.visited[offset - 1] = false;
 		// left candidate
-		m3vCandidate *left_candidate = palloc0(sizeof(m3vCandidate));
-		left_candidate->distance = GetDistances(etup->vecs, *left_copy_up, procinfo, collation,columns);
+		m3vCandidate *left_candidate = static_cast<m3vCandidate*>(palloc0(sizeof(m3vCandidate)));
+		left_candidate->distance = GetDistances(etup->vecs, reinterpret_cast<Vector*>(*left_copy_up), procinfo, collation,columns);
 		left_candidate->element = PointerGetDatum(etup);
 		left_candidate->id = offset;
 		// elog(INFO, "left id: %d,distance: %f ", left_candidate->id, left_candidate->distance);
 		// right candidate
-		m3vCandidate *right_candidate = palloc0(sizeof(m3vCandidate));
-		right_candidate->distance = GetDistances(&etup->vecs, *right_copy_up, procinfo, collation,columns);
+		m3vCandidate *right_candidate = static_cast<m3vCandidate*>(palloc0(sizeof(m3vCandidate)));
+		right_candidate->distance = GetDistances(etup->vecs, reinterpret_cast<Vector*>(*right_copy_up), procinfo, collation,columns);
 		right_candidate->element = PointerGetDatum(etup);
 		right_candidate->id = offset;
 		// elog(INFO, "right id: %d,distance: %f ", right_candidate->id, right_candidate->distance);
@@ -563,11 +568,11 @@ Page SplitInternalPage(Page internal_page, Page new_page, FmgrInfo *procinfo, Oi
 	PrintInternalPageVectors("Old Page After Split Page Vector: ", temp_page,columns);
 	PrintInternalPageVectors("New Page After Spilt Page Vector: ", new_page,columns);
 	// Insert insert_data
-	PrintVectors("left_copy_up vector", *left_copy_up,columns);
-	PrintVectors("right_copy_up vector", *right_copy_up,columns);
-	PrintVectors("insert_data vector", &insert_data->vecs,columns);
-	float8 left_distance = GetDistances(*left_copy_up, insert_data->vecs, procinfo, collation,columns);
-	float8 right_distance = GetDistances(*right_copy_up, insert_data->vecs, procinfo, collation,columns);
+	PrintVectors("left_copy_up vector",reinterpret_cast<Vector*>(*left_copy_up),columns);
+	PrintVectors("right_copy_up vector", reinterpret_cast<Vector*>(*right_copy_up),columns);
+	PrintVectors("insert_data vector", insert_data->vecs,columns);
+	float8 left_distance = GetDistances(reinterpret_cast<Vector*>(*left_copy_up), insert_data->vecs, procinfo, collation,columns);
+	float8 right_distance = GetDistances(reinterpret_cast<Vector*>(*right_copy_up), insert_data->vecs, procinfo, collation,columns);
 	elem = insert_data;
 	if (left_distance < right_distance)
 	{
@@ -662,14 +667,14 @@ Page SplitLeafPage(Page page, Page new_page, FmgrInfo *procinfo, Oid collation, 
 		m3vElementLeafTuple etup = (m3vElementLeafTuple)PageGetItem(page, PageGetItemId(page, offset));
 		heap.visited[offset - 1] = false;
 		// left candidate
-		m3vCandidate *left_candidate = palloc0(sizeof(m3vCandidate));
-		left_candidate->distance = GetDistances(etup->vecs, *left_centor, procinfo, collation,columns);
+		m3vCandidate *left_candidate =static_cast<m3vCandidate*>(palloc0(sizeof(m3vCandidate)));
+		left_candidate->distance = GetDistances(etup->vecs, reinterpret_cast<Vector*>(*left_centor), procinfo, collation,columns);
 		left_candidate->element = PointerGetDatum(etup);
 		left_candidate->id = offset;
 		// elog(INFO, "left id: %d,distance: %f ", left_candidate->id, left_candidate->distance);
 		// right candidate
-		m3vCandidate *right_candidate = palloc0(sizeof(m3vCandidate));
-		right_candidate->distance = GetDistances(etup->vecs, *right_centor, procinfo, collation,columns);
+		m3vCandidate *right_candidate = static_cast<m3vCandidate*>(palloc0(sizeof(m3vCandidate)));
+		right_candidate->distance = GetDistances(etup->vecs,reinterpret_cast<Vector*>(*right_centor), procinfo, collation,columns);
 		right_candidate->element = PointerGetDatum(etup);
 		right_candidate->id = offset;
 		// elog(INFO, "right id: %d,distance: %f ", right_candidate->id, right_candidate->distance);
@@ -723,8 +728,8 @@ Page SplitLeafPage(Page page, Page new_page, FmgrInfo *procinfo, Oid collation, 
 	// PrintLeafPageVectors("test new leaf page before ", new_page);
 	// PrintVector("insert data", &insert_data->vec);
 	// Insert insert_data
-	float8 left_distance = GetDistances(*left_centor, insert_data->vecs, procinfo, collation,columns);
-	float8 right_distance = GetDistances(*right_centor,insert_data->vecs, procinfo, collation,columns);
+	float8 left_distance = GetDistances(reinterpret_cast<Vector*>(*left_centor), insert_data->vecs, procinfo, collation,columns);
+	float8 right_distance = GetDistances(reinterpret_cast<Vector*>(*right_centor),insert_data->vecs, procinfo, collation,columns);
 	elem = insert_data;
 	if (left_distance < right_distance)
 	{
@@ -777,8 +782,8 @@ int CompareKNNCandidates(const pairingheap_node *a, const pairingheap_node *b, v
 	if (((const m3vPairingKNNNode *)a)->inner->distance > ((const m3vPairingKNNNode *)b)->inner->distance)
 		return 1;
 
-	bool a_null = (((const m3vPairingKNNNode *)a)->inner->tid == NIL);
-	bool b_null = (((const m3vPairingKNNNode *)b)->inner->tid == NIL);
+	bool a_null = (((const m3vPairingKNNNode *)a)->inner->tid == NULL);
+	bool b_null = (((const m3vPairingKNNNode *)b)->inner->tid == NULL);
 	if (a_null && !b_null)
 	{
 		return 1;
@@ -856,7 +861,7 @@ CompareFurthestCandidates(const pairingheap_node *a, const pairingheap_node *b, 
  */
 m3vPairingKNNNode *Createm3vPairingKNNNode(m3vKNNCandidate *c)
 {
-	m3vPairingKNNNode *node = palloc(sizeof(m3vPairingKNNNode));
+	m3vPairingKNNNode *node = static_cast<m3vPairingKNNNode*>(palloc(sizeof(m3vPairingKNNNode)));
 
 	node->inner = c;
 	return node;
@@ -868,7 +873,7 @@ m3vPairingKNNNode *Createm3vPairingKNNNode(m3vKNNCandidate *c)
 static m3vPairingHeapNode *
 CreatePairingHeapNode(m3vCandidate *c)
 {
-	m3vPairingHeapNode *node = palloc(sizeof(m3vPairingHeapNode));
+	m3vPairingHeapNode *node = static_cast<m3vPairingHeapNode*>(palloc(sizeof(m3vPairingHeapNode)));
 
 	node->inner = c;
 	return node;
@@ -880,7 +885,7 @@ CreatePairingHeapNode(m3vCandidate *c)
 m3vPairingDistanceOnlyHeapNode *
 CreatePairingDistanceOnlyHeapNode(m3vDistanceOnlyCandidate *c)
 {
-	m3vPairingDistanceOnlyHeapNode *node = palloc(sizeof(m3vPairingDistanceOnlyHeapNode));
+	m3vPairingDistanceOnlyHeapNode *node = static_cast<m3vPairingDistanceOnlyHeapNode*>(palloc(sizeof(m3vPairingDistanceOnlyHeapNode)));
 
 	node->inner = c;
 	return node;
@@ -893,72 +898,6 @@ static float
 m3vGetDistance(m3vElement a, m3vElement b, int lc, FmgrInfo *procinfo, Oid collation) {}
 
 /*
- * Check if an element is closer to q than any element from R
- */
-static bool CheckElementCloser(m3vCandidate *e, List *r, int lc, FmgrInfo *procinfo, Oid collation)
-{
-	ListCell *lc2;
-
-	foreach (lc2, r)
-	{
-		m3vCandidate *ri = lfirst(lc2);
-		float distance = m3vGetDistance(e->element, ri->element, lc, procinfo, collation);
-
-		if (distance <= e->distance)
-			return false;
-	}
-
-	return true;
-}
-
-/*
- * Algorithm 4 from paper
- */
-static List *
-SelectNeighbors(List *c, int m, int lc, FmgrInfo *procinfo, Oid collation, m3vCandidate **pruned)
-{
-	List *r = NIL;
-	List *w = list_copy(c);
-	pairingheap *wd;
-
-	if (list_length(w) <= m)
-		return w;
-
-	wd = pairingheap_allocate(CompareNearestCandidates, NULL);
-
-	while (list_length(w) > 0 && list_length(r) < m)
-	{
-		/* Assumes w is already ordered desc */
-		m3vCandidate *e = llast(w);
-		bool closer;
-
-		w = list_delete_last(w);
-
-		closer = CheckElementCloser(e, r, lc, procinfo, collation);
-
-		if (closer)
-			r = lappend(r, e);
-		else
-			pairingheap_add(wd, &(CreatePairingHeapNode(e)->ph_node));
-	}
-
-	/* Keep pruned connections */
-	while (!pairingheap_is_empty(wd) && list_length(r) < m)
-		r = lappend(r, ((m3vPairingHeapNode *)pairingheap_remove_first(wd))->inner);
-
-	/* Return pruned for update connections */
-	if (pruned != NULL)
-	{
-		if (!pairingheap_is_empty(wd))
-			*pruned = ((m3vPairingHeapNode *)pairingheap_first(wd))->inner;
-		else
-			*pruned = linitial(w);
-	}
-
-	return r;
-}
-
-/*
  * Compare candidate distances
  */
 static int
@@ -968,8 +907,8 @@ CompareCandidateDistances(const ListCell *a, const ListCell *b)
 CompareCandidateDistances(const void *a, const void *b)
 #endif
 {
-	m3vCandidate *hca = lfirst((ListCell *)a);
-	m3vCandidate *hcb = lfirst((ListCell *)b);
+	m3vCandidate *hca =  static_cast<m3vCandidate*>(lfirst((ListCell *)a));
+	m3vCandidate *hcb =  static_cast<m3vCandidate*>(lfirst((ListCell *)b));
 
 	if (hca->distance < hcb->distance)
 		return 1;
