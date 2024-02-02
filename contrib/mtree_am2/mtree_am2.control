@@ -1,5 +1,0 @@
-# mtree_am extension
-comment = 'template table AM eating all data'
-default_version = '1.0'
-module_pathname = '$libdir/mtree_am2'
-relocatable = true

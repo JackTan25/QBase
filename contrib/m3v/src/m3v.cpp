@@ -1,6 +1,7 @@
 #pragma once
 
 #include "m3v.h"
+#include "rocksdb/options.h"
 extern "C"
 {
 	#include "postgres.h"

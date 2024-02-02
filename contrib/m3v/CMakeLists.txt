@@ -13,12 +13,22 @@ endif()
 set(EXT_CONTROL_FILE ${PROJECT_NAME}.control)
 set(EXT_SQL_FILE ${PROJECT_NAME}--1.0.sql)
 
+## build rocksdb
+add_custom_target(build_rocksdb
+    COMMAND ${CMAKE_MAKE_PROGRAM} -C ${CMAKE_SOURCE_DIR}/third_party/rocksdb
+    DEPENDS ${CMAKE_SOURCE_DIR}/third_party/rocksdb/Makefile
+    COMMENT "Building RocksDB"
+)
+
 # Add Compile Options
 add_definitions(-DPLATFORM_UNIX)
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse4.2 -maes -mavx2 -fPIC")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
 set(CMAKE_C_FLAGS "${CMAKE_CXX_FLAGS} -mmwaitx ${CMAKE_EXE_LINKER_FLAGS} -fPIC")
 message(STATUS "linker: ${CMAKE_EXE_LINKER_FLAGS}")
+
+message(STATUS "vector path: ${CMAKE_SOURCE_DIR}/src/vector.h")
+
 # Add Source Files
 add_library(${PROJECT_NAME} SHARED
     src/m3v.cpp 
@@ -28,7 +38,17 @@ add_library(${PROJECT_NAME} SHARED
     src/m3vutils.cpp 
     src/m3vvaccum.cpp
     src/vector.cpp
+    # src/record_cache/record_io.cpp
 )
+
+file(GLOB ROCKSDB_DYLIBS "${CMAKE_SOURCE_DIR}/third_party/rocksdb/*.so.*")
+message(STATUS "ROCKSDB_DYLIBS:${ROCKSDB_DYLIBS}")
+message(STATUS "CMAKE_SOURCE_DIR:${CMAKE_SOURCE_DIR}")
+
+target_link_libraries(${PROJECT_NAME} ${ROCKSDB_DYLIBS})
+set_target_properties(${PROJECT_NAME} PROPERTIES
+                      BUILD_WITH_INSTALL_RPATH TRUE
+                      INSTALL_RPATH ${ROCKSDB_DYLIBS})
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_14)
 # target_compile_options(${PROJECT_NAME} PRIVATE -Wall -mavx2)
@@ -37,8 +57,10 @@ set_target_properties(${PROJECT_NAME} PROPERTIES CXX_EXTENSIONS OFF)
 set_target_properties(${PROJECT_NAME} PROPERTIES PREFIX "")
 set_target_properties(${PROJECT_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(${PROJECT_NAME} PUBLIC /data/include/postgresql/server)
-target_include_directories(${PROJECT_NAME} PUBLIC /home/jack/cpp_workspace/wrapdir/OneDb2/contrib/m3v/src/m3v.h 
-/home/jack/cpp_workspace/wrapdir/OneDb2/contrib/m3v/src/vector.h)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/src/record_cache/include)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/src/
+${CMAKE_SOURCE_DIR}/src/ ${CMAKE_SOURCE_DIR}/third_party/rocksdb/include)
+
 if(WIN32)
     message(STATUS "WIN32")
     target_include_directories(${PROJECT_NAME} PUBLIC ${PostgreSQL_TYPE_INCLUDE_DIR}/port/win32)
@@ -93,6 +115,22 @@ message (STATUS "UNIX: CMAKE_C_FLAGS: ${CMAKE_C_FLAGS}")
 message(STATUS "PostgreSQL_SHAREDIR: ${PostgreSQL_SHAREDIR}")
 message(STATUS "PostgreSQL_PKGLIBDIR: ${PostgreSQL_PKGLIBDIR}")
 
+add_subdirectory(third_party/lrucache11)
+
+add_subdirectory(third_party/googletest)
+enable_testing()
+file(GLOB TEST_SOURCES "src/tests/*.cpp")
+set(TEST_FILES ${TEST_SOURCES})
+message(STATUS "TEST_FILES:${TEST_FILES}")
+add_executable(TEST_M3V ${TEST_FILES})
+target_link_libraries(TEST_M3V gtest gtest_main ${ROCKSDB_DYLIBS} LRUCache11)
+target_include_directories(TEST_M3V PRIVATE ${CMAKE_SOURCE_DIR}/third_party/lrucache11)
+message("source directory: ${CMAKE_SOURCE_DIR}/third_party/rocksdb/include")
+target_include_directories(TEST_M3V PRIVATE ${CMAKE_SOURCE_DIR}/third_party/rocksdb/include ${CMAKE_SOURCE_DIR}/src/record_cache/include)
+
+add_test(NAME TEST_M3V_ COMMAND TEST_M3V)
 # cmake -DCMAKE_INSTALL_PREFIX=/data/data -DLIBRARYONLY=ON -DSEEK_ENABLE_TESTS=ON -DCMAKE_BUILD_TYPE=Release ..
 # make -j$(nproc)
 # make install
+# linux: export LD_LIBRARY_PATH=/home/jack/cpp_workspace/wrapdir/OneDb2/contrib/m3v/third_party/rocksdb/:$DYLD_LIBRARY_PATH
+# macos: export DYLD_LIBRARY_PATH=/home/jack/cpp_workspace/wrapdir/OneDb2/contrib/m3v/third_party/rocksdb/:$DYLD_LIBRARY_PATH

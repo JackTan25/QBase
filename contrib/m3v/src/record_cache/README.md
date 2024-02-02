@@ -1,0 +1,1 @@
+we use `RocksDB` as our storage system. And `record cache` is BufferManager, but it cahce vector groups. We create every m3v index with a record buffer, so we can initial a singleton fixedsiz buffer as a recorcd buffer. We design the codes by referencing to `Duckdb`.

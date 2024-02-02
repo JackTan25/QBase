@@ -19,7 +19,7 @@ typedef struct Vector
 	int16 unused;
 	// float distance_to_parent_in_dim;
 	// float radius_in_dim;
-	float x[FLEXIBLE_ARRAY_MEMBER];
+	float* x;
 } Vector;
 
 Vector *InitVector(int dim);

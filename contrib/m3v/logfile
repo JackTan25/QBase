@@ -456,3 +456,118 @@ false :location 69 :constvalue 4 [ 108 172 24 0 0 0 0 0 ]}) :location 67}
 2024-01-15 19:33:48.036 CST [10069] LOG:  checkpoint starting: shutdown immediate
 2024-01-15 19:33:48.041 CST [10069] LOG:  checkpoint complete: wrote 32 buffers (0.2%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.001 s, total=0.006 s; sync files=7, longest=0.001 s, average=0.001 s; distance=137 kB, estimate=137 kB; lsn=0/14E4D80, redo lsn=0/14E4D80
 2024-01-15 19:33:48.045 CST [10068] LOG:  database system is shut down
+2024-01-23 22:31:13.706 CST [105909] LOG:  There is no designated Main database.
+2024-01-23 22:31:13.706 CST [105909] LOG:  number of prepared transactions has not been configured, overriding
+2024-01-23 22:31:13.706 CST [105909] DETAIL:  max_prepared_transactions is now set to 200
+2024-01-23 22:31:13.724 CST [105909] LOG:  starting PostgreSQL 16.1-lstdc++ on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 8.5.0 20210514 (Red Hat 8.5.0-4), 64-bit
+2024-01-23 22:31:13.725 CST [105909] LOG:  listening on IPv6 address "::1", port 5432
+2024-01-23 22:31:13.725 CST [105909] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2024-01-23 22:31:13.726 CST [105909] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2024-01-23 22:31:13.728 CST [105912] LOG:  database system was shut down at 2024-01-23 22:31:11 CST
+2024-01-23 22:31:13.730 CST [105909] LOG:  database system is ready to accept connections
+2024-01-23 22:31:20.193 CST [105951] LOG:  starting maintenance daemon on database 5 user 10
+2024-01-23 22:31:20.193 CST [105951] CONTEXT:  Citus maintenance daemon for database 5 user 10
+2024-01-23 22:31:20.206 CST [105950] LOG:  sort_clause:
+	 <>
+	
+	
+2024-01-23 22:31:20.206 CST [105950] CONTEXT:  SQL statement "DELETE FROM pg_catalog.pg_dist_object WHERE classid = $1 AND objid = $2 AND objsubid = $3"
+2024-01-23 22:31:20.206 CST [105950] STATEMENT:  drop extension m3v cascade;
+2024-01-23 22:31:20.208 CST [105950] LOG:  fix_indexqual_operand:
+	 {VAR :varno 1 :varattno 1 :vartype 26 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 1 :location 44}
+	
+	
+2024-01-23 22:31:20.208 CST [105950] CONTEXT:  SQL statement "DELETE FROM pg_catalog.pg_dist_object WHERE classid = $1 AND objid = $2 AND objsubid = $3"
+2024-01-23 22:31:20.208 CST [105950] STATEMENT:  drop extension m3v cascade;
+2024-01-23 22:31:20.208 CST [105950] LOG:  fix_indexqual_operand:
+	 {VAR :varno 1 :varattno 2 :vartype 26 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 2 :location 61}
+	
+	
+2024-01-23 22:31:20.208 CST [105950] CONTEXT:  SQL statement "DELETE FROM pg_catalog.pg_dist_object WHERE classid = $1 AND objid = $2 AND objsubid = $3"
+2024-01-23 22:31:20.208 CST [105950] STATEMENT:  drop extension m3v cascade;
+2024-01-23 22:31:20.208 CST [105950] LOG:  fix_indexqual_operand:
+	 {VAR :varno 1 :varattno 3 :vartype 23 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 3 :location 76}
+	
+	
+2024-01-23 22:31:20.208 CST [105950] CONTEXT:  SQL statement "DELETE FROM pg_catalog.pg_dist_object WHERE classid = $1 AND objid = $2 AND objsubid = $3"
+2024-01-23 22:31:20.208 CST [105950] STATEMENT:  drop extension m3v cascade;
+{PLANNEDSTMT :commandType 4 :queryId 0 :hasReturning false :hasModifyingCTE
+false :canSetTag true :transientPlan false :dependsOnRole false
+:parallelModeNeeded false :jitFlags 0 :planTree {MODIFYTABLE
+:plan.startup_cost 0.15 :plan.total_cost 8.1725 :plan.plan_rows 0
+:plan.plan_width 0 :plan.parallel_aware false :plan.parallel_safe false
+:plan.async_capable false :plan.plan_node_id 0 :plan.targetlist <> :plan.qual
+<> :plan.lefttree {INDEXSCAN :scan.plan.startup_cost 0.15
+:scan.plan.total_cost 8.1725 :scan.plan.plan_rows 1 :scan.plan.plan_width 6
+:scan.plan.parallel_aware false :scan.plan.parallel_safe false
+:scan.plan.async_capable false :scan.plan.plan_node_id 1 :scan.plan.targetlist
+({TARGETENTRY :expr {VAR :varno 1 :varattno -1 :vartype 27 :vartypmod -1
+:varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn -1
+:location -1} :resno 1 :resname ctid :ressortgroupref 0 :resorigtbl 0
+:resorigcol 0 :resjunk true}) :scan.plan.qual <> :scan.plan.lefttree <>
+:scan.plan.righttree <> :scan.plan.initPlan <> :scan.plan.extParam (b 0)
+:scan.plan.allParam (b 0) :scan.scanrelid 1 :indexid 17727 :indexqual ({OPEXPR
+:opno 607 :opfuncid 184 :opresulttype 16 :opretset false :opcollid 0
+:inputcollid 0 :args ({VAR :varno -3 :varattno 1 :vartype 26 :vartypmod -1
+:varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 1
+:location 44} {CONST :consttype 26 :consttypmod -1 :constcollid 0 :constlen 4
+:constbyval true :constisnull false :location 54 :constvalue 4 [ 7 12 0 0 0 0
+0 0 ]}) :location 52} {OPEXPR :opno 607 :opfuncid 184 :opresulttype 16
+:opretset false :opcollid 0 :inputcollid 0 :args ({VAR :varno -3 :varattno 2
+:vartype 26 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0
+:varnosyn 1 :varattnosyn 2 :location 61} {CONST :consttype 26 :consttypmod -1
+:constcollid 0 :constlen 4 :constbyval true :constisnull false :location 69
+:constvalue 4 [ 108 172 24 0 0 0 0 0 ]}) :location 67} {OPEXPR :opno 96
+:opfuncid 65 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args
+({VAR :varno -3 :varattno 3 :vartype 23 :vartypmod -1 :varcollid 0
+:varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 3 :location 76}
+{CONST :consttype 23 :consttypmod -1 :constcollid 0 :constlen 4 :constbyval
+true :constisnull false :location 87 :constvalue 4 [ 0 0 0 0 0 0 0 0 ]})
+:location 85}) :indexqualorig ({OPEXPR :opno 607 :opfuncid 184 :opresulttype
+16 :opretset false :opcollid 0 :inputcollid 0 :args ({VAR :varno 1 :varattno 1
+:vartype 26 :vartypmod -1 :varcollid 0 :varnullingrels (b) :varlevelsup 0
+:varnosyn 1 :varattnosyn 1 :location 44} {CONST :consttype 26 :consttypmod -1
+:constcollid 0 :constlen 4 :constbyval true :constisnull false :location 54
+:constvalue 4 [ 7 12 0 0 0 0 0 0 ]}) :location 52} {OPEXPR :opno 607 :opfuncid
+184 :opresulttype 16 :opretset false :opcollid 0 :inputcollid 0 :args ({VAR
+:varno 1 :varattno 2 :vartype 26 :vartypmod -1 :varcollid 0 :varnullingrels
+(b) :varlevelsup 0 :varnosyn 1 :varattnosyn 2 :location 61} {CONST :consttype
+26 :consttypmod -1 :constcollid 0 :constlen 4 :constbyval true :constisnull
+false :location 69 :constvalue 4 [ 108 172 24 0 0 0 0 0 ]}) :location 67}
+{OPEXPR :opno 96 :opfuncid 65 :opresulttype 16 :opretset false :opcollid 0
+:inputcollid 0 :args ({VAR :varno 1 :varattno 3 :vartype 23 :vartypmod -1
+:varcollid 0 :varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 3
+:location 76} {CONST :consttype 23 :consttypmod -1 :constcollid 0 :constlen 4
+:constbyval true :constisnull false :location 87 :constvalue 4 [ 0 0 0 0 0 0 0
+0 ]}) :location 85}) :indexorderby <> :indexorderbyorig <> :indexorderbyops <>
+:indexorderdir 1 :is_multi_col_vector_search false} :plan.righttree <>
+:plan.initPlan <> :plan.extParam (b) :plan.allParam (b) :operation 4
+:canSetTag true :nominalRelation 1 :rootRelation 0 :partColsUpdated false
+:resultRelations (i 1) :updateColnosLists <> :withCheckOptionLists <>
+:returningLists <> :fdwPrivLists (<>) :fdwDirectModifyPlans (b) :rowMarks <>
+:epqParam 0 :onConflictAction 0 :arbiterIndexes <> :onConflictSet <>
+:onConflictCols <> :onConflictWhere <> :exclRelRTI 0 :exclRelTlist <>
+:mergeActionLists <>} :rtable ({RANGETBLENTRY :alias <> :eref {ALIAS
+:aliasname pg_dist_object :colnames ("classid" "objid" "objsubid" "type"
+"object_names" "object_args" "distribution_argument_index" "colocationid"
+"force_delegation")} :rtekind 0 :relid 17722 :relkind r :rellockmode 3
+:tablesample <> :perminfoindex 1 :lateral false :inh false :inFromCl false
+:securityQuals <>}) :permInfos ({RTEPERMISSIONINFO :relid 17722 :inh true
+:requiredPerms 10 :checkAsUser 0 :selectedCols (b 8 9 10) :insertedCols (b)
+:updatedCols (b)}) :resultRelations (i 1) :appendRelations <> :subplans <>
+:rewindPlanIDs (b) :rowMarks <> :relationOids (o 17722 3079 1617004 3079
+1617004) :invalItems <> :paramExecTypes (o 0) :utilityStmt <> :stmt_location 0
+:stmt_len 0}
+
+2024-01-23 22:31:20.216 CST [105950] ERROR:  could not load library "/data/lib/postgresql/m3v.so": librocksdb.so.8.11: cannot open shared object file: No such file or directory
+2024-01-23 22:31:20.216 CST [105950] STATEMENT:  drop extension m3v cascade;
+2024-01-23 22:36:03.931 CST [105909] LOG:  received fast shutdown request
+2024-01-23 22:36:03.937 CST [105909] LOG:  aborting any active transactions
+2024-01-23 22:36:03.943 CST [105909] LOG:  background worker "logical replication launcher" (PID 105915) exited with exit code 1
+2024-01-23 22:36:03.945 CST [105910] LOG:  shutting down
+2024-01-23 22:36:03.946 CST [105910] LOG:  checkpoint starting: shutdown immediate
+2024-01-23 22:36:03.955 CST [105910] LOG:  checkpoint complete: wrote 4 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.005 s, sync=0.002 s, total=0.010 s; sync files=3, longest=0.001 s, average=0.001 s; distance=1 kB, estimate=1 kB; lsn=1/46EBC6C0, redo lsn=1/46EBC6C0
+2024-01-23 22:36:03.964 CST [105909] LOG:  database system is shut down

@@ -1,0 +1,9 @@
+[submodule "contrib/m3v/third_party/rocksdb"]
+	path = contrib/m3v/third_party/rocksdb
+	url = https://github.com/facebook/rocksdb.git
+[submodule "contrib/m3v/third_party/gtest"]
+	path = contrib/m3v/third_party/gtest
+	url = https://github.com/google/googletest.git
+[submodule "contrib/m3v/third_party/lrucache11"]
+	path = contrib/m3v/third_party/lrucache11
+	url = https://github.com/mohaps/lrucache11.git
