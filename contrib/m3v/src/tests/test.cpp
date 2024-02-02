@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 #include "rocksdb/db.h"
+#include "lru_index_pointer.h"
+#include "record_io.h"
 
 TEST(Hack, AssertionT) {
     ASSERT_TRUE(true);
@@ -43,7 +45,7 @@ TEST(M3V,RocksDB){
 }
 
 TEST(M3V,RECORD_CACHE){
-
+    IndexPointerLruCache<384,3> cache_test();
 }
 
 TEST(M3V,KMEANS_SPLIT){

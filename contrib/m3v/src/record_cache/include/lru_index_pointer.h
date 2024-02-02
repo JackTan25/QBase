@@ -4,6 +4,7 @@
 #include "itemptr.h"
 #include "record_io.h"
 
+// IndexPointerLruCache is not concurrent safety.
 typedef std::pair<ItemPointer,IndexPointer> KeyValuePair;
 typedef std::list<KeyValuePair> list_type;
 typedef std::unordered_map<ItemPointer, typename std::list<KeyValuePair>::iterator> Map;
@@ -12,16 +13,26 @@ class IndexPointerLruCache{
 	public:
 		// we can always get IndexPointer successfully.
 		VectorRecord<N,M>* Get(const ItemPointer& k);
+
+		void UnPinItemPointer(const ItemPointer& k);
 	private:
+		constexpr uint32_t HIGHMASK = 0xFFFF0000;
 		bool is_full(){
 			return cache_.size() == maxSize_;
   		}
 
-		IndexPointer remove_front(){
-		 	ItemPointer item_pointer = keys_.end()->first;
-			IndexPointer index_pointer = keys_.end()->second;
-			remove(item_pointer);
-			return IndexPointer;
+		IndexPointer remove_first_unpin(){
+			// remove the pin counts
+			IndexPointer index_pointer = InValidIndexPointer;
+			for (auto it = keys_.rbegin(); it != keys_.rend(); ++it) {
+				if(((it->second.offset & HIGHMASK)>>16) == 0){
+					index_pointer = it->second;
+					index_pointer = (~HIGHMASK)&index_pointer;
+					remove(it->first);
+					break;
+				}
+			}
+			return index_pointer;
 		}
 
 		void insert(const ItemPointer& k, IndexPointer v) {
@@ -78,12 +89,22 @@ class IndexPointerLruCache{
 		 * safe to use/recommended in multi-threaded apps
 		 */
 		IndexPointer getCopy(const ItemPointer& k){
+			// remove pin counts
 			const auto iter = cache_.find(k);
 			if(iter != cache_.end()){
+				PinItemPointer(k);
 				keys_.splice(keys_.begin(), keys_, iter->second);
-				return iter->second->second;
+				return (iter->second->second&(~HIGHMASK));
 			}else{
 				return InValidIndexPointer;
+			}
+		}
+
+		void PinItemPointer(const ItemPointer& k){
+			if(contains(k)){
+				const auto iter = cache_.find(k);
+				IndexPointer& index_pointer = iter->second->second;
+				index_pointer.offset += (1<<16);
 			}
 		}
 
