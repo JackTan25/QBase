@@ -70,8 +70,16 @@ void WriteIndexPointerKVs(int nums,rocksdb::DB *db){
     }
 }
 
-TEST(M3V,BuildDAtaString){
-
+TEST(M3V,BuildDataString){
+	for(int i =1;i < 20;i++){
+		std::string res = build_data_string(3,i);
+		// std::cout<<res<<std::endl;
+		const float* data = reinterpret_cast<const float*>(res.c_str());
+		for(int j = 0;j < 3;j++){
+			std::cout<<data[j]<<" ";
+		}
+		std::cout<<std::endl;
+	}
 }
 
 // 256KB per buffer, segment_size is 384*4 = 1536 bytes, 
