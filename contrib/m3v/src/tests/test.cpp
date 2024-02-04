@@ -2,7 +2,10 @@
 #include "lru_index_pointer.h"
 #include <sstream>
 #include <iomanip>
-
+#include <rocksdb/cache.h>
+#include <rocksdb/table.h>
+#include <rocksdb/db.h>
+#include<unordered_set>
 TEST(Hack, AssertionT) {
     ASSERT_TRUE(true);
 }
@@ -12,15 +15,22 @@ TEST(Hack, AssertionF) {
 }
 
 TEST(M3V,RocksDB){
-    rocksdb::DB* db;
+    // rocksdb::DB* db;
+    // rocksdb::Options options;
+
+    // // 打开数据库
+    // options.create_if_missing = true;
+    // rocksdb::Status status = rocksdb::DB::Open(options, std::string(PROJECT_ROOT_PATH) + "/db", &db);
+    rocksdb::DB* db = nullptr;
     rocksdb::Options options;
+    rocksdb::BlockBasedTableOptions table_options;
+    table_options.block_cache = rocksdb::NewLRUCache(50* 1024 * 1024);
+    options.table_factory.reset(rocksdb::NewBlockBasedTableFactory(table_options));
 
     // 打开数据库
-    options.create_if_missing = true;
     rocksdb::Status status = rocksdb::DB::Open(options, std::string(PROJECT_ROOT_PATH) + "/db", &db);
-    
     if (!status.ok()) {
-        std::cerr << status.ToString() << std::endl;
+        std::cerr << "Unable to open database: " << status.ToString() << std::endl;
     }
 
     std::string key = "hello";
@@ -112,7 +122,7 @@ TEST(M3V,RECORD_CACHE){
 		std::string str(reinterpret_cast<const char*>(res.GetData()),res.GetSize());
 		std::string expected = build_data_string(res.GetSize()/DIM_SIZE,i);
 		if(str != expected){
-			std::cout<<str<<" "<<expected<<std::endl;
+			std::cout<<i<<" "<<str.size()<<" "<<expected.size()<<std::endl;
 		}
 		assert(str==expected);
 		cache_test.UnPinItemPointer(&data);

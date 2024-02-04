@@ -3,6 +3,8 @@
 #include<cstdint>
 #include "helper.h"
 #include "rocksdb/options.h"
+#include <rocksdb/cache.h>
+#include <rocksdb/table.h>
 #include "m3v.h"
 #include "vector.h"
 #include<unordered_map>
@@ -134,12 +136,21 @@ class RecordPagePool{
 		RecordPagePool(std::vector<uint32_t> &offsets_,std::string path,uint32_t number_vector_per_record_):direct_io_times(0),number_vector_per_record(number_vector_per_record_){ // "./rocksdb_data/"
 			std::cout<<"init RecordPagePool"<<std::endl;
 			buffers.resize(NPages);
-			rocksdb::DB* db;
+			// rocksdb::DB* db;
+			// rocksdb::Options options;
+			// // create a database
+			// options.create_if_missing = true;
+			// rocksdb::Status status = rocksdb::DB::Open(options, path, &db);
+			// this->db = db;
+			rocksdb::DB* db = nullptr;
 			rocksdb::Options options;
-			// create a database
-			options.create_if_missing = true;
+			rocksdb::BlockBasedTableOptions table_options;
+			table_options.block_cache = rocksdb::NewLRUCache(8* 1024 * 1024);
+			options.table_factory.reset(rocksdb::NewBlockBasedTableFactory(table_options));
 			rocksdb::Status status = rocksdb::DB::Open(options, path, &db);
+			assert(status.ok());
 			this->db = db;
+
 			offsets = offsets_;
 			assert(offsets.size()==number_vector_per_record);
 			segment_size = 0;
