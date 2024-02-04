@@ -133,7 +133,7 @@ message("source directory: ${CMAKE_SOURCE_DIR}/third_party/rocksdb/include")
 target_include_directories(TEST_M3V PRIVATE ${CMAKE_SOURCE_DIR}/third_party/rocksdb/include ${CMAKE_SOURCE_DIR}/src/record_cache/include)
 target_include_directories(TEST_M3V PRIVATE /data/include/postgresql/server ${CMAKE_SOURCE_DIR}/src)
 add_test(NAME TEST_M3V_ COMMAND TEST_M3V)
-# cmake -DCMAKE_INSTALL_PREFIX=/data/data -DLIBRARYONLY=ON -DSEEK_ENABLE_TESTS=ON -DCMAKE_BUILD_TYPE=Release ..
+# cmake -DCMAKE_INSTALL_PREFIX=/data/data -DLIBRARYONLY=ON -DSEEK_ENABLE_TESTS=ON -DCMAKE_BUILD_TYPE=Debug ..
 # make -j$(nproc)
 # make install
 # linux: export LD_LIBRARY_PATH=/home/jack/cpp_workspace/wrapdir/OneDb2/contrib/m3v/third_party/rocksdb/:$DYLD_LIBRARY_PATH

@@ -88,18 +88,19 @@ TEST(M3V,RECORD_CACHE){
 	std::vector<uint32_t> offsets = {128*DIM_SIZE,128*DIM_SIZE,128*DIM_SIZE};
     IndexPointerLruCache cache_test(offsets,3);
     std::clock_t start = std::clock();
-	// WriteIndexPointerKVs(40000,cache_test.GetDB());
+	WriteIndexPointerKVs(40000,cache_test.GetDB());
     std::clock_t end = std::clock();
     double duration = 1000.0 * (end - start) / CLOCKS_PER_SEC;
     std::cout << "Time taken: " << duration << " milliseconds" << std::endl;
 	ItemPointerData data;data.ip_blkid.bi_hi = 0;data.ip_blkid.bi_lo=0;data.ip_posid = 0;
 
-	// ==============TEST1=======================
+	// // ==============TEST1=======================
 	std::clock_t sum1 = 0;
 	for(int i = 0;i < 34000;i++){
 		data.ip_posid = i;
 		start = std::clock();
 		VectorRecord res =  cache_test.Get(&data);
+		// std::cout<<"haha"<<std::endl;
 		end = std::clock();
 		sum1 += end-start;
 		std::string str(reinterpret_cast<const char*>(res.GetData()),res.GetSize());
@@ -111,6 +112,7 @@ TEST(M3V,RECORD_CACHE){
 		cache_test.UnPinItemPointer(&data);
 	}
 	assert(cache_test.GetIoTimes() == 34000);
+	assert(cache_test.GetPinCounts() == 0);
 	cache_test.ResetDirectIoTimes();
     duration = 1000.0 * sum1 / CLOCKS_PER_SEC;
     std::cout << "TEST1 Time taken: " << duration << " milliseconds" << std::endl;
@@ -128,6 +130,7 @@ TEST(M3V,RECORD_CACHE){
 		cache_test.UnPinItemPointer(&data);
 	}
 	assert(cache_test.GetIoTimes() == 0);
+	assert(cache_test.GetPinCounts() == 0);
 	cache_test.ResetDirectIoTimes();
     duration = 1000.0 * sum2 / CLOCKS_PER_SEC;
     std::cout << "TEST2 Time taken: " << duration << " milliseconds" << std::endl;
@@ -145,6 +148,7 @@ TEST(M3V,RECORD_CACHE){
 		cache_test.UnPinItemPointer(&data);
 	}
 	assert(cache_test.GetIoTimes() == 6000);
+	assert(cache_test.GetPinCounts() == 0);
 	cache_test.ResetDirectIoTimes();
 	duration = 1000.0 * (sum3) / CLOCKS_PER_SEC;
     std::cout << "TEST3 Time taken: " << duration << " milliseconds" << std::endl;
@@ -162,6 +166,7 @@ TEST(M3V,RECORD_CACHE){
 		cache_test.UnPinItemPointer(&data);
 	}
 	assert(cache_test.GetIoTimes() == 6000);
+	assert(cache_test.GetPinCounts() == 0);
 	cache_test.ResetDirectIoTimes();
 	duration = 1000.0 * sum4 / CLOCKS_PER_SEC;
     std::cout << "TEST4 Time taken: " << duration << " milliseconds" << std::endl;

@@ -43,9 +43,13 @@ class IndexPointerLruCache{
 				// 2.2 if cache is not full, we should try to New a IndexPointer from RecordPagePool
 				if(is_full()){
 					index_pointer = remove_first_unpin();
+					if(index_pointer == InValidIndexPointer){
+						std::cout<<"pointer1: "<<k->ip_posid<<std::endl;
+					}
 				}else{
 					index_pointer = pool.New();
 				}
+
 				assert(index_pointer!=InValidIndexPointer);
 				insert(k,index_pointer);
 				PinItemPointer(k);
@@ -58,6 +62,10 @@ class IndexPointerLruCache{
 
 		uint32_t GetIoTimes(){
 			return pool.GetDirectIOTimes();
+		}
+
+		uint32_t GetPinCounts(){
+			return pin_counts;
 		}
 
 		void ResetDirectIoTimes(){
@@ -183,7 +191,7 @@ class IndexPointerLruCache{
 		}
 
 		bool contains(const ItemPointer& k) const {
-			// return cache_.find(GetHeapTid(k)) != cache_.end();
+			return cache_.find(GetHeapTid(k)) != cache_.end();
 		}
 
 		size_t getMaxSize() const { return maxSize_; }
