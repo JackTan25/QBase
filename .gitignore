@@ -45,3 +45,7 @@ lib*.pc
 /portlock/
 /contrib/pgvector/*
 /contrib/m3v/build/*
+/.vscode/db
+/.vscode/rocksdb_data
+/contrib/m3v/rocksdb_data/*
+/contrib/m3v/db/*

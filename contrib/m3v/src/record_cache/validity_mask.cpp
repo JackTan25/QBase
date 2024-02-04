@@ -39,13 +39,15 @@ idx_t ValidityMask::GetOffset(int allocated_record_counts){
 		return (prev_bits + first_valid_bit);
 	}
     // can't arrive here.
+	assert(false);
 }
 
 bool ValidityMask::is_valid(idx_t row_idx){
     idx_t entry_idx = row_idx / BITS_PER_VALUE;
     idx_t idx_in_entry = row_idx % BITS_PER_VALUE;
     assert(entry_idx < size);
-    return (mask[entry_idx]&(1<<idx_in_entry));
+	// zero means is not mapped.
+    return (mask[entry_idx]&(1<<idx_in_entry)) == 0;
 }
 
 void ValidityMask::set_invalid(idx_t row_idx){

@@ -1,22 +1,95 @@
 #pragma once
 
 #include<iostream>
-#include "itemptr.h"
 #include "record_io.h"
+#include <functional> // std::hash
+extern "C"{
+	#include "postgres.h"
+}
+
+// for test, we support 3 kinds of 
+#define N1 128
+#define M1 3
+const int SHIFT1 = 48;
+const int SHIFT2 = 32;
+
+using HeapTid = uint64_t;
+
+HeapTid GetHeapTid(const ItemPointer& item_pointer);
 
 // IndexPointerLruCache is not concurrent safety.
-typedef std::pair<ItemPointer,IndexPointer> KeyValuePair;
+typedef std::pair<HeapTid,IndexPointer> KeyValuePair;
 typedef std::list<KeyValuePair> list_type;
-typedef std::unordered_map<ItemPointer, typename std::list<KeyValuePair>::iterator> Map;
-template<const int N,const int M>
+typedef std::unordered_map<HeapTid, typename std::list<KeyValuePair>::iterator> Map;
+// template<const int N,const int M>
 class IndexPointerLruCache{
 	public:
+		// pin feature needed:
+		// when a page request multi records, we need to pin the records needed by
+		// page. 
+		// We use the high 16bytes as pin counts, the low 16bytes as offset
 		// we can always get IndexPointer successfully.
-		VectorRecord<N,M>* Get(const ItemPointer& k);
+		VectorRecord Get(const ItemPointer& k){
+			// 1. try to get IndexPointer from cache and the get VectorRecord from RecordpagePool
+			IndexPointer index_pointer = getCopy(k);
+			if(index_pointer != InValidIndexPointer){
+				// if we can get a valid index pointer, the record buffer must exists here.
+				return pool.GetMemoryVectorRecord(index_pointer);
+			}else{
+				// 2. if we can't retrive from 1, we should do a DirectIORead from RocksDB, but we need
+				// to evict a IndexPointer so we can get a free record memory.
+				std::string record = pool.DirectIoRead(*k);
+				// 2.1 if cache is full, we should evict a index pointer here
+				// 2.2 if cache is not full, we should try to New a IndexPointer from RecordPagePool
+				if(is_full()){
+					index_pointer = remove_first_unpin();
+				}else{
+					index_pointer = pool.New();
+				}
+				assert(index_pointer!=InValidIndexPointer);
+				insert(k,index_pointer);
+				PinItemPointer(k);
+				// we should preserve the value in RecordPagePool
+				pool.ReserveVectorRecord(record,index_pointer);
+				// std::cout<<"GetSize"<<pool.GetMemoryVectorRecord(index_pointer).GetSize()<<std::endl;
+				return pool.GetMemoryVectorRecord(index_pointer);
+			}
+		}
 
-		void UnPinItemPointer(const ItemPointer& k);
+		uint32_t GetIoTimes(){
+			return pool.GetDirectIOTimes();
+		}
+
+		void ResetDirectIoTimes(){
+			pool.ResetDirectIoTimes();
+		}
+
+		void UnPinItemPointer(const ItemPointer& k){
+			if(contains(k)){
+				assert(pin_counts>0);
+				const auto iter = cache_.find(GetHeapTid(k));
+				IndexPointer& index_pointer = iter->second->second;
+				assert(((index_pointer.GetOffset() & HIGHMASK)>>16) >= 1);
+				index_pointer.SetOffset(index_pointer.GetOffset()- (1<<16));
+				pin_counts--;
+			}
+		}
+
+		rocksdb::DB* GetDB(){
+			return pool.get_rocks_db_instance();
+		}
+
+		IndexPointerLruCache(std::vector<uint32_t> &offsets_,uint32_t number_vector_per_record_,size_t maxSize = 40000, size_t elasticity = 20000):maxSize_(maxSize), elasticity_(elasticity),pool(offsets_,std::string(PROJECT_ROOT_PATH) + "/rocksdb_data",number_vector_per_record_) {
+			maxSize_ =  pool.GetAvailableSegmentsPerBuffer() * NPages;
+			elasticity_ = maxSize_;
+			std::cout<<"init IndexPointerLruCache"<<std::endl;
+		}
+	
+		~IndexPointerLruCache() {
+		}
 	private:
-		constexpr uint32_t HIGHMASK = 0xFFFF0000;
+		const uint32_t HIGHMASK = 0xFFFF0000;
+
 		bool is_full(){
 			return cache_.size() == maxSize_;
   		}
@@ -25,40 +98,38 @@ class IndexPointerLruCache{
 			// remove the pin counts
 			IndexPointer index_pointer = InValidIndexPointer;
 			for (auto it = keys_.rbegin(); it != keys_.rend(); ++it) {
-				if(((it->second.offset & HIGHMASK)>>16) == 0){
+				if(((it->second.GetOffset() & HIGHMASK)) == 0){
 					index_pointer = it->second;
-					index_pointer = (~HIGHMASK)&index_pointer;
-					remove(it->first);
-					break;
+					index_pointer.SetOffset((~HIGHMASK)&index_pointer.GetOffset());
+					remove(it->first);break;
 				}
 			}
 			return index_pointer;
 		}
 
 		void insert(const ItemPointer& k, IndexPointer v) {
-			const auto iter = cache_.find(k);
+			const auto iter = cache_.find(GetHeapTid(k));
 			if (iter != cache_.end()) {
 				iter->second->second = v;
 				keys_.splice(keys_.begin(), keys_, iter->second);
 				return;
 			}
-			keys_.emplace_front(k, std::move(v));
-			cache_[k] = keys_.begin();
+			auto key = GetHeapTid(k);
+			keys_.emplace_front(key, std::move(v));
+			cache_[key] = keys_.begin();
 			prune();
 		}
 
-		bool remove(const ItemPointer& k) {
+		bool remove(const HeapTid& k) {
 			auto iter = cache_.find(k);
 			if (iter == cache_.end()) {
-			return false;
+				return false;
 			}
 			keys_.erase(iter->second);
 			cache_.erase(iter);
 			return true;
 		}
-		explicit IndexPointerLruCache(size_t maxSize = 64, size_t elasticity = 10):maxSize_(maxSize), elasticity_(elasticity) {
-		}
-		virtual ~IndexPointerLruCache() = default;
+
 		size_t size() const {
 			return cache_.size();
 		}
@@ -90,11 +161,13 @@ class IndexPointerLruCache{
 		 */
 		IndexPointer getCopy(const ItemPointer& k){
 			// remove pin counts
-			const auto iter = cache_.find(k);
+			const auto iter = cache_.find(GetHeapTid(k));
 			if(iter != cache_.end()){
 				PinItemPointer(k);
 				keys_.splice(keys_.begin(), keys_, iter->second);
-				return (iter->second->second&(~HIGHMASK));
+				IndexPointer pointer = iter->second->second;
+				pointer.SetOffset(pointer.GetOffset()&(~HIGHMASK));
+				return pointer;
 			}else{
 				return InValidIndexPointer;
 			}
@@ -102,14 +175,15 @@ class IndexPointerLruCache{
 
 		void PinItemPointer(const ItemPointer& k){
 			if(contains(k)){
-				const auto iter = cache_.find(k);
+				const auto iter = cache_.find(GetHeapTid(k));
 				IndexPointer& index_pointer = iter->second->second;
-				index_pointer.offset += (1<<16);
+				index_pointer.SetOffset(index_pointer.GetOffset() + (1<<16));
+				pin_counts++;
 			}
 		}
 
 		bool contains(const ItemPointer& k) const {
-			return cache_.find(k) != cache_.end();
+			// return cache_.find(GetHeapTid(k)) != cache_.end();
 		}
 
 		size_t getMaxSize() const { return maxSize_; }
@@ -124,5 +198,6 @@ class IndexPointerLruCache{
 		list_type keys_;
 		size_t maxSize_;
 		size_t elasticity_;
-		RecordPagePool<N,M> pool;
+		RecordPagePool pool;
+		uint32_t pin_counts = 0;
 };

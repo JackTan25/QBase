@@ -11,7 +11,8 @@
             "intelliSenseMode": "linux-gcc-x64",
             "compilerArgs": [
                 ""
-            ]
+            ],
+            "defines": ["PROJECT_ROOT_PATH"]
         }
     ],
     "version": 4
