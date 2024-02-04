@@ -24,6 +24,19 @@ typedef std::unordered_map<HeapTid, typename std::list<KeyValuePair>::iterator> 
 // template<const int N,const int M>
 class IndexPointerLruCache{
 	public:
+		void DebugTime(std::string message = "Time Cost"){
+			double duration = 1000.0 * time / CLOCKS_PER_SEC;
+    		std::cout <<message<<" "<<duration << " milliseconds" << std::endl;
+		}
+
+		void ResetTime(){
+			time = 0;
+		}
+
+		RecordPagePool* GetPool(){
+			return &pool;
+		}
+
 		// pin feature needed:
 		// when a page request multi records, we need to pin the records needed by
 		// page. 
@@ -208,4 +221,5 @@ class IndexPointerLruCache{
 		size_t elasticity_;
 		RecordPagePool pool;
 		uint32_t pin_counts = 0;
+		std::clock_t time;
 };

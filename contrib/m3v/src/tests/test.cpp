@@ -87,22 +87,20 @@ TEST(M3V,RECORD_CACHE){
     // we will write kv directly into rocksdb.
 	std::vector<uint32_t> offsets = {128*DIM_SIZE,128*DIM_SIZE,128*DIM_SIZE};
     IndexPointerLruCache cache_test(offsets,3);
-    std::clock_t start = std::clock();
+	
+    auto t0 = std::chrono::steady_clock::now();
 	WriteIndexPointerKVs(40000,cache_test.GetDB());
-    std::clock_t end = std::clock();
-    double duration = 1000.0 * (end - start) / CLOCKS_PER_SEC;
+    double duration = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count();
     std::cout << "Time taken: " << duration << " milliseconds" << std::endl;
 	ItemPointerData data;data.ip_blkid.bi_hi = 0;data.ip_blkid.bi_lo=0;data.ip_posid = 0;
 
-	// // ==============TEST1=======================
-	std::clock_t sum1 = 0;
+	// ==============TEST1=======================
+	double sum1 = 0;
 	for(int i = 0;i < 34000;i++){
 		data.ip_posid = i;
-		start = std::clock();
+		auto t0 = std::chrono::steady_clock::now();
 		VectorRecord res =  cache_test.Get(&data);
-		// std::cout<<"haha"<<std::endl;
-		end = std::clock();
-		sum1 += end-start;
+		sum1 += std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count();
 		std::string str(reinterpret_cast<const char*>(res.GetData()),res.GetSize());
 		std::string expected = build_data_string(res.GetSize()/DIM_SIZE,i);
 		if(str != expected){
@@ -114,17 +112,15 @@ TEST(M3V,RECORD_CACHE){
 	assert(cache_test.GetIoTimes() == 34000);
 	assert(cache_test.GetPinCounts() == 0);
 	cache_test.ResetDirectIoTimes();
-    duration = 1000.0 * sum1 / CLOCKS_PER_SEC;
-    std::cout << "TEST1 Time taken: " << duration << " milliseconds" << std::endl;
+    std::cout << "TEST1 Time taken: " << sum1 << " nanoseconds" << std::endl;
 
 	// ==============TEST2=======================
-	std::clock_t sum2 = 0;
+	double sum2 = 0;
 	for(int i = 0;i < 30000;i++){
 		data.ip_posid = i;
-		start = std::clock();
+		auto t0 = std::chrono::steady_clock::now();
 		VectorRecord res =  cache_test.Get(&data);
-		end = std::clock();
-		sum2 += end-start;
+		sum2 += std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count();
 		std::string str(reinterpret_cast<const char*>(res.GetData()),res.GetSize());
 		assert(str==build_data_string(res.GetSize()/DIM_SIZE,i));
 		cache_test.UnPinItemPointer(&data);
@@ -132,17 +128,15 @@ TEST(M3V,RECORD_CACHE){
 	assert(cache_test.GetIoTimes() == 0);
 	assert(cache_test.GetPinCounts() == 0);
 	cache_test.ResetDirectIoTimes();
-    duration = 1000.0 * sum2 / CLOCKS_PER_SEC;
-    std::cout << "TEST2 Time taken: " << duration << " milliseconds" << std::endl;
+    std::cout << "TEST2 Time taken: " << sum2 << " nanoseconds" << std::endl;
 
 	// ==============TEST3=======================
-	std::clock_t sum3 = 0;
+	double sum3 = 0;
 	for(int i = 0;i < 40000;i++){
 		data.ip_posid = i;
-		start = std::clock();
+		auto t0 = std::chrono::steady_clock::now();
 		VectorRecord res =  cache_test.Get(&data);
-		end = std::clock();
-		sum3 += end-start;
+		sum3 += std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count();
 		std::string str(reinterpret_cast<const char*>(res.GetData()),res.GetSize());
 		assert(str==build_data_string(res.GetSize()/DIM_SIZE,i));
 		cache_test.UnPinItemPointer(&data);
@@ -150,17 +144,15 @@ TEST(M3V,RECORD_CACHE){
 	assert(cache_test.GetIoTimes() == 6000);
 	assert(cache_test.GetPinCounts() == 0);
 	cache_test.ResetDirectIoTimes();
-	duration = 1000.0 * (sum3) / CLOCKS_PER_SEC;
-    std::cout << "TEST3 Time taken: " << duration << " milliseconds" << std::endl;
+    std::cout << "TEST3 Time taken: " << sum3 << " nanoseconds" << std::endl;
 
 	// ==============TEST4=======================
-	std::clock_t sum4 = 0;
+	double sum4 = 0;
 	for(int i = 0;i < 6000;i++){
 		data.ip_posid = i;
-		start = std::clock();
+		auto t0 = std::chrono::steady_clock::now();
 		VectorRecord res =  cache_test.Get(&data);
-		end = std::clock();
-		sum4 += end-start;
+		sum4 += std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count();
 		std::string str(reinterpret_cast<const char*>(res.GetData()),res.GetSize());
 		assert(str==build_data_string(res.GetSize()/DIM_SIZE,i));
 		cache_test.UnPinItemPointer(&data);
@@ -168,8 +160,7 @@ TEST(M3V,RECORD_CACHE){
 	assert(cache_test.GetIoTimes() == 6000);
 	assert(cache_test.GetPinCounts() == 0);
 	cache_test.ResetDirectIoTimes();
-	duration = 1000.0 * sum4 / CLOCKS_PER_SEC;
-    std::cout << "TEST4 Time taken: " << duration << " milliseconds" << std::endl;
+    std::cout << "TEST4 Time taken: " << sum4 << " nanoseconds" << std::endl;
 }
 
 TEST(M3V,KMEANS_SPLIT){

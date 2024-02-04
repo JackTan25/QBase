@@ -236,11 +236,14 @@ class RecordPagePool{
 
         VectorRecord GetMemoryVectorRecord(IndexPointer& index_pointer){
 			assert(index_pointer.GetBufferId() < NPages);
-			FixedSizeBuffer* buffer = &buffers[index_pointer.GetBufferId()];
 			// get a record buffer from fix buffer
-			VectorRecord record(buffer->Get() + bitmask_offset + index_pointer.GetOffset() * segment_size,segment_size);
-			record.GetSize();
-			return record;
+			return VectorRecord(buffers[index_pointer.GetBufferId()].Get() + bitmask_offset + index_pointer.GetOffset() * segment_size,segment_size);
+		}
+
+		VectorRecord* GetMemoryVectorRecord2(IndexPointer& index_pointer){
+			// assert(index_pointer.GetBufferId() < NPages);
+			// get a record buffer from fix buffer
+			return nullptr;
 		}
 
 		void ReserveVectorRecord(std::string &value,IndexPointer& index_pointer){
