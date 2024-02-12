@@ -1,11 +1,20 @@
 #include <gtest/gtest.h>
 #include "lru_index_pointer.h"
+#include "elkan_kmeans_utils.h"
 #include <sstream>
 #include <iomanip>
 #include <rocksdb/cache.h>
 #include <rocksdb/table.h>
 #include <rocksdb/db.h>
 #include<unordered_set>
+#include <fstream>
+#include <vector>
+#include <string>
+
+extern "C"{
+	#include "vector.h"
+}
+
 TEST(Hack, AssertionT) {
     ASSERT_TRUE(true);
 }
@@ -181,9 +190,146 @@ TEST(M3V,RECORD_CACHE){
     std::cout << "TEST4 Time taken: " << sum4 << " nanoseconds" << std::endl;
 }
 
-TEST(M3V,KMEANS_SPLIT){
-    
+float L2Distance(float* vector_record1,float* vector_record2,int dims){
+	float distance = 0.0;
+	float diff;
+	for(int i = 0; i < dims;i++){
+		diff = vector_record1[i] - vector_record2[i];
+		distance += diff * diff;
+	}
+	return sqrt((double)(distance));
 }
+
+float distanceVectorFunc(VectorRecord* record1,VectorRecord* record2){
+	assert(record1!=nullptr);
+	assert(record2!=nullptr);
+	assert(record1->GetSize() == record2->GetSize());
+	float* a = reinterpret_cast<float*>(record1->GetData());
+	float* b = reinterpret_cast<float*>(record2->GetData()); 
+	float dis = L2Distance(a,b,record1->GetSize()/DIM_SIZE);
+	return dis;
+}
+
+std::string build_data_string2(const std::vector<int> &v){
+	std::string res = "";
+	for(int i = 0;i < v.size();i++){
+		float t = v[i];
+		const unsigned char* pBytes = reinterpret_cast<const unsigned char*>(&t);
+		for (size_t i = 0; i < DIM_SIZE; ++i) {
+			res += pBytes[i];
+		}
+	}
+	auto size_ = res.size();
+	return res;
+}
+
+void ReadUtil(std::string path,rocksdb::DB* db){
+	ItemPointerData data_;ItemPointer pointer = &data_;pointer->ip_posid = 0;data_.ip_blkid.bi_hi = 0;data_.ip_blkid.bi_lo = 0;
+	// 打开文件
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        std::cerr << "Failed to open file\n";
+        return;
+    }
+
+    std::vector<std::vector<int>> data; // 用来存储所有行的容器
+    std::string line;
+
+    // 逐行读取文件
+    while (getline(file, line)) {
+        std::vector<int> row; // 存储当前行的数据
+        std::istringstream iss(line);
+        int value;
+
+        // 从行中读取每个整数
+        while (iss >> value) {
+            row.push_back(value);
+        }
+
+        // 将当前行添加到总数据中
+        data.push_back(row);
+    }
+
+    // 关闭文件
+    file.close();
+
+    // 打印读取的数据
+	int idx = 0;
+    for (const auto& row : data) {
+        auto res = build_data_string2(row);
+		pointer->ip_posid = idx;
+		db->Put(rocksdb::WriteOptions(),ItemPointerToString(*pointer),res);
+		idx++;
+    }
+}
+
+// Test Elkan_Kmeans, we use this to test performance
+// and correctess. We use our partial expermental data
+// to test.
+// https://big-ann-benchmarks.com/neurips21.html
+// 1. BIGANN 128 uint8
+// 2. Facebook SimSearchNet++* 256 uint8
+// 3. Yandex DEEP 96 float4
+// for current implementation, we maybe waste memory,
+// because we use float for any type even if the type 
+// size is lesson size(float). But in fact, it shouldn't
+// be the bottle-neck of our system.
+// UnPin Unsafe, we don't test it here.
+TEST(M3V,KMEANS_SPLIT){
+    // 1. BIGANN
+	// 2. Facebook SimSearchNet++*
+	// 3. Yandex DEEP
+	std::vector<VectorRecord> records;
+	std::vector<uint32_t> offsets = {128*DIM_SIZE};
+    IndexPointerLruCache cache_test(offsets,1);
+	ItemPointerData data_;ItemPointer pointer = &data_;pointer->ip_posid = 0;data_.ip_blkid.bi_hi = 0;data_.ip_blkid.bi_lo = 0;
+	ReadUtil("/home/jack/cpp_workspace/wrapdir/OneDb2/contrib/m3v/src/tests_data/bigann_vector_128_100M_1000.txt",cache_test.GetDB());
+	// each time we prepare 1000 records and do split for it. we should make sure
+	// we will always generate the same cluster (we use kmeans++)
+	for(int i = 0;i < 1000;i++){
+		pointer->ip_posid = i;
+		auto record_pointer =  cache_test.Get(pointer);
+		records.push_back(record_pointer);
+	}
+
+	ElkanKmeans elkan_kmeans(100,distanceVectorFunc,2,records,true);
+	auto t0 = std::chrono::steady_clock::now();
+	while(!elkan_kmeans.is_finished()){
+		elkan_kmeans.iteration();
+	}
+    double duration = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count();
+    std::cout << "Elkan Kmeans++ Iterations Time cost: " << duration/1000000 << " milliseconds" << std::endl;
+	auto records_ = elkan_kmeans.GetCenters();
+	for(int i = 0;i < records_.size();i++){
+		records_[i].DebugVectorRecord();
+	}
+	auto res1 = elkan_kmeans.GetAssigns();
+	ElkanKmeans elkan_kmeans2(100,distanceVectorFunc,2,records,true);
+	while(!elkan_kmeans2.is_finished()){
+		elkan_kmeans2.iteration();
+	}
+	auto res2 = elkan_kmeans2.GetAssigns();
+	assert(res1.size() == res2.size());
+	std::unordered_set<bool> s;
+	// we can pass, we will always get the same 
+	for(int i = 0;i < res1.size();i++){
+		s.insert(res1[i] == res2[i]);
+	}
+	assert(s.size() == 1);
+	// Test 1
+	
+	// Test 2
+
+	// Test 3
+
+	// Test 1,3
+
+	// Test 2,3
+
+	// Test 1,2
+}
+
+
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);

@@ -31,6 +31,15 @@ const u_int32_t InValidOffset = 0x3f3f3f3f;
 // template<const int N,const int M>
 class VectorRecord{
 	public:
+		void DebugVectorRecord(){
+			int dims = size/DIM_SIZE;
+			float* vecs = reinterpret_cast<float*>(data);
+			for(int i = 0;i < dims;i++){
+				std::cout<<vecs[i]<<" ";
+			}
+			std::cout<<std::endl;
+		}
+
 		uint32_t GetSize() const{
 			return size;
 		}

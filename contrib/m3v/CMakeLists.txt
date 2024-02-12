@@ -60,8 +60,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES PREFIX "")
 set_target_properties(${PROJECT_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(${PROJECT_NAME} PUBLIC /data/include/postgresql/server)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/src/record_cache/include)
-target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/src/
-${CMAKE_SOURCE_DIR}/src/ ${CMAKE_SOURCE_DIR}/third_party/rocksdb/include)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/src/ ${CMAKE_SOURCE_DIR}/third_party/rocksdb/include)
 
 if(WIN32)
     message(STATUS "WIN32")
@@ -131,8 +130,10 @@ target_link_libraries(TEST_M3V gtest gtest_main ${ROCKSDB_DYLIBS} LRUCache11)
 target_include_directories(TEST_M3V PRIVATE ${CMAKE_SOURCE_DIR}/third_party/lrucache11)
 message("source directory: ${CMAKE_SOURCE_DIR}/third_party/rocksdb/include")
 target_include_directories(TEST_M3V PRIVATE ${CMAKE_SOURCE_DIR}/third_party/rocksdb/include ${CMAKE_SOURCE_DIR}/src/record_cache/include)
-target_include_directories(TEST_M3V PRIVATE /data/include/postgresql/server ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(TEST_M3V PRIVATE /data/include/postgresql/server ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/utils)
 add_test(NAME TEST_M3V_ COMMAND TEST_M3V)
+
+# add_executable(VectorGenerate ${CMAKE_SOURCE_DIR}/src/tests/generate_vector.cpp)
 # cmake -DCMAKE_INSTALL_PREFIX=/data/data -DLIBRARYONLY=ON -DSEEK_ENABLE_TESTS=ON -DCMAKE_BUILD_TYPE=Debug ..
 # make -j$(nproc)
 # make install

@@ -1257,3 +1257,13 @@ Datum vector_avg(PG_FUNCTION_ARGS)
 
 	PG_RETURN_POINTER(result);
 }
+
+float L2Distance(float* vector_record1,float* vector_record2,int dims){
+	float distance = 0.0;
+	float diff;
+	for(int i = 0; i < dims;i++){
+		diff = vector_record1[i] - vector_record2[i];
+		distance += diff * diff;
+	}
+	return sqrt((double)(distance));
+}

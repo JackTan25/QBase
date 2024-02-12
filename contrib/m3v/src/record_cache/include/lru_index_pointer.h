@@ -33,6 +33,10 @@ class IndexPointerLruCache{
 			time = 0;
 		}
 
+		void WriteRocksDB(ItemPointer item_pointer){
+			
+		}
+
 		RecordPagePool* GetPool(){
 			return &pool;
 		}

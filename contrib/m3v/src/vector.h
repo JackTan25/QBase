@@ -29,5 +29,6 @@ void PrintVector(char *msg, Vector *vector);
 void PrintVectors(char *msg, Vector *vector,int columns);
 void PrintPointerVectors(char *msg, Vector **vector,int columns);
 int vector_cmp_internal(Vector *a, Vector *b);
+float L2Distance(float* vector_record1,float* vector_record2,int dims);
 
 #endif
