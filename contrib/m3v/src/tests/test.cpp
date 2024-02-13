@@ -316,6 +316,15 @@ TEST(M3V,KMEANS_SPLIT){
 		s.insert(res1[i] == res2[i]);
 	}
 	assert(s.size() == 1);
+	std::vector<VectorRecord> new_records;
+	for(int i = 0;i < res1.size();i++){
+		if(res1[i] == 0){
+			new_records.push_back(records[i]);
+		}
+	}
+	ElkanKmeans elkan_kmeans3(100,distanceVectorFunc,1,new_records,true);
+	auto records3_ = elkan_kmeans3.GetCenters();
+	records3_[0].DebugVectorRecord();
 	// Test 1
 	
 	// Test 2

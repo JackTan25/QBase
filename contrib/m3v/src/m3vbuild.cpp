@@ -304,7 +304,7 @@ m3vbuild(Relation heap, Relation index, IndexInfo *indexInfo)
 {
 	IndexBuildResult *result;
 	m3vBuildState buildstate;
-
+	// we should init the 
 	BuildIndex(heap, index, indexInfo, &buildstate, MAIN_FORKNUM);
 
 	result = (IndexBuildResult *)palloc(sizeof(IndexBuildResult));

@@ -40,7 +40,9 @@ add_library(${PROJECT_NAME} SHARED
     src/m3vutils.cpp 
     src/m3vvaccum.cpp
     src/vector.cpp
-    # src/record_cache/record_io.cpp
+    src/record_cache/record_io.cpp
+    src/record_cache/lru_index_pointer.cpp
+    src/record_cache/validity_mask.cpp
 )
 
 file(GLOB ROCKSDB_DYLIBS "${CMAKE_SOURCE_DIR}/third_party/rocksdb/*.so.*")
@@ -61,7 +63,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(${PROJECT_NAME} PUBLIC /data/include/postgresql/server)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/src/record_cache/include)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/src/ ${CMAKE_SOURCE_DIR}/third_party/rocksdb/include)
-
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/contrib/m3v/src/utils)
 if(WIN32)
     message(STATUS "WIN32")
     target_include_directories(${PROJECT_NAME} PUBLIC ${PostgreSQL_TYPE_INCLUDE_DIR}/port/win32)
@@ -139,3 +141,6 @@ add_test(NAME TEST_M3V_ COMMAND TEST_M3V)
 # make install
 # linux: export LD_LIBRARY_PATH=/home/jack/cpp_workspace/wrapdir/OneDb2/contrib/m3v/third_party/rocksdb/:$DYLD_LIBRARY_PATH
 # macos: export DYLD_LIBRARY_PATH=/home/jack/cpp_workspace/wrapdir/OneDb2/contrib/m3v/third_party/rocksdb/:$DYLD_LIBRARY_PATH
+## restart to load rocksdb so files.
+# pg_ctl -D /data/data -l logfile stop
+# pg_ctl -D /data/data -l logfile start
