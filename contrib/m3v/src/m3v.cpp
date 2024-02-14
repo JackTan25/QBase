@@ -1,11 +1,10 @@
 #pragma once
 
 #include "m3v.h"
-#include "rocksdb/options.h"
+#include "lru_index_pointer.h"
 extern "C"
-{
+{	
 	#include "postgres.h"
-
 	#include <float.h>
 	#include <math.h>
 
@@ -19,7 +18,6 @@ extern "C"
 	#endif
 	PGDLLEXPORT PG_FUNCTION_INFO_V1(m3vhandler);
 };
-
 
 int m3v_ef_search;
 static relopt_kind m3v_relopt_kind;

@@ -1,11 +1,5 @@
 #pragma once
-
-#include<iostream>
 #include "record_io.h"
-#include <functional> // std::hash
-extern "C"{
-	#include "postgres.h"
-}
 
 // for test, we support 3 kinds of 
 #define N1 128
@@ -22,8 +16,16 @@ typedef std::pair<HeapTid,IndexPointer> KeyValuePair;
 typedef std::list<KeyValuePair> list_type;
 typedef std::unordered_map<HeapTid, typename std::list<KeyValuePair>::iterator> Map;
 // template<const int N,const int M>
+// We use DB to Write Data, And we can't put data by Cache, we can just get data by it.
+// So we should write data first by rocksdb and then get data from it.
 class IndexPointerLruCache{
 	public:
+		IndexPointerLruCache(std::vector<uint32_t> &offsets_,uint32_t number_vector_per_record_,size_t maxSize = 40000, size_t elasticity = 20000):maxSize_(maxSize), elasticity_(elasticity),pool(offsets_,std::string(PROJECT_ROOT_PATH) + "/rocksdb_data",number_vector_per_record_) {
+			maxSize_ =  pool.GetAvailableSegmentsPerBuffer() * NPages;
+			elasticity_ = maxSize_;
+			std::cout<<"init IndexPointerLruCache"<<std::endl;
+		}
+
 		void DebugTime(std::string message = "Time Cost"){
 			double duration = 1000.0 * time / CLOCKS_PER_SEC;
     		std::cout <<message<<" "<<duration << " milliseconds" << std::endl;
@@ -102,12 +104,6 @@ class IndexPointerLruCache{
 
 		rocksdb::DB* GetDB(){
 			return pool.get_rocks_db_instance();
-		}
-
-		IndexPointerLruCache(std::vector<uint32_t> &offsets_,uint32_t number_vector_per_record_,size_t maxSize = 40000, size_t elasticity = 20000):maxSize_(maxSize), elasticity_(elasticity),pool(offsets_,std::string(PROJECT_ROOT_PATH) + "/rocksdb_data",number_vector_per_record_) {
-			maxSize_ =  pool.GetAvailableSegmentsPerBuffer() * NPages;
-			elasticity_ = maxSize_;
-			std::cout<<"init IndexPointerLruCache"<<std::endl;
 		}
 	
 		~IndexPointerLruCache() {

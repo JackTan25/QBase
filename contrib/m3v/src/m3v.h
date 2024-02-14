@@ -10,6 +10,7 @@ extern "C"{
 	#include "nodes/execnodes.h"
 	#include "port.h" /* for random() */
 	#include "utils/sampling.h"
+	#include "storage/itemptr.h"
 }
 
 #if PG_VERSION_NUM < 110000

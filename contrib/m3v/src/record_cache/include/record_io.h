@@ -5,15 +5,17 @@
 #include "rocksdb/options.h"
 #include <rocksdb/cache.h>
 #include <rocksdb/table.h>
-#include "m3v.h"
-#include "vector.h"
+// #include "m3v.h"
+
 #include<unordered_map>
 #include "rocksdb/db.h"
 #include "validity_mask.h"
+
 extern "C" {
     #include "postgres.h"
-    #include "storage/itemptr.h"
+	#include "vector.h"
 }
+
 
 std::string ItemPointerToString(const ItemPointerData& key);
 

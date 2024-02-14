@@ -272,7 +272,7 @@ void ReadUtil(std::string path,rocksdb::DB* db){
 // 3. Yandex DEEP 96 float4
 // for current implementation, we maybe waste memory,
 // because we use float for any type even if the type 
-// size is lesson size(float). But in fact, it shouldn't
+// size is less than `size(float)`. But in fact, it shouldn't
 // be the bottle-neck of our system.
 // UnPin Unsafe, we don't test it here.
 TEST(M3V,KMEANS_SPLIT){
@@ -338,7 +338,60 @@ TEST(M3V,KMEANS_SPLIT){
 	// Test 1,2
 }
 
+void ReadTwoVectorUtil(std::string path1,std::string path2,rocksdb::DB* db){
+	ItemPointerData data_;ItemPointer pointer = &data_;pointer->ip_posid = 0;data_.ip_blkid.bi_hi = 0;data_.ip_blkid.bi_lo = 0;
+	// open file1
+	std::ifstream file1(path1);
+    if (!file1.is_open()) {
+        std::cerr << "Failed to open file\n";
+        return;
+    }
+	// open file2
+	std::ifstream file2(path2);
+    if (!file2.is_open()) {
+        std::cerr << "Failed to open file\n";
+        return;
+    }
 
+	std::vector<std::vector<int>> data; // 用来存储所有行的容器
+    std::string line1;
+	std::string line2;
+    // 逐行读取文件
+    while (getline(file1, line1)&&getline(file2,line2)) {
+		std::istringstream iss1(line1);
+		std::istringstream iss2(line1);
+        std::vector<int> row; // 存储当前行的数据
+        int value;
+
+        // 从行中读取每个整数
+        while (iss1 >> value) {
+            row.push_back(value);
+        }
+		while (iss2 >> value) {
+            row.push_back(value);
+        }
+        // 将当前行添加到总数据中
+        data.push_back(row);
+    }
+	file1.close();
+	file2.close();
+	int idx = 0;
+    for (const auto& row : data) {
+        auto res = build_data_string2(row);
+		pointer->ip_posid = idx;
+		db->Put(rocksdb::WriteOptions(),ItemPointerToString(*pointer),res);
+		idx++;
+    }
+}
+
+TEST(M3V,TestPageSortIndex){
+	// Test bigann_1000 and ssnpp_1000 composition
+	std::vector<uint32_t> offsets = {128*DIM_SIZE,128*DIM_SIZE};
+    IndexPointerLruCache cache_test(offsets,2);
+	ReadTwoVectorUtil("/home/jack/cpp_workspace/wrapdir/OneDb2/contrib/m3v/src/tests_data/bigann_vector_128_100M_1000.txt",
+	"/home/jack/cpp_workspace/wrapdir/OneDb2/contrib/m3v/src/tests_data/ssnpp_vector_256_100M_1000.txt",
+	cache_test.GetDB());
+}
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
