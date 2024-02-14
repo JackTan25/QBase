@@ -43,6 +43,7 @@ add_library(${PROJECT_NAME} SHARED
     src/record_cache/record_io.cpp
     src/record_cache/lru_index_pointer.cpp
     src/record_cache/validity_mask.cpp
+    src/AuxiliaryIndex/page_sort_index.cpp
 )
 
 file(GLOB ROCKSDB_DYLIBS "${CMAKE_SOURCE_DIR}/third_party/rocksdb/*.so.*")
@@ -64,6 +65,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC /data/include/postgresql/serve
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/src/record_cache/include)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/src/ ${CMAKE_SOURCE_DIR}/third_party/rocksdb/include)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/contrib/m3v/src/utils)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/src/AuxiliaryIndex/)
 if(WIN32)
     message(STATUS "WIN32")
     target_include_directories(${PROJECT_NAME} PUBLIC ${PostgreSQL_TYPE_INCLUDE_DIR}/port/win32)
@@ -104,7 +106,6 @@ install(
     FILES ${CMAKE_CURRENT_SOURCE_DIR}/${EXT_SQL_FILE}
     DESTINATION "${PostgreSQL_SHAREDIR}/extension")
 
-
 install(
     TARGETS ${PROJECT_NAME}
     DESTINATION ${PostgreSQL_PKGLIBDIR})
@@ -124,7 +125,8 @@ add_subdirectory(third_party/googletest)
 enable_testing()
 file(GLOB TEST_SOURCES "src/tests/*.cpp")
 file(GLOB RECORD_SOURCES "src/record_cache/*.cpp")
-set(TEST_FILES ${TEST_SOURCES} ${RECORD_SOURCES})
+file(GLOB PAGE_SORT_SOURCES "src/AuxiliaryIndex/*.cpp")
+set(TEST_FILES ${TEST_SOURCES} ${RECORD_SOURCES} ${PAGE_SORT_SOURCES})
 message(STATUS "TEST_FILES:${TEST_FILES}")
 message(STATUS "RECORD_SOURCES:${RECORD_SOURCES}")
 add_executable(TEST_M3V ${TEST_FILES})
@@ -133,6 +135,7 @@ target_include_directories(TEST_M3V PRIVATE ${CMAKE_SOURCE_DIR}/third_party/lruc
 message("source directory: ${CMAKE_SOURCE_DIR}/third_party/rocksdb/include")
 target_include_directories(TEST_M3V PRIVATE ${CMAKE_SOURCE_DIR}/third_party/rocksdb/include ${CMAKE_SOURCE_DIR}/src/record_cache/include)
 target_include_directories(TEST_M3V PRIVATE /data/include/postgresql/server ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/utils)
+target_include_directories(TEST_M3V PRIVATE ${CMAKE_SOURCE_DIR}/src/AuxiliaryIndex/)
 add_test(NAME TEST_M3V_ COMMAND TEST_M3V)
 
 # add_executable(VectorGenerate ${CMAKE_SOURCE_DIR}/src/tests/generate_vector.cpp)

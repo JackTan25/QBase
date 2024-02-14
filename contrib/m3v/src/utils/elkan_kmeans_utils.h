@@ -46,8 +46,8 @@ class Square{
 const float DELTA = 1.0 / 1024.0;
 
 // define VectorRecord Compute Distance Function Pointer Type
-using RecordDistanceFunc  = float4(*)(VectorRecord* v1,VectorRecord* v2);
-// The new algorithm chapter: 7 steps
+using RecordDistanceFunc  = float(*)(VectorRecord* v1,VectorRecord* v2);
+using RecordRealSumVectorFunc = float(*)(VectorRecord* record1,VectorRecord* record2,const std::vector<uint32_t>& offsets);
 class ElkanKmeans{
     public:
 		void InitCenters(int vector_size){
@@ -68,9 +68,9 @@ class ElkanKmeans{
         // initial the ElkanKmeans:
         // 1. pick the initial k centers
         // 2. update lower_bounds and upper_bounds
-        ElkanKmeans(uint16_t iterations_times,RecordDistanceFunc distanceFunc,int centers_size,std::vector<VectorRecord>& records,bool stable):
-        centers_size_(centers_size),distanceFunc_(distanceFunc),iterations_times_(iterations_times),records_(records),lower_bounds(centers_size,records.size()),finished(false),
-		current_iterate_times(0),use_center_memory1(false),stable_(stable){
+        ElkanKmeans(uint16_t iterations_times,RecordDistanceFunc distanceFunc,RecordRealSumVectorFunc  distanceSumFunc,int centers_size,std::vector<VectorRecord>& records,bool stable,const std::vector<uint32_t> &offsets):
+        centers_size_(centers_size),distanceFunc_(distanceFunc),distanceSumFunc_(distanceSumFunc),iterations_times_(iterations_times),records_(records),lower_bounds(centers_size,records.size()),finished(false),
+		current_iterate_times(0),use_center_memory1(false),stable_(stable),offsets_(offsets){
             // initial centers using kmeans++ algorithm
             int n = records.size();
             centers.resize(centers_size_);
@@ -93,7 +93,7 @@ class ElkanKmeans{
             for(int i = 0;i < centers_size;i++){
                 float sum = 0;
                 for(int j = 0;j < n;j++){
-                    float dis = distanceFunc(&records[j],&centers[i]);
+                    float dis = GetVectorDistance(&records[j],&centers[i]);
                     float& low_bound = lower_bounds.get_index_value_ref(j,i);
                     low_bound = dis;
                     if(dis * dis < weights[j]){
@@ -305,12 +305,32 @@ class ElkanKmeans{
         }
 
         const std::vector<VectorRecord>& GetCenters(){
+			std::vector<float> dists(centers_size_,0x3f3f3f3f);
+			for(int i = 0;i < assigns.size();i++){
+				// find the closest point for every center
+				float dist = GetVectorDistance(&centers[assigns[i]],&records_[i]);
+				if(dist < dists[assigns[i]]){
+					centers[assigns[i]] = records_[i];
+					dists[assigns[i]] = dist;
+				}
+			}
             return centers;
         }
+
+		float GetVectorDistance(VectorRecord* v1,VectorRecord* v2){
+			if(distanceFunc_){
+				return distanceFunc_(v1,v2);
+			}else{
+				assert(distanceRealVectorSumFunc!=nullptr);
+				return distanceSumFunc_(v1,v2,offsets_);
+			}
+		}
     private:
         uint16_t centers_size_;
         RecordDistanceFunc distanceFunc_;
+		RecordRealSumVectorFunc distanceSumFunc_;
         uint16_t iterations_times_;
+		std::vector<uint32_t> offsets_;
         std::vector<VectorRecord>& records_;
         std::vector<VectorRecord> centers;
 		std::vector<std::pair<IndexPointer,VectorRecord>> centers_temp;

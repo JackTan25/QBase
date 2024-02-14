@@ -5,8 +5,8 @@
 #include "rocksdb/options.h"
 #include <rocksdb/cache.h>
 #include <rocksdb/table.h>
+#include "page_sort_index.h"
 // #include "m3v.h"
-
 #include<unordered_map>
 #include "rocksdb/db.h"
 #include "validity_mask.h"
@@ -15,7 +15,6 @@ extern "C" {
     #include "postgres.h"
 	#include "vector.h"
 }
-
 
 std::string ItemPointerToString(const ItemPointerData& key);
 
@@ -155,6 +154,7 @@ class RecordPagePool{
 			// this->db = db;
 			rocksdb::DB* db = nullptr;
 			rocksdb::Options options;
+			options.create_if_missing = true;
 			rocksdb::BlockBasedTableOptions table_options;
 			table_options.block_cache = rocksdb::NewLRUCache(8* 1024 * 1024);
 			options.table_factory.reset(rocksdb::NewBlockBasedTableFactory(table_options));
@@ -301,3 +301,11 @@ class RecordPagePool{
 		uint32_t direct_io_times;
 		uint32_t number_vector_per_record;
 };
+
+void distanceRealVectorFunc(VectorRecord* record1,VectorRecord* record2,const std::vector<uint32_t>& offsets,std::vector<float> &distances);
+
+float distanceRealVectorSumFunc(VectorRecord* record1,VectorRecord* record2,const std::vector<uint32_t>& offsets);
+
+float distanceRealVectorSumFuncWithWeights(VectorRecord* record1,VectorRecord* record2,const std::vector<uint32_t>& offsets,const std::vector<float> &weights);
+
+void GetPivotIndexPair(const std::vector<float>& distances,PivotIndexPair& min_pair,PivotIndexPair& max_pair,int idx);

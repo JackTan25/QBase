@@ -1,7 +1,64 @@
 #include "record_io.h"
+#include "page_sort_index.h"
 
 std::string ItemPointerToString(const ItemPointerData& key){
     return std::to_string(key.ip_blkid.bi_hi) + std::to_string(key.ip_blkid.bi_lo) + std::to_string(key.ip_posid);
+}
+
+void distanceRealVectorFunc(VectorRecord* record1,VectorRecord* record2,const std::vector<uint32_t>& offsets,std::vector<float> &distances){
+	assert(record1!=nullptr);
+	assert(record2!=nullptr);
+	assert(record1->GetSize() == record2->GetSize());
+	float* a = reinterpret_cast<float*>(record1->GetData());
+	float* b = reinterpret_cast<float*>(record2->GetData());
+    int offset = 0;
+    for(int i = 0;i < offsets.size();i++){
+        distances[i] = L2Distance(a + offset,b + offset,offsets[i]/DIM_SIZE);
+        offset += offsets[i];
+    }
+}
+
+void GetPivotIndexPair(const std::vector<float>& distances,PivotIndexPair& min_pair,PivotIndexPair& max_pair,int idx){
+    float max_distance = -0x3f3f3f3f;
+    float min_distance = 0x3f3f3f3f;
+    for(int i = 0;i < distances.size();i++){
+        if(max_distance < distances[i]){
+            max_distance = distances[i];
+        } 
+        if(min_distance > distances[i]){
+            min_distance = distances[i];
+        } 
+    }
+    min_pair = {min_distance,idx};
+    max_pair = {max_distance,idx};
+}
+
+float distanceRealVectorSumFuncWithWeights(VectorRecord* record1,VectorRecord* record2,const std::vector<uint32_t>& offsets,const std::vector<float> &weights){
+	assert(record1!=nullptr);
+	assert(record2!=nullptr);
+	assert(record1->GetSize() == record2->GetSize());
+	float* a = reinterpret_cast<float*>(record1->GetData());
+	float* b = reinterpret_cast<float*>(record2->GetData());
+    float res = 0;
+    int offset = 0;
+    for(int i = 0;i < offsets.size();i++){
+        res += L2Distance(a + offset,b + offset,offsets[i]/DIM_SIZE) * weights[i];
+    }
+    return res;
+}
+
+float distanceRealVectorSumFunc(VectorRecord* record1,VectorRecord* record2,const std::vector<uint32_t>& offsets){
+	assert(record1!=nullptr);
+	assert(record2!=nullptr);
+	assert(record1->GetSize() == record2->GetSize());
+	float* a = reinterpret_cast<float*>(record1->GetData());
+	float* b = reinterpret_cast<float*>(record2->GetData());
+    float res = 0;
+    int offset = 0;
+    for(int i = 0;i < offsets.size();i++){
+        res += L2Distance(a + offset,b + offset,offsets[i]/DIM_SIZE);
+    }
+    return res;
 }
 
 // template<const int N,const int M>

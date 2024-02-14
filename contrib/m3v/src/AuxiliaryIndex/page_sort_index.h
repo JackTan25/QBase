@@ -1,9 +1,13 @@
+#pragma once
 #include<iostream>
 #include<vector>
 #include<string.h>
 #define PAGE_NUM 500
 #define SORT_ENTRY_NUM 1024
 #define INVALID_INDEX 0xFFFF
+
+using PivotIndexPair = std::pair<float,int>;
+// Attentation:We Should Avoid SelfZero Trap.
 class ValidBitmap{
 	public:
 		ValidBitmap(uint32_t tid_nums):tid_nums_(tid_nums){
@@ -16,14 +20,16 @@ class ValidBitmap{
 
 		void Reset();
 
-		void SetIndexValid(uint32_t idx);
-
+		void SetIndexValid1(uint32_t idx);
+		void SetIndexValid2(uint32_t idx);
 		const std::vector<uint16_t>& GetValidIndexes(int tid_nums);
+		// const std::vector<uint16_t>& MergeValidIndexes(const ValidBitmap& mp2,int tid_nums);
 
 	private:
-		uint8_t masks[SORT_ENTRY_NUM/8];
-		std::vector<uint16_t> valid_indexes;
+		uint8_t masks1[SORT_ENTRY_NUM/8];
+		uint8_t masks2[SORT_ENTRY_NUM/8];
 		uint32_t tid_nums_;
+		std::vector<uint16_t> valid_indexes;
 };
 
 // Page Sort Index is used to store the m3v dimension distance sort.
@@ -35,7 +41,16 @@ class PagePivotSortIndex{
 		uint16_t GetMaxValidIndexStart(const float& radius,const float& dist,const float& weight_sum);
 		void ResetBitmap();
 		void SetTidNums(int tid_nums);
-		void SetIndexValid(uint32_t idx);
+		void SetMinIndexValid(uint32_t idx);
+		void SetMaxIndexValid(uint32_t idx);
+		void SetMaxSorts(const std::vector<PivotIndexPair>& max_sorts);
+		void SetMinSorts(const std::vector<PivotIndexPair>& min_sorts);
+		int GetMinIndexAt(int idx){
+			return min_sorts[idx].second;
+		}
+		int GetMaxIndexAt(int idx){
+			return max_sorts[idx].second;
+		}
 		const std::vector<uint16_t>& GetValidIndexes(int tid_nums);
 		uint16_t GetTidNums(){
 			return tid_nums_;
@@ -66,15 +81,16 @@ class PagePivotSortIndex{
 		// it means d1 = d(q,l)
 		//	  2. we can perform prune by 
 		// min_sort_index
-		float min_sorts[SORT_ENTRY_NUM];
+		PivotIndexPair min_sorts[SORT_ENTRY_NUM];
 		// max_sort_index
-		float max_sorts[SORT_ENTRY_NUM];
+		PivotIndexPair max_sorts[SORT_ENTRY_NUM];
 		// min sort array index
-		uint16_t min_indexes[SORT_ENTRY_NUM];
+		// uint16_t min_indexes[SORT_ENTRY_NUM];
 		// max sort array index
-		uint16_t max_indexes[SORT_ENTRY_NUM];
-		ValidBitmap valid_bitmap;
+		// uint16_t max_indexes[SORT_ENTRY_NUM];
+		// ValidBitmap max_valid_bitmap;
 		int tid_nums_ = INVALID_INDEX;
+		ValidBitmap valid_bitmap;
 };
 
 class AuxiliarySortPage{
@@ -82,8 +98,10 @@ class AuxiliarySortPage{
 		void SetDimensions(uint32_t dimension_nums){
 			dimension_nums_ = dimension_nums;
 		}
-
+		void SetPageSortIndexTidNums(int page_idx,int tid_nums);
 		const std::vector<uint16_t>& GetValidIndexes(int page_index,float radius,float dist,float weight_sum);
+		void SetMaxSorts(int page_index,const std::vector<PivotIndexPair>& max_sorts);
+		void SetMinSorts(int page_index,const std::vector<PivotIndexPair>& min_sorts);
 	private:
 		// do binary_search for min or max arraies
 		uint16_t GetMinValidIndexStart(PagePivotSortIndex& page_pivot_sort,const float& radius,const float& dist,const float& weight_sum) const;

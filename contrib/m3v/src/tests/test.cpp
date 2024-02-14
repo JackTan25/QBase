@@ -10,7 +10,7 @@
 #include <fstream>
 #include <vector>
 #include <string>
-
+#include "page_sort_index.h"
 extern "C"{
 	#include "vector.h"
 }
@@ -37,6 +37,7 @@ TEST(M3V,RocksDB){
     options.table_factory.reset(rocksdb::NewBlockBasedTableFactory(table_options));
 
     // 打开数据库
+	options.create_if_missing = true;
     rocksdb::Status status = rocksdb::DB::Open(options, std::string(PROJECT_ROOT_PATH) + "/db", &db);
     if (!status.ok()) {
         std::cerr << "Unable to open database: " << status.ToString() << std::endl;
@@ -292,7 +293,7 @@ TEST(M3V,KMEANS_SPLIT){
 		records.push_back(record_pointer);
 	}
 
-	ElkanKmeans elkan_kmeans(100,distanceVectorFunc,2,records,true);
+	ElkanKmeans elkan_kmeans(100,distanceVectorFunc,distanceRealVectorSumFunc,2,records,true,offsets);
 	auto t0 = std::chrono::steady_clock::now();
 	while(!elkan_kmeans.is_finished()){
 		elkan_kmeans.iteration();
@@ -304,17 +305,20 @@ TEST(M3V,KMEANS_SPLIT){
 		records_[i].DebugVectorRecord();
 	}
 	auto res1 = elkan_kmeans.GetAssigns();
-	ElkanKmeans elkan_kmeans2(100,distanceVectorFunc,2,records,true);
+	ElkanKmeans elkan_kmeans2(100,distanceVectorFunc,distanceRealVectorSumFunc,2,records,true,offsets);
 	while(!elkan_kmeans2.is_finished()){
 		elkan_kmeans2.iteration();
 	}
 	auto res2 = elkan_kmeans2.GetAssigns();
 	assert(res1.size() == res2.size());
 	std::unordered_set<bool> s;
+	int cluster_1_size = 0;
 	// we can pass, we will always get the same 
 	for(int i = 0;i < res1.size();i++){
 		s.insert(res1[i] == res2[i]);
+		if(res1[i] == 0) cluster_1_size++;
 	}
+	std::cout<<"cluster 1 size: "<<cluster_1_size<<std::endl;
 	assert(s.size() == 1);
 	std::vector<VectorRecord> new_records;
 	for(int i = 0;i < res1.size();i++){
@@ -322,7 +326,7 @@ TEST(M3V,KMEANS_SPLIT){
 			new_records.push_back(records[i]);
 		}
 	}
-	ElkanKmeans elkan_kmeans3(100,distanceVectorFunc,1,new_records,true);
+	ElkanKmeans elkan_kmeans3(100,distanceVectorFunc,distanceRealVectorSumFunc,1,new_records,true,offsets);
 	auto records3_ = elkan_kmeans3.GetCenters();
 	records3_[0].DebugVectorRecord();
 	// Test 1
@@ -384,13 +388,153 @@ void ReadTwoVectorUtil(std::string path1,std::string path2,rocksdb::DB* db){
     }
 }
 
+// Modify: We should choose pivot in every dimension standalone and then combine them.
+// We should set a threshold to trigger the `AuxiliarySortPage` Index generation. The default could be
+// 100 or less.
 TEST(M3V,TestPageSortIndex){
+	ItemPointerData data_;ItemPointer pointer = &data_;pointer->ip_posid = 0;data_.ip_blkid.bi_hi = 0;data_.ip_blkid.bi_lo = 0;
+	std::vector<VectorRecord> records;
 	// Test bigann_1000 and ssnpp_1000 composition
 	std::vector<uint32_t> offsets = {128*DIM_SIZE,128*DIM_SIZE};
     IndexPointerLruCache cache_test(offsets,2);
 	ReadTwoVectorUtil("/home/jack/cpp_workspace/wrapdir/OneDb2/contrib/m3v/src/tests_data/bigann_vector_128_100M_1000.txt",
 	"/home/jack/cpp_workspace/wrapdir/OneDb2/contrib/m3v/src/tests_data/ssnpp_vector_256_100M_1000.txt",
 	cache_test.GetDB());
+	
+	// up to now, we have added the two dimension vectors.
+	// each time we prepare 1000 records and do split for it. we should make sure
+	// we will always generate the same cluster (we use kmeans++)
+	for(int i = 0;i < 1000;i++){
+		pointer->ip_posid = i;
+		auto record_pointer =  cache_test.Get(pointer);
+		records.push_back(record_pointer);
+	}
+	ElkanKmeans elkan_kmeans(100,nullptr,distanceRealVectorSumFunc,2,records,true,offsets);
+	// and then we should get each cluster center(we don't use the new generated two, we will try to find the one which is
+	// closest to the elkan-kmeans++'s ones as new cluster centers)
+	auto centers = elkan_kmeans.GetCenters();
+	std::vector<VectorRecord> records1;std::vector<VectorRecord> records2;
+	records1.reserve(1000);records2.reserve(1000);
+	auto assigns = elkan_kmeans.GetAssigns();
+	for(int i = 0;i < assigns.size();i++){
+		if(assigns[i] == 0){
+			records1.push_back(records[i]);
+		}else{
+			records2.push_back(records[i]);
+		}
+	}
+	centers[0] = records2[0];
+	// 1.build page sort index.
+	AuxiliarySortPage pages;
+	pages.SetPageSortIndexTidNums(0,1000); 
+	// 1.1 Get Pivot Distance
+	std::vector<PivotIndexPair> max_sorts1_;std::vector<PivotIndexPair> min_sorts1_;
+	std::vector<PivotIndexPair> max_sorts2_;std::vector<PivotIndexPair> min_sorts2_;
+	max_sorts1_.reserve(1000);min_sorts1_.reserve(1000);
+	PivotIndexPair min_pair;PivotIndexPair max_pair;
+	std::vector<uint32_t> offsets2;std::vector<float> distances2;
+	distances2.resize(2);
+	// std::cout<<"centers0 debug: ";centers[0].DebugVectorRecord();std::cout<<std::endl;
+	// std::cout<<"records1_0 debug: ";records1[1].DebugVectorRecord();std::cout<<std::endl;
+	// std::cout<<"records1_0 debug: ";records1[2].DebugVectorRecord();std::cout<<std::endl;
+	VectorRecord query1 = records2[0]; // use query point which is not in the records1 
+	VectorRecord query2 = records1[0]; // use query point which is not in the records2
+	VectorRecord pivot1 = query1;
+	VectorRecord pivot2 = query2;
+	// cluster1 compute
+	for(int idx1 = 0;idx1 < records1.size();idx1++){
+		distanceRealVectorFunc(&pivot1,&records1[idx1],offsets,distances2);
+		GetPivotIndexPair(distances2,min_pair,max_pair,idx1);
+		max_sorts1_.push_back(max_pair);min_sorts1_.push_back(min_pair);
+	}
+	pages.SetPageSortIndexTidNums(1,max_sorts1_.size());
+	pages.SetMaxSorts(1,max_sorts1_);pages.SetMinSorts(1,min_sorts1_);
+
+	// cluster2 compute
+	for(int idx2 = 0;idx2 < records2.size();idx2++){
+		distanceRealVectorFunc(&pivot2,&records2[idx2],offsets,distances2);
+		GetPivotIndexPair(distances2,min_pair,max_pair,idx2);
+		max_sorts2_.push_back(max_pair);min_sorts2_.push_back(min_pair);
+	}
+	pages.SetPageSortIndexTidNums(2,max_sorts2_.size());
+	pages.SetMaxSorts(2,max_sorts2_);pages.SetMinSorts(2,min_sorts2_);
+
+	// now, let's monitor the sql, select * from t where 0.5 * d(v1,p) + 0.6 * (v2,p) < 3.3, we should promise the
+	// ground-truth vector points should be in the result after min-max prune. also we can do a prune effect
+	// check for new idea.
+	std::unordered_set<int> ground_truth1;std::unordered_set<int> ground_truth2;
+	std::vector<float> weights = {0.6,0.6};
+	float radius = 450;
+
+	std::ofstream file("/home/jack/cpp_workspace/wrapdir/OneDb2/contrib/m3v/src/tests/output.txt");
+	if (!file.is_open()) {
+		std::cerr << "can't open file" << std::endl;
+	}
+	file.precision(6);
+	file << std::fixed;
+	std::vector<float> values;
+	// Test Spilt Page1
+	for(int i = 0;i < records1.size();i++){
+		float dist = distanceRealVectorSumFuncWithWeights(&query1,&records1[i],offsets,weights);
+		distanceRealVectorSumFuncWithWeights(&query1,&records1[i],offsets,weights);
+		values.push_back(dist);
+		// std::cout<<dist<<std::endl;
+		if(dist < radius){
+			ground_truth1.insert(i);
+		}
+	}
+	sort(values.begin(),values.end());
+	for(auto value:values){
+		file << value << std::endl;
+	}
+	file.close();
+
+	std::cout<<"ground_truth1 size: "<<ground_truth1.size()<<std::endl;
+	auto t0 = std::chrono::steady_clock::now();
+	float pivot_distance1 = distanceRealVectorSumFuncWithWeights(&centers[0],&query1,offsets,weights);
+	auto valid_indexes1 =  pages.GetValidIndexes(1,radius,pivot_distance1,weights[0] + weights[1]);
+	auto cost1 = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count();
+	std::cout<<"cost1: "<<cost1<<" nanoseconds"<<std::endl;
+	int res1 = 0;
+	for(int i = 0;i < valid_indexes1.size();i++){
+		if(ground_truth1.count(valid_indexes1[i])){
+			res1++;
+		}
+	}
+	std::cout<<"valid_indexes1 size: "<<valid_indexes1.size()<<std::endl;
+	if(res1!=ground_truth1.size()){
+		std::cout<<"res1: "<<res1<<" size1: "<<ground_truth1.size()<<std::endl;
+	}
+	assert(res1 == ground_truth1.size());
+	// Test Split Page2
+	for(int i = 0;i < records2.size();i++){
+		float dist = distanceRealVectorSumFuncWithWeights(&query2,&records2[i],offsets,weights);
+		// std::cout<<dist<<std::endl;
+		if(dist < radius){
+			ground_truth2.insert(i);
+		} 
+	}
+	std::cout<<"ground_truth2 size: "<<ground_truth2.size()<<std::endl;
+	auto t1 = std::chrono::steady_clock::now();
+	float pivot_distance2 = distanceRealVectorSumFuncWithWeights(&pivot2,&query2,offsets,weights);
+	auto valid_indexes2 = pages.GetValidIndexes(2,radius,pivot_distance2,weights[0] + weights[1]);
+	auto cost2 = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t1).count();
+	std::cout<<"cost2: "<<cost2<<" nanoseconds"<<std::endl;
+	int res2 = 0;
+	for(int i = 0;i < valid_indexes2.size();i++){
+		if(ground_truth2.count(valid_indexes2[i])){
+			res2++;
+		}
+	}
+	std::cout<<"valid_indexes2 size: "<<valid_indexes2.size()<<std::endl;
+	if(res2!=ground_truth2.size()){
+		std::cout<<"res2: "<<res2<<" size2: "<<ground_truth2.size()<<std::endl;
+	}
+	assert(res2 == ground_truth2.size());
+}
+
+TEST(M3V,TestSerializeAndDeserialize){
+
 }
 
 int main(int argc, char **argv) {

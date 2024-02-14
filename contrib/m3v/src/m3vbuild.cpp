@@ -312,7 +312,8 @@ m3vbuild(Relation heap, Relation index, IndexInfo *indexInfo)
 	result = (IndexBuildResult *)palloc(sizeof(IndexBuildResult));
 	result->heap_tuples = buildstate.reltuples;
 	result->index_tuples = buildstate.indtuples;
-
+	// when build finished, we should start to generate AuxiliarySortPage Index.
+	// 
 	return result;
 }
 
