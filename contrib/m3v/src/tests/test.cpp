@@ -13,6 +13,7 @@
 #include "page_sort_index.h"
 extern "C"{
 	#include "vector.h"
+	// #include <itemptr.h>
 }
 
 TEST(Hack, AssertionT) {
@@ -440,7 +441,7 @@ TEST(M3V,TestPageSortIndex){
 	VectorRecord query1 = records2[0]; // use query point which is not in the records1 
 	VectorRecord query2 = records1[0]; // use query point which is not in the records2
 	VectorRecord pivot1 = query1;
-	VectorRecord pivot2 = query2;
+	VectorRecord pivot2 = query1;
 	// cluster1 compute
 	for(int idx1 = 0;idx1 < records1.size();idx1++){
 		distanceRealVectorFunc(&pivot1,&records1[idx1],offsets,distances2);
@@ -464,7 +465,7 @@ TEST(M3V,TestPageSortIndex){
 	// check for new idea.
 	std::unordered_set<int> ground_truth1;std::unordered_set<int> ground_truth2;
 	std::vector<float> weights = {0.6,0.6};
-	float radius = 450;
+	float radius = 700;
 
 	std::ofstream file("/home/jack/cpp_workspace/wrapdir/OneDb2/contrib/m3v/src/tests/output.txt");
 	if (!file.is_open()) {
@@ -489,6 +490,14 @@ TEST(M3V,TestPageSortIndex){
 	}
 	file.close();
 
+	double suma = 0;
+	for(int i = 0; i < 100000;i++){
+		auto ta = std::chrono::steady_clock::now();
+		distanceRealVectorSumFuncWithWeights(&records[i%990],&query1,offsets,weights);
+		suma += std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - ta).count();
+	}
+	std::cout<<"suma: "<<suma<<" nanoseconds"<<std::endl;
+
 	std::cout<<"ground_truth1 size: "<<ground_truth1.size()<<std::endl;
 	auto t0 = std::chrono::steady_clock::now();
 	float pivot_distance1 = distanceRealVectorSumFuncWithWeights(&centers[0],&query1,offsets,weights);
@@ -508,7 +517,7 @@ TEST(M3V,TestPageSortIndex){
 	assert(res1 == ground_truth1.size());
 	// Test Split Page2
 	for(int i = 0;i < records2.size();i++){
-		float dist = distanceRealVectorSumFuncWithWeights(&query2,&records2[i],offsets,weights);
+		float dist = distanceRealVectorSumFuncWithWeights(&query1,&records2[i],offsets,weights);
 		// std::cout<<dist<<std::endl;
 		if(dist < radius){
 			ground_truth2.insert(i);
@@ -516,7 +525,7 @@ TEST(M3V,TestPageSortIndex){
 	}
 	std::cout<<"ground_truth2 size: "<<ground_truth2.size()<<std::endl;
 	auto t1 = std::chrono::steady_clock::now();
-	float pivot_distance2 = distanceRealVectorSumFuncWithWeights(&pivot2,&query2,offsets,weights);
+	float pivot_distance2 = distanceRealVectorSumFuncWithWeights(&pivot2,&query1,offsets,weights);
 	auto valid_indexes2 = pages.GetValidIndexes(2,radius,pivot_distance2,weights[0] + weights[1]);
 	auto cost2 = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t1).count();
 	std::cout<<"cost2: "<<cost2<<" nanoseconds"<<std::endl;

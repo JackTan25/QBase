@@ -1,5 +1,5 @@
 #pragma once
-#include "m3v.h"
+#include "a3v/m3v.h"
 #include "vector.h"
 extern "C"{
 	#include "postgres.h"
@@ -42,11 +42,7 @@ extern "C"{
 /*
  * Initialize index options and variables
  */
-extern "C"
-{
-    PG_MODULE_MAGIC;
-    PGDLLEXPORT void _PG_init(void);
-}
+PGDLLEXPORT void _PG_init(void);
 void _PG_init(void)
 {
 	m3vInit();
@@ -181,7 +177,6 @@ float_underflow_error(void)
 extern "C"{
 	PGDLLEXPORT PG_FUNCTION_INFO_V1(vector_in);
 }
-
 Datum vector_in(PG_FUNCTION_ARGS)
 {
 	char *str = PG_GETARG_CSTRING(0);
@@ -432,6 +427,7 @@ extern "C"{
 }
 Datum vector_typmod_in(PG_FUNCTION_ARGS)
 {
+	// elog(INFO,"%s","vector_typmod_in");
 	ArrayType *ta = PG_GETARG_ARRAYTYPE_P(0);
 	int32 *tl;
 	int n;

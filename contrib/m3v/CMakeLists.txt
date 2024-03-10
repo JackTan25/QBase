@@ -33,13 +33,14 @@ message(STATUS "vector path: ${CMAKE_SOURCE_DIR}/src/vector.h")
 
 # Add Source Files
 add_library(${PROJECT_NAME} SHARED
-    src/m3v.cpp 
-    src/m3vbuild.cpp 
-    src/m3vinsert.cpp 
-    src/m3vscan.cpp 
-    src/m3vutils.cpp 
-    src/m3vvaccum.cpp
-    src/vector.cpp
+    src/a3v/m3v.cpp 
+    src/a3v/m3vbuild.cpp 
+    src/a3v/m3vinsert.cpp 
+    src/a3v/m3vscan.cpp 
+    src/a3v/m3vutils.cpp 
+    src/a3v/m3vvaccum.cpp
+    src/a3v/vector.cpp
+    src/a3v/util.cpp
     src/record_cache/record_io.cpp
     src/record_cache/lru_index_pointer.cpp
     src/record_cache/validity_mask.cpp
@@ -65,6 +66,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC /data/include/postgresql/serve
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/src/record_cache/include)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/src/ ${CMAKE_SOURCE_DIR}/third_party/rocksdb/include)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/contrib/m3v/src/utils)
+# target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/contrib/m3v/src/a3v)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/src/AuxiliaryIndex/)
 if(WIN32)
     message(STATUS "WIN32")

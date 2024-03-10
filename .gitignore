@@ -49,3 +49,8 @@ lib*.pc
 /.vscode/rocksdb_data
 /contrib/m3v/rocksdb_data/*
 /contrib/m3v/db/*
+/contrib/m3v/a3v_index/*
+/bigann_vector_128_1M_vector.txt
+/contrib/m3v/src/tests_data/bigann_vector_128_100M_1000.txt
+/contrib/m3v/src/tests_data/ssnpp_vector_256_100M_1000.txt
+/contrib/m3v/src/tests/output.txt

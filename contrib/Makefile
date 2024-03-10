@@ -53,7 +53,7 @@ SUBDIRS = \
 		unaccent	\
 		vacuumlo	\
 		pgvector	\
-		mtree_am2	\
+		# mtree_am2	\
 		# m3v			\
 		blackhole	
 

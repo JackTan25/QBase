@@ -20,10 +20,14 @@ typedef std::unordered_map<HeapTid, typename std::list<KeyValuePair>::iterator> 
 // So we should write data first by rocksdb and then get data from it.
 class IndexPointerLruCache{
 	public:
-		IndexPointerLruCache(std::vector<uint32_t> &offsets_,uint32_t number_vector_per_record_,size_t maxSize = 40000, size_t elasticity = 20000):maxSize_(maxSize), elasticity_(elasticity),pool(offsets_,std::string(PROJECT_ROOT_PATH) + "/rocksdb_data",number_vector_per_record_) {
+		IndexPointerLruCache(std::vector<uint32_t> &offsets_,uint32_t number_vector_per_record_,std::string path = "/rocksdb_data",size_t maxSize = 40000, size_t elasticity = 20000):maxSize_(maxSize), elasticity_(elasticity),pool(offsets_,std::string(PROJECT_ROOT_PATH) + path,number_vector_per_record_) {
 			maxSize_ =  pool.GetAvailableSegmentsPerBuffer() * NPages;
 			elasticity_ = maxSize_;
 			std::cout<<"init IndexPointerLruCache"<<std::endl;
+		}
+		
+		IndexPointerLruCache &operator=(IndexPointerLruCache&& cache){
+			return cache;
 		}
 
 		void DebugTime(std::string message = "Time Cost"){
@@ -213,7 +217,7 @@ class IndexPointerLruCache{
 	private:
 		// Disallow copying.
 		IndexPointerLruCache(const IndexPointerLruCache&) = delete;
-		IndexPointerLruCache& operator=(const IndexPointerLruCache&) = delete;
+		// IndexPointerLruCache& operator=(const IndexPointerLruCache&) = delete;
     private:
 		Map cache_;
 		list_type keys_;
