@@ -19,6 +19,7 @@ extern "C"
 	#include "storage/bufmgr.h"
 }
 
+#define DEFAULT_INDEX_TYPE true // memory index
 static ItemPointerData InvalidItemPointerData = {{0,0},InvalidOffsetNumber};
 using PII = std::pair<std::vector<float>,ItemPointerData>;
 typedef uint32_t PageId;
@@ -65,3 +66,7 @@ int a3vAllocateQueryId(Relation index);
 std::string build_data_string(float* vec,int len);
 void InsertNewQuery(IndexScanDesc scan,m3vScanOpaque so,int block_number);
 Buffer m3vNewBuffer(Relation index, ForkNumber forkNum);
+/*
+ * Get the max number of connections in an upper layer for each element in the index
+ */
+bool A3vGetIndexType(Relation index);

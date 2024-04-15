@@ -230,8 +230,7 @@ typedef struct m3vPairingDistanceOnlyHeapNode
 typedef struct m3vOptions
 {
 	int32 vl_len_;		/* varlena header (do not touch directly!) */
-	int m;				/* number of connections */
-	int efConstruction; /* size of dynamic candidate list */
+	bool memory_index;
 } m3vOptions;
 
 typedef struct m3vBuildState
@@ -244,8 +243,6 @@ typedef struct m3vBuildState
 
 	/* Settings */
 	int dimensions;
-	int m;
-	int efConstruction;
 
 	/* Statistics */
 	double indtuples;
@@ -443,8 +440,6 @@ typedef struct m3vVacuumState
 } M3vVacuumState;
 
 /* Methods */
-int m3vGetM(Relation index);
-int m3vGetEfConstruction(Relation index);
 FmgrInfo *m3vOptionalProcInfo(Relation index, uint16 procnum);
 bool m3vNormValue(FmgrInfo *procinfo, Oid collation, Datum *value, Vector *result);
 void m3vCommitBuffer(Buffer buf, GenericXLogState *state);

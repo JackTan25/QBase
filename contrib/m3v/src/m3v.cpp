@@ -76,7 +76,6 @@ m3voptions(Datum reloptions, bool validate)
 	static const relopt_parse_elt tab[] = {
 		{"m", RELOPT_TYPE_INT, offsetof(m3vOptions, m)},
 		{"ef_construction", RELOPT_TYPE_INT, offsetof(m3vOptions, efConstruction)},
-		{"memory_index",RELOPT_TYPE_BOOL,offsetof(m3vOptions,memory_index)},
 	};
 
 #if PG_VERSION_NUM >= 130000

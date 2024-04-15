@@ -132,6 +132,7 @@ static void
 BuildA3vCallback(Relation index, CALLBACK_ITEM_POINTER, Datum *values,
 			  bool *isnull, bool tupleIsAlive, void *state)
 {
+	elog(INFO,"memory_index: %d",A3vGetIndexType(index));
 	elog(INFO,"BuildA3vCallback");
 	m3vBuildState *buildstate = (m3vBuildState *)state;
 	buildstate->tids.push_back(*tid);
@@ -267,9 +268,6 @@ InitBuildState(m3vBuildState *buildstate, Relation heap, Relation index, IndexIn
 	buildstate->indexInfo = indexInfo;
 	buildstate->forkNum = forkNum;
 
-	buildstate->m = m3vGetM(index);
-	buildstate->efConstruction = m3vGetEfConstruction(index);
-
 	buildstate->dimensions = TupleDescAttr(index->rd_att, 0)->atttypmod;
 
 	// buildstate->each_dimentions[0] = TupleDescAttr(index->rd_att, 0)->atttypmod;
@@ -281,9 +279,6 @@ InitBuildState(m3vBuildState *buildstate, Relation heap, Relation index, IndexIn
 	if (buildstate->dimensions > M3V_MAX_DIM)
 		elog(ERROR, "column cannot have more than %d dimensions for m3v index", M3V_MAX_DIM);
 
-	if (buildstate->efConstruction < 2 * buildstate->m)
-		elog(ERROR, "ef_construction must be greater than or equal to 2 * m");
-
 	buildstate->reltuples = 0;
 	buildstate->indtuples = 0;
 	buildstate->tuples_num = 0;
@@ -294,9 +289,6 @@ InitBuildState(m3vBuildState *buildstate, Relation heap, Relation index, IndexIn
 
 	buildstate->elements = NIL;
 	buildstate->entryPoint = NULL;
-	buildstate->ml = m3vGetMl(buildstate->m);
-	buildstate->maxLevel = m3vGetMaxLevel(buildstate->m);
-	buildstate->maxInMemoryElements = m3vGetMaxInMemoryElements(buildstate->m, buildstate->ml, buildstate->dimensions);
 	buildstate->flushed = false;
 
 	/* Reuse for each tuple */

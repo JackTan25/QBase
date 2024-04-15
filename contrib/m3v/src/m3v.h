@@ -225,7 +225,6 @@ typedef struct m3vOptions
 	int32 vl_len_;		/* varlena header (do not touch directly!) */
 	int m;				/* number of connections */
 	int efConstruction; /* size of dynamic candidate list */
-	bool memory_index;
 } m3vOptions;
 
 typedef struct m3vBuildState

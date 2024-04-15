@@ -2,6 +2,8 @@
 
 #include "a3v/m3v.h"
 #include "lru_index_pointer.h"
+#include "util.h"
+#include "simd_func.h"
 extern "C"
 {	
 	#include "postgres.h"
@@ -21,6 +23,28 @@ extern "C"
 
 int m3v_ef_search;
 static relopt_kind m3v_relopt_kind;
+int			a3v_lock_tranche_id;
+
+void
+A3vInitLockTranche(void)
+{
+	int		   *tranche_ids;
+	bool		found;
+
+	LWLockAcquire(AddinShmemInitLock, LW_EXCLUSIVE);
+	tranche_ids = (int*)ShmemInitStruct("a3v LWLock ids",
+								  sizeof(int) * 1,
+								  &found);
+	if (!found)
+		tranche_ids[0] = LWLockNewTrancheId();
+	a3v_lock_tranche_id = tranche_ids[0];
+	LWLockRelease(AddinShmemInitLock);
+
+	/* Per-backend registration of the tranche ID */
+	LWLockRegisterTranche(a3v_lock_tranche_id, "A3vBuild");
+}
+
+bool a3v_memory_index;
 
 /*
  * Initialize index options and variables
@@ -28,6 +52,20 @@ static relopt_kind m3v_relopt_kind;
 void m3vInit(void)
 {
 	// migrate m3v.
+	SetSIMDFunc();
+	m3v_relopt_kind = add_reloption_kind();
+	add_bool_reloption(m3v_relopt_kind, "memory_index", "the index type is memory index or disk index",
+					  DEFAULT_INDEX_TYPE
+	#if PG_VERSION_NUM >= 130000
+						,AccessExclusiveLock
+	#endif
+			);
+
+	DefineCustomBoolVariable("a3v.memory_index", "Sets the Index type",
+							"Valid value is true or false", &a3v_memory_index,
+							DEFAULT_INDEX_TYPE, PGC_USERSET, 0, NULL, NULL, NULL);
+
+	MarkGUCPrefixReserved("m3v");
 }
 
 std::string build_data_string_datum(Datum* values,int columns){
@@ -88,8 +126,7 @@ static bytea *
 m3voptions(Datum reloptions, bool validate)
 {
 	static const relopt_parse_elt tab[] = {
-		{"m", RELOPT_TYPE_INT, offsetof(m3vOptions, m)},
-		{"ef_construction", RELOPT_TYPE_INT, offsetof(m3vOptions, efConstruction)},
+		{"memory_index",RELOPT_TYPE_BOOL,offsetof(m3vOptions,memory_index)},
 	};
 
 #if PG_VERSION_NUM >= 130000

@@ -96,7 +96,6 @@ bool m3vInsertTuple(Relation index, m3vElement element, bool *isnull, ItemPointe
 	m3vElement entryPoint;
 	
 	int m;
-	int efConstruction = m3vGetEfConstruction(index);
 	FmgrInfo *procinfo = index_getprocinfo(index, 1, M3V_DISTANCE_PROC);
 	// FmgrInfo *PrintInfo = index_getprocinfo(index, 1, 5);
 	Oid collation = index->rd_indcollation[0];

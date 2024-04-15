@@ -25,32 +25,6 @@ void PageReplaceItem(Page page, OffsetNumber offset, Item item, Size size)
 }
 
 /*
- * Get the max number of connections in an upper layer for each element in the index
- */
-int m3vGetM(Relation index)
-{
-	m3vOptions *opts = (m3vOptions *)index->rd_options;
-
-	if (opts)
-		return opts->m;
-
-	return M3V_DEFAULT_M;
-}
-
-/*
- * Get the size of the dynamic candidate list in the index
- */
-int m3vGetEfConstruction(Relation index)
-{
-	m3vOptions *opts = (m3vOptions *)index->rd_options;
-
-	if (opts)
-		return opts->efConstruction;
-
-	return M3V_DEFAULT_EF_CONSTRUCTION;
-}
-
-/*
  * Get proc
  */
 FmgrInfo *

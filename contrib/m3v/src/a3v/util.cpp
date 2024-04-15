@@ -135,6 +135,13 @@ void InsertNewQuery(IndexScanDesc scan,m3vScanOpaque so,int block_number){
     ReleaseBuffer(buf);
 }
 
+bool A3vGetIndexType(Relation index){
+    m3vOptions* opts =  (m3vOptions*)index->rd_options;
+    if (!opts)
+		return DEFAULT_INDEX_TYPE;
+    return opts->memory_index;
+}
+
 // gcc -I$(pg_config --includedir-server) -shared -fPIC -o pg_exec.so pg_exec.c
 // CREATE FUNCTION Print() RETURNS float8 AS 'util.so', 'Print' LANGUAGE C STRICT;
 
