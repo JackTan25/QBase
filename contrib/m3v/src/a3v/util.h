@@ -19,6 +19,8 @@ extern "C"
 	#include "storage/bufmgr.h"
 }
 
+static ItemPointerData InvalidItemPointerData = {{0,0},InvalidOffsetNumber};
+using PII = std::pair<std::vector<float>,ItemPointerData>;
 typedef uint32_t PageId;
 #define FLOAT_SIZE sizeof(float)
 template<class T>

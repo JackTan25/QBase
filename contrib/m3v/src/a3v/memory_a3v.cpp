@@ -1,7 +1,7 @@
 #pragma once
 
 #include "memory_a3v.h"
-#include "init.h"
+#include "util.h"
 
 A3vNode::A3vNode():left_node(-1),right_node(-1),id(0),radius(0),start(-1),end(-1){}
 

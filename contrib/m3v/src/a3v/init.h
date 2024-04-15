@@ -48,8 +48,6 @@ class GlobalInit{
 };
 
 extern GlobalInit init;
-static ItemPointerData InvalidItemPointerData = {{0,0},InvalidOffsetNumber};
-using PII = std::pair<std::vector<float>,ItemPointerData>;
 
 // the default in-memory hsnw index's stored in index_name_memory_index.bin
 // memory data store path: std::string path = std::string(PROJECT_ROOT_PATH) + "/memory_data_points.bin";

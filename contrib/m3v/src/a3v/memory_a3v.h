@@ -3,6 +3,7 @@
 #include<vector>
 #include<unordered_map>
 #include "simd_func.h"
+#include "util.h"
 // for guide_pq: <distance,id>, id stands for a node in `index`.
 // for result_pq: <distance,id>, id stands for the index in `data_points`
 using PQNode = std::pair<float,int>;
@@ -26,91 +27,13 @@ class A3vNode{
 };
 
 class MemoryA3v{
-	MemoryA3v(int dim,std::vector<PII>& data_points_):dim_(dim),data_points(data_points_),swap_indexes(data_points.size()){
-		distances_caching.reserve(data_points.size());
-		for(int i = 0;i < data_points.size();i++) swap_indexes[i] = i,distances_caching[i] = -1; // the initial value should be -1??
-		// init root
-		index.push_back(A3vNode(-1,-1,0,data_points.size()-1,-1.0,0));
-	}
+	MemoryA3v(int dim,std::vector<PII>& data_points_);
 	
-	int CrackInTwo(int start_,int end_,float epsilon){
-		int i = start_,j = end_;
-		while(true){
-			while(distances_caching[i] <= epsilon && i < end_+1) i++;
-			while(distances_caching[j] > epsilon && j > start_-1) j--;
-			if(i >= j) break;
-			std::swap(swap_indexes[i],swap_indexes[j]);
-			std::swap(distances_caching[i],distances_caching[j]);
-		}
-		return j;
-	}
+	int CrackInTwo(int start_,int end_,float epsilon);
 
-	void KnnCrackSearch(float* query,int k){
-		// Min heap
-		std::priority_queue<PQNode,std::vector<PQNode>,std::greater<PQNode>> guide_pq;
-		// Max heap
-		std::priority_queue<PQNode> result_pq;
-		std::vector<int> rnd_dists;
-		float median,leftMinDist,rightMinDist;int crack;
-		// init, we should give the root node as a guide way for guide_pq.
-		guide_pq.push({0,0});
-		while(!guide_pq.empty() && (result_pq.size() < k || guide_pq.top() < result_pq.top())){
-			auto& t = index[guide_pq.top().second];
-			// leaf node process
-			if(t.left_node == -1 && t.right_node == -1){
-				for(int i = t.start;i <= t.end;i++){
-					distances_caching[i] = SIMDFunc(data_points[i].first.data(),query,&dim_);
-					if(result_pq.size() < k){
-						result_pq.push({distances_caching[i],i});
-					}else if(distances_caching[i] < result_pq.top().first){
-						result_pq.pop();
-						result_pq.push({distances_caching[i],i});
-					}
-				}
-				guide_pq.pop();
-				if(t.end - t.start + 1 > CRACKTHRESHOLD){
-					rnd_dists.clear();
-					rnd_dists.push_back(distances_caching[t.start + (std::rand() % (t.end - t.start + 1))]);
-					rnd_dists.push_back(distances_caching[t.start + (std::rand() % (t.end - t.start + 1))]);
-					rnd_dists.push_back(distances_caching[t.start + (std::rand() % (t.end - t.start + 1))]);
-					sort(rnd_dists.begin(),rnd_dists.end());
-					float median = rnd_dists[1];
-					crack = CrackInTwo(t.start,t.end,median);
-					t.radius = median;
-					std::vector<float> vec(query, query + dim_);
-					t.SetQuery(vec);
+	void KnnCrackSearch(float* query,int k);
 
-					if(crack >= t.start && t.end >= crack + 1){
-						index.push_back(A3vNode(-1,-1,t.start,crack,-1,index.size()));
-						t.left_node = index.size()-1;
-						index.push_back(A3vNode(-1,-1,crack+1,t.end,-1,index.size()));
-						t.right_node = index.size()-1;
-					}
-				}
-			}else{
-				float dist = SIMDFunc(t.query.data(),query,&dim_);
-				guide_pq.pop();
-				leftMinDist = Max(0.0f,dist - t.radius);
-				rightMinDist = Max(0.0f,t.radius - dist);
-				if(result_pq.size() < k){
-					guide_pq.push({leftMinDist,t.left_node});
-					guide_pq.push({rightMinDist,t.right_node});
-				}else{
-					if(leftMinDist < result_pq.top().first){
-						guide_pq.push({leftMinDist,t.left_node});
-					}
-					if(rightMinDist < result_pq.top().first){
-						guide_pq.push({rightMinDist,t.right_node});
-					}
-				}
-			}
-		}
-	}
-
-	void RangeCrackSearch(float* query,float radius){
-		std::priority_queue<PQNode,std::vector<PQNode>,std::greater<PQNode>> guide_pq;
-		std::priority_queue<PQNode> result_pq;
-	}
+	void RangeCrackSearch(float* query,float radius);
 
 	private:
 		std::vector<float> distances_caching; // error 2024.4.14

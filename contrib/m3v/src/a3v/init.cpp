@@ -63,7 +63,7 @@ ItemPointerData GlobalInit::GetRootTidAtIndex(std::string index_name,int index){
     return tids[index_name][index];
 }
 
-    GlobalInit::~GlobalInit(){
+GlobalInit::~GlobalInit(){
     // we need to release all new memory.
     for(auto [k,v]: mp){
         delete v;
@@ -75,12 +75,10 @@ ItemPointerData GlobalInit::GetRootTidAtIndex(std::string index_name,int index){
     for(auto [index_name,tid_array] : tids){
         if(dirties[index_name]){
             std::string path = std::string(PROJECT_ROOT_PATH) + "/" + index_name + "_a3v_forest_root_ids.bin";
-            SerializeVector(tid_array,path);
+            SerializeVector<ItemPointerData>(tid_array,path);
         }
     }
 }
-
-
 
 // MemoryGlobal
 void InMemoryGlobal::appendDataPoints(const std::vector<PII>& data,Relation index){
@@ -120,7 +118,7 @@ InMemoryGlobal::~InMemoryGlobal(){
     for(auto item : points){
         std::string path = item.first;
         if(!file_exists(path) && points.size() > 0){
-            SerializeVector(item.second,path);
+            SerializeVector<PII>(item.second,path);
         }
     }
 }

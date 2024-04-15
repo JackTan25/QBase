@@ -151,7 +151,7 @@ BuildA3vCallback(Relation index, CALLBACK_ITEM_POINTER, Datum *values,
 	std::string index_name = std::string(RelationGetRelationName(index));
 	std::string file_name = std::string(PROJECT_ROOT_PATH) + "/" + index_name + ".bin";
 	elog(INFO,"FILENAME: %s",file_name.c_str());
-	SerializeVector(buildstate->tids,file_name);
+	SerializeVector<ItemPointerData>(buildstate->tids,file_name);
 	// std::vector<ItemPointerData> tids = DeserializeVector(file_name);
 	// for(int i = 0;i < tids.size();i++){
 	// 	elog(INFO,"Block:(%d,%d) Offset:%d",tids[i].ip_blkid.bi_hi,tids[i].ip_blkid.bi_lo,tids[i].ip_posid);
