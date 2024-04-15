@@ -1,5 +1,5 @@
 #pragma once
-
+#include "simd_func.h"
 #include "m3v.h"
 #include "lru_index_pointer.h"
 extern "C"
@@ -27,6 +27,7 @@ static relopt_kind m3v_relopt_kind;
  */
 void m3vInit(void)
 {
+	SetSIMDFunc();
 	// migrate m3v.
 }
 

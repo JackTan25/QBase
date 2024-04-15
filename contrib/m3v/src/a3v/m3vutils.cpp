@@ -9,8 +9,6 @@ extern "C"{
 	#include "storage/bufmgr.h"
 }
 
-
-
 /**
  * Hacking !!!!!
  * This is a hack func, we will Replace the specified item in offset, never append data
@@ -119,18 +117,6 @@ void DebugEntirem3vTree(BlockNumber root, Relation index, int level,int columns)
 	{
 		PrintLeafPageVectors("leaf page", page,columns);
 	}
-}
-
-/*
- * New buffer
- */
-Buffer
-m3vNewBuffer(Relation index, ForkNumber forkNum)
-{
-	Buffer buf = ReadBufferExtended(index, forkNum, P_NEW, RBM_NORMAL, NULL);
-
-	LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE);
-	return buf;
 }
 
 /*
@@ -339,6 +325,18 @@ m3vMetaPageData m3vGetMetaPageInfo(Relation index)
 	return metap;
 }
 
+/*
+ * Get the metapage info
+ */
+int a3vAllocateQueryId(Relation index){
+	Buffer buf = ReadBuffer(index, M3V_METAPAGE_BLKNO);
+	LockBuffer(buf, BUFFER_LOCK_SHARE);
+	auto res = m3vPageGetMeta(BufferGetPage(buf))->simliar_query_root_nums++;
+	MarkBufferDirty(buf);
+	UnlockReleaseBuffer(buf);
+	return res;
+}
+
 void m3vFreeElement(m3vElement element)
 {
 	// nothing to free, because we never palloc pointer vars for element
@@ -387,6 +385,31 @@ void m3vUpdateMetaPage(Relation index, BlockNumber root, ForkNumber forkNum)
 	m3vCommitBuffer(buf, state);
 }
 
+
+static void
+a3vUpdateMetaPageInfo(Page page, uint16 simliar_query_root_nums)
+{
+	m3vMetaPage metap = m3vPageGetMeta(page);
+	metap->simliar_query_root_nums = simliar_query_root_nums;
+}
+
+/*
+ * Update the metapage
+ */
+void a3vUpdateMetaPage(Relation index,uint16 simliar_query_root_nums,uint32_t tuple_nums,ForkNumber forkNum)
+{
+	Buffer buf;
+	Page page;
+	GenericXLogState *state;
+
+	buf = ReadBufferExtended(index, forkNum, M3V_METAPAGE_BLKNO, RBM_NORMAL, NULL);
+	LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE);
+	state = GenericXLogStart(index);
+	page = GenericXLogRegisterBuffer(state, buf, 0);
+	a3vUpdateMetaPageInfo(page, simliar_query_root_nums);
+	m3vCommitBuffer(buf, state);
+}
+
 /*
  * Get the distance for a candidate
  */
@@ -426,6 +449,11 @@ float GetPointerDistances(Vector* vecs1,Vector** vecs2, FmgrInfo *procinfo, Oid 
 		vec1 = reinterpret_cast<Vector*>(PointerGetDatum(vecs1) + offset);
 	}
 	return res;
+}
+
+float GetA3vDistance(float* p1,float* p2,int offset,int size){
+	float* of1 = p1 + offset,* of2 = p2 + offset;
+	return L2Distance(of1,of2,size);
 }
 
 float GetDistance(Datum q1, Datum q2, FmgrInfo *procinfo, Oid collation)

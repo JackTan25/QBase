@@ -1,6 +1,6 @@
 #pragma once
 #include "a3v/m3v.h"
-#include "vector.h"
+#include "a3v/vector.h"
 extern "C"{
 	#include "postgres.h"
 
@@ -119,7 +119,6 @@ InitVector(int dim)
 	result = (Vector *)palloc0(size);
 	SET_VARSIZE(result, size);
 	result->dim = dim;
-
 	return result;
 }
 
@@ -179,6 +178,7 @@ extern "C"{
 }
 Datum vector_in(PG_FUNCTION_ARGS)
 {
+	// elog(INFO,"a3v_in");
 	char *str = PG_GETARG_CSTRING(0);
 	int32 typmod = PG_GETARG_INT32(2);
 	float x[VECTOR_MAX_DIM];
@@ -277,7 +277,6 @@ Datum vector_in(PG_FUNCTION_ARGS)
 	result = InitVector(dim);
 	for (int i = 0; i < dim; i++)
 		result->x[i] = x[i];
-
 	PG_RETURN_POINTER(result);
 }
 

@@ -1,6 +1,7 @@
 -- complain if script is sourced in psql, rather than via CREATE EXTENSION
-\echo Use "CREATE EXTENSION m3v" to load this file. \quit
-
+\echo Use "CREATE EXTENSION a3v" to load this file. \quit
+-- we reuse pgvector's vector
+-- create extension if not exists vector;
 -- create vector type
 CREATE TYPE vector;
 
@@ -120,12 +121,12 @@ CREATE OPERATOR <-> (
 );
 
 -- bind m3v index
-CREATE FUNCTION m3vhandler(internal) RETURNS index_am_handler
+CREATE FUNCTION a3vhandler(internal) RETURNS index_am_handler
 	AS 'MODULE_PATHNAME' LANGUAGE C;
 
-CREATE ACCESS METHOD m3v TYPE INDEX HANDLER m3vhandler;
+CREATE ACCESS METHOD a3v TYPE INDEX HANDLER a3vhandler;
 
-COMMENT ON ACCESS METHOD m3v IS 'm3v index access method';
+COMMENT ON ACCESS METHOD a3v IS 'a3v index access method';
 
 -- CREATE OPERATOR CLASS vector_cosine_ops
 -- 	FOR TYPE vector USING m3v AS
@@ -136,7 +137,7 @@ COMMENT ON ACCESS METHOD m3v IS 'm3v index access method';
 -- 	FUNCTION 4 vector_norm(vector);
 
 CREATE OPERATOR CLASS vector_l2_ops
-	DEFAULT FOR TYPE vector USING m3v AS
+	DEFAULT FOR TYPE vector USING a3v AS
 	OPERATOR 1 <-> (vector, vector) FOR ORDER BY float_ops,
 	-- FUNCTION 1 vector_l2_squared_distance(vector, vector),
 	FUNCTION 1 l2_distance(vector, vector);

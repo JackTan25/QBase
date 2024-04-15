@@ -1,8 +1,8 @@
 #pragma once
 
-#include "a3v/m3v.h"
 #include "a3v/init.h"
 #include "a3v/util.h"
+#include "a3v/m3v.h"
 // #include "lru_index_pointer.h"
 extern "C"{
 	#include "postgres.h"
@@ -41,6 +41,10 @@ extern "C"{
 	#endif
 }
 
+GlobalInit init;
+InMemoryGlobal in_memory_init;
+
+
 std::vector<uint32_t> GetOffsets(Relation index){
 	// get index vector columns
 	int columns = index->rd_att->natts;
@@ -74,7 +78,8 @@ CreateMetaPage(m3vBuildState *buildstate)
 	metap = m3vPageGetMeta(page);
 	((PageHeader)page)->pd_lower =
 		((char *)metap + sizeof(m3vMetaPageData)) - (char *)page;
-
+		// Init state, we can't get any query roots.
+	metap->simliar_query_root_nums = 0;
 	metap->columns = buildstate->index->rd_att->natts;
 	for (int i = 0; i < metap->columns; i++)
 	{
@@ -132,7 +137,7 @@ BuildA3vCallback(Relation index, CALLBACK_ITEM_POINTER, Datum *values,
 	buildstate->tids.push_back(*tid);
 	// we will insert data into rocksdb
 	IndexPointerLruCache* cache = NULL;
-	if(!init.ContainsIndex(RelationGetRelationName(index))){
+	if(!init.ContainsIndexCache(RelationGetRelationName(index))){
 		auto offsets = GetOffsets(index);
 		cache = init.GetIndexCache(offsets,offsets.size(),RelationGetRelationName(index));
 	}else{
@@ -152,6 +157,7 @@ BuildA3vCallback(Relation index, CALLBACK_ITEM_POINTER, Datum *values,
 	// 	elog(INFO,"Block:(%d,%d) Offset:%d",tids[i].ip_blkid.bi_hi,tids[i].ip_blkid.bi_lo,tids[i].ip_posid);
 	// }
 	db->Put(rocksdb::WriteOptions(), ItemPointerToString(*tid), build_data_string_datum(values,index->rd_att->natts));
+	buildstate->tuples_num++;
 }
 
 /*
@@ -280,7 +286,7 @@ InitBuildState(m3vBuildState *buildstate, Relation heap, Relation index, IndexIn
 
 	buildstate->reltuples = 0;
 	buildstate->indtuples = 0;
-
+	buildstate->tuples_num = 0;
 	/* Get support functions */
 	buildstate->procinfo = index_getprocinfo(index, 1, M3V_DISTANCE_PROC);
 	buildstate->normprocinfo = m3vOptionalProcInfo(index, M3V_NORM_PROC);
@@ -309,6 +315,8 @@ InitBuildState(m3vBuildState *buildstate, Relation heap, Relation index, IndexIn
 static void
 FreeBuildState(m3vBuildState *buildstate)
 {
+	// UpdateMetaPage's tuples_num
+	a3vUpdateMetaPage(buildstate->index,0,buildstate->tuples_num,MAIN_FORKNUM);
 	pfree(buildstate->normvec);
 	MemoryContextDelete(buildstate->tmpCtx);
 }

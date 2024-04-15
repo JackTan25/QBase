@@ -7,3 +7,6 @@
 [submodule "contrib/m3v/third_party/lrucache11"]
 	path = contrib/m3v/third_party/lrucache11
 	url = https://github.com/mohaps/lrucache11.git
+[submodule "contrib/m3v/third_party/hnswlib"]
+	path = contrib/m3v/third_party/hnswlib
+	url = https://github.com/JackTan25/hnswlib.git

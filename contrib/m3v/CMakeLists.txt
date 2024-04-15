@@ -33,6 +33,7 @@ message(STATUS "vector path: ${CMAKE_SOURCE_DIR}/src/vector.h")
 
 # Add Source Files
 add_library(${PROJECT_NAME} SHARED
+    src/a3v/simd_func.cpp
     src/a3v/m3v.cpp 
     src/a3v/m3vbuild.cpp 
     src/a3v/m3vinsert.cpp 
@@ -66,6 +67,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC /data/include/postgresql/serve
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/src/record_cache/include)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/src/ ${CMAKE_SOURCE_DIR}/third_party/rocksdb/include)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/contrib/m3v/src/utils)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/third_party/hnswlib/hnswlib)
 # target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/contrib/m3v/src/a3v)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/src/AuxiliaryIndex/)
 if(WIN32)
@@ -112,6 +114,17 @@ install(
     TARGETS ${PROJECT_NAME}
     DESTINATION ${PostgreSQL_PKGLIBDIR})
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=armv8-a+fp+simd+crypto+crc")
+add_compile_options(-O3)
+
+include(CheckCXXCompilerFlag)
+CHECK_CXX_COMPILER_FLAG("-mavx" COMPILER_SUPPORTS_MAVX)
+if(COMPILER_SUPPORTS_MAVX)
+    message("Compiler supports AVX. USE_AVX will be defined.")
+    add_compile_options(-mavx2)
+    target_compile_definitions(${PROJECT_NAME} PUBLIC USE_AVX)
+endif()
+
 message(STATUS "PROJECT_VERSION: ${PROJECT_VERSION}")
 message(STATUS "PROJECT_NAME: ${PROJECT_NAME}")
 message(STATUS "EXT_CONTROL_FILE: ${EXT_CONTROL_FILE}")
@@ -138,6 +151,7 @@ message("source directory: ${CMAKE_SOURCE_DIR}/third_party/rocksdb/include")
 target_include_directories(TEST_M3V PRIVATE ${CMAKE_SOURCE_DIR}/third_party/rocksdb/include ${CMAKE_SOURCE_DIR}/src/record_cache/include)
 target_include_directories(TEST_M3V PRIVATE /data/include/postgresql/server ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/utils)
 target_include_directories(TEST_M3V PRIVATE ${CMAKE_SOURCE_DIR}/src/AuxiliaryIndex/)
+target_include_directories(TEST_M3V PRIVATE ${CMAKE_SOURCE_DIR}/third_party/hnswlib/hnswlib/)
 add_test(NAME TEST_M3V_ COMMAND TEST_M3V)
 
 # add_executable(VectorGenerate ${CMAKE_SOURCE_DIR}/src/tests/generate_vector.cpp)

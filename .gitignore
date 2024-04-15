@@ -54,3 +54,4 @@ lib*.pc
 /contrib/m3v/src/tests_data/bigann_vector_128_100M_1000.txt
 /contrib/m3v/src/tests_data/ssnpp_vector_256_100M_1000.txt
 /contrib/m3v/src/tests/output.txt
+/contrib/m3v/a3v_*.bin

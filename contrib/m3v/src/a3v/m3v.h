@@ -1,5 +1,9 @@
+#pragma once
+
 #include<vector>
 #include<string>
+#include "hnswlib.h"
+#include "lru_index_pointer.h"
 extern "C"{
 	#ifndef M3V_H
 	#define M3V_H
@@ -65,6 +69,8 @@ extern "C"{
 /* Build phases */
 /* PROGRESS_CREATEIDX_SUBPHASE_INITIALIZE is 1 */
 #define PROGRESS_M3V_PHASE_LOAD 2
+
+#define A3V_TUPLE_SZIE sizeof(A3vTuple)
 
 #define M3V_ELEMENT_TUPLE_SIZE(_dim) MAXALIGN(offsetof(m3vElementTupleData, vecs) + VECTOR_SIZE(_dim))
 #define M3V_ELEMENT_TUPLE_SIZES(_vecs,_columns,result) \
@@ -266,6 +272,7 @@ typedef struct m3vBuildState
 	std::vector<ItemPointerData> tids;
 	/* m3v state */
 	// uint16 each_dimentions[FLEXIBLE_ARRAY_MEMBER];
+	int tuples_num;
 } m3vBuildState;
 
 typedef struct m3vMetaPageData
@@ -274,6 +281,8 @@ typedef struct m3vMetaPageData
 	BlockNumber root;
 	// cols number of index
 	uint16 columns;
+	uint16 simliar_query_root_nums;
+	uint32_t tuple_nums;
 	// dimentions of every col
 	uint16 dimentions[FLEXIBLE_ARRAY_MEMBER];
 } m3vMetaPageData;
@@ -344,6 +353,35 @@ typedef struct m3vNeighborTupleData
 } m3vNeighborTupleData;
 
 typedef m3vNeighborTupleData *m3vNeighborTuple;
+// ItemPointerData is used to specify the tuple position of 
+typedef std::tuple<float, ItemPointerData> knn_guide;
+// for q's index to get heap table's heaptid.
+typedef std::tuple<float, int> knn_result;
+
+struct MinHeapComp {
+    bool operator()(const knn_guide& lhs, const knn_guide& rhs) const {
+        return std::get<0>(lhs) > std::get<0>(rhs);
+    }
+};
+
+struct MaxHeapComp {
+    bool operator()(const knn_result& lhs, const knn_result& rhs) const {
+        return std::get<0>(lhs) < std::get<0>(rhs);
+    }
+};
+
+
+typedef struct A3vTuple{
+	uint32_t low;
+	uint32_t high;
+	ItemPointerData left;
+	ItemPointerData right;
+	uint32_t query_id;
+	float radius;
+	A3vTuple(uint32_t low_,uint32_t high_,ItemPointerData& left_,ItemPointerData& right_,uint32_t query_id_,float radius_):
+	low(low_),high(high_),left(left_),right(right_),query_id(query_id_),radius(radius_){
+	}
+}A3vTuple;
 
 typedef struct m3vScanOpaqueData
 {
@@ -356,6 +394,24 @@ typedef struct m3vScanOpaqueData
 	FmgrInfo *normprocinfo;
 	Oid collation;
 	int columns;
+	std::vector<ItemPointerData> tids;
+	std::priority_queue<knn_guide,std::vector<knn_guide>,MinHeapComp> guide_pq;
+	std::priority_queue<knn_result,std::vector<knn_result>,MaxHeapComp>result_pq;
+	// 1. we support 2 vector search at most.
+	float weights[3];
+	// 2. the largest dimension is 300, in fact we should make it configureable in CMakeLists.
+	// for now, we use this for experiment.
+	float query_point[300];
+	// 3. dimentions
+	uint16 dimentions[3];
+	// 4. float lens,if vector(3),vector(4),vector(5),then it's 12
+	uint16 total_len;
+	// 4. use hnsw to search the close root index.
+	hnswlib::HierarchicalNSW<float>* alg_hnsw;
+	ItemPointerData root_tid;
+	IndexPointerLruCache* cache;
+	int index_pages;
+	int tuple_nums;
 } m3vScanOpaqueData;
 
 typedef m3vScanOpaqueData *m3vScanOpaque;
@@ -382,7 +438,6 @@ typedef struct m3vVacuumState
 	m3vNeighborTuple ntup;
 	// we don't care about this for now.
 	// m3vElementData highestPoint;
-
 	/* Memory */
 	MemoryContext tmpCtx;
 } M3vVacuumState;
@@ -460,7 +515,7 @@ IndexScanDesc m3vbeginscan(Relation index, int nkeys, int norderbys);
 void m3vrescan(IndexScanDesc scan, ScanKey keys, int nkeys, ScanKey orderbys, int norderbys);
 bool m3vgettuple(IndexScanDesc scan, ScanDirection dir);
 void m3vendscan(IndexScanDesc scan);
-
+void a3vUpdateMetaPage(Relation index,uint16 simliar_query_root_nums,uint32_t tuple_nums, ForkNumber forkNum);
 std::string build_data_string_datum(Datum* values,int columns);
 
 #endif

@@ -5,7 +5,7 @@
 #define PAGE_NUM 500
 #define SORT_ENTRY_NUM 1024
 #define INVALID_INDEX 0xFFFF
-
+#define INVALID_BLOCK_NUMBER -1
 using PivotIndexPair = std::pair<float,int>;
 // Attentation:We Should Avoid SelfZero Trap.
 class ValidBitmap{

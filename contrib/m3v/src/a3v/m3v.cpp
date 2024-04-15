@@ -16,7 +16,7 @@ extern "C"
 	#if PG_VERSION_NUM >= 120000
 	#include "commands/progress.h"
 	#endif
-	PGDLLEXPORT PG_FUNCTION_INFO_V1(m3vhandler);
+	PGDLLEXPORT PG_FUNCTION_INFO_V1(a3vhandler);
 };
 
 int m3v_ef_search;
@@ -126,7 +126,7 @@ m3vvalidate(Oid opclassoid)
  * See https://www.postgresql.org/docs/current/index-api.html
  */
 
-Datum m3vhandler(PG_FUNCTION_ARGS)
+Datum a3vhandler(PG_FUNCTION_ARGS)
 {
 	IndexAmRoutine *amroutine = makeNode(IndexAmRoutine);
 

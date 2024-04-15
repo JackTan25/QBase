@@ -11,8 +11,9 @@
 #include <vector>
 #include <string>
 #include "page_sort_index.h"
+#include "hnswlib.h"
 extern "C"{
-	#include "vector.h"
+	#include "a3v/vector.h"
 	// #include <itemptr.h>
 }
 
@@ -83,12 +84,15 @@ std::string build_data_string(int n,int num){
 // one row multi vectors: [1,1,1,....],[2,2,2,....],[3,3,3.....]
 void WriteIndexPointerKVs(int nums,rocksdb::DB *db){
     assert(db!=nullptr);
+	rocksdb::WriteBatch batch;
     for(int i = 0;i < nums;i++){
         // build a vector record
 		ItemPointerData data;ItemPointer pointer = &data;pointer->ip_posid = i;data.ip_blkid.bi_hi = 0;data.ip_blkid.bi_lo = 0;
         // std::cout<<"WriteIndexPointerKVs: "<<ItemPointerToString(pointer)<<std::endl;
-		db->Put(rocksdb::WriteOptions(),ItemPointerToString(*pointer),build_data_string(N1*3,i));
+		batch.Put(ItemPointerToString(*pointer),build_data_string(N1*3,i));
+		// db->Put(rocksdb::WriteOptions(),ItemPointerToString(*pointer),build_data_string(N1*3,i));
     }
+	db->Write(rocksdb::WriteOptions(),&batch);
 }
 
 TEST(M3V,BuildDataString){
@@ -545,6 +549,67 @@ TEST(M3V,TestPageSortIndex){
 TEST(M3V,TestSerializeAndDeserialize){
 
 }
+
+TEST(M3V, TestHnswlibBasicUsage){
+	int dim = 16;               // Dimension of the elements
+    int max_elements = 10000;   // Maximum number of elements, should be known beforehand
+    int M = 16;                 // Tightly connected with internal dimensionality of the data
+                                // strongly affects the memory consumption
+    int ef_construction = 200;  // Controls index search speed/build speed tradeoff
+
+    // Initing index
+    hnswlib::L2Space space(dim);
+    hnswlib::HierarchicalNSW<float>* alg_hnsw = new hnswlib::HierarchicalNSW<float>(&space, max_elements, M, ef_construction);
+
+    // Generate random data
+    std::mt19937 rng;
+    rng.seed(47);
+    std::uniform_real_distribution<> distrib_real;
+    float* data = new float[dim * max_elements];
+    for (int i = 0; i < dim * max_elements; i++) {
+        data[i] = distrib_real(rng);
+    }
+
+    // Add data to index
+    for (int i = 0; i < max_elements; i++) {
+		// we can use `i` as our m3v tree index root id.
+        alg_hnsw->addPoint(data + i * dim, i);
+    }
+
+    // Query the elements for themselves and measure recall
+    float correct = 0;
+	double duration = 0;
+    for (int i = 0; i < max_elements; i++) {
+		auto t0 = std::chrono::steady_clock::now();
+        std::priority_queue<std::pair<float, hnswlib::labeltype>> result = alg_hnsw->searchKnn(data + i * dim, 1);
+		duration += std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count();
+        hnswlib::labeltype label = result.top().second;
+        if (label == i) correct++;
+    }
+    float recall = correct / max_elements;
+    std::cout << "Recall: " << recall << "\n";
+	    std::cout << "Hnsw Search Time cost: " << duration/1000000 << " milliseconds" << std::endl;
+    // Serialize index
+    std::string hnsw_path = "hnsw.bin";
+    alg_hnsw->saveIndex(hnsw_path);
+    delete alg_hnsw;
+
+    // Deserialize index and check recall
+    alg_hnsw = new hnswlib::HierarchicalNSW<float>(&space, hnsw_path);
+    correct = 0;
+    for (int i = 0; i < max_elements; i++) {
+        std::priority_queue<std::pair<float, hnswlib::labeltype>> result = alg_hnsw->searchKnn(data + i * dim, 1);
+        hnswlib::labeltype label = result.top().second;
+        if (label == i) correct++;
+    }
+    recall = (float)correct / max_elements;
+    std::cout << "Recall of deserialized index: " << recall << "\n";
+
+    delete[] data;
+    delete alg_hnsw;
+}
+
+
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);

@@ -13,7 +13,7 @@
 
 extern "C" {
     #include "postgres.h"
-	#include "vector.h"
+	#include "a3v/vector.h"
 }
 
 std::string ItemPointerToString(const ItemPointerData& key);

@@ -1,5 +1,10 @@
 #pragma once
+
 #include "a3v/m3v.h"
+#include "hnswlib.h"
+#include "init.h"
+#include <tuple>
+#include "memory_a3v.h"
 extern "C"{
 	#include "postgres.h"
 	#include "access/relscan.h"
@@ -10,11 +15,11 @@ extern "C"{
 	#include "utils/float.h"
 }
 
-
 #define MAX_KNN_DISTANCE get_float8_infinity()
 #define KNN_QUERY(scan) (scan->orderByData != NULL && ((scan->orderByData->sk_flags & SK_ISNULL) == false))
 #define RANGE_QUERY(scan) (scan->keyData != NULL && ((scan->keyData->sk_flags & SK_ISNULL) == false))
-
+#define CRACKTHRESHOLD 128
+#define CloseQueryThreshold 128
 // https://citeseerx.ist.psu.edu/viewdoc/download;jsessionid=AB48C5606D99B76204CD6A51067CFB7F?doi=10.1.1.75.5014&rep=rep1&type=pdf
 float8 getKDistance(pairingheap *heap, int k, int nn_size);
 /**
@@ -30,6 +35,10 @@ float8 getKDistance(pairingheap *heap, int k, int nn_size);
  * For now, this is a bad implementation, we should add node when visiting inner node into nn, and then when we use this func,
  * remove the correlated node in nn. But this is a tricky implementation, so hold on for now.
  * q should be a vector**, it's a two dimension pointer array
+ * 
+ * we need two pq to do knn search.
+ * 1. guide_pq. small heap
+ * 2. result_pq. big heap
  */
 void getKNNRecurse(Relation index, BlockNumber blkno, Datum q, int k, float8 distance, pairingheap *p, pairingheap *nn, FmgrInfo *procinfo, Oid collation, int *nn_size,int columns)
 {
@@ -294,12 +303,18 @@ GetRangeScanItems(IndexScanDesc scan, Datum q, float8 radius,int columns)
 	return w;
 }
 
+static Datum
+GetScanValue2(IndexScanDesc scan,float8 * weights,bool is_knn,int nums){
+
+}
+
 /*
  * Get scan value, value should be a Vector** 
  */
 static Datum
 GetScanValue(IndexScanDesc scan,Vector** values,float8 * weights,bool is_knn,int nums)
 {
+	// every time we need to query the nearest query point root, so we can get a3v tree.
 	m3vScanOpaque so = (m3vScanOpaque)scan->opaque;
 	// get multi vector columns
 	if(is_knn){
@@ -395,21 +410,81 @@ void m3vendscan(IndexScanDesc scan)
 	scan->opaque = NULL;
 }
 
+std::string build_hnsw_index_file_path(Relation index){
+	return std::string(PROJECT_ROOT_PATH) + "/" + std::string(RelationGetRelationName(index)) + "_hnsw.bin";
+}
+
+std::string build_memory_index_points_file_path(Relation index){
+	return std::string(PROJECT_ROOT_PATH) + "/" + std::string(RelationGetRelationName(index)) + "_memory_points.bin";
+}
+
+// store query ids std::vector. The ids should be tids to specify the entry position.
+std::string build_a3v_index_forest_query_ids_file_path(Relation index){
+	return std::string(PROJECT_ROOT_PATH) + "/" + std::string(RelationGetRelationName(index)) + "_a3v_forest_root_ids.bin";
+}
+
 /*
  * Fetch the next tuple in the given scan
  * https://www.postgresql.org/docs/current/parallel-plans.html#PARALLEL-SCANS
  */
+/**
+ * for knn, we need two priority_queue.
+ * guide_pq: small heap
+ * result: big heap
+*/
+void do_knn_search_a3v(m3vScanOpaque scan, Relation index,m3vScanOpaque result,ItemPointerData root_tid,std::vector<float> weights,float* vectors,std::vector<int> offsets,int k,std::vector<ItemPointerData> &p){
+	int actualK = k;
+	int i,ii,crack;
+	// for the left range, we can get the 
+	float median,leftMinDist,rightMinDist,dist,distTop;
+	// 1. guide_pq is used to tell us which node we should traverse next.
+	// 2. result_pq is used to record the top-k results 
+	auto &guide_pq = scan->guide_pq;
+	auto &result_pq = scan->result_pq;
+	while(!guide_pq.empty()&&(result_pq.size() < k || std::get<0>(guide_pq.top()) < std::get<0>(result_pq.top()))){
+		
+	}
+}
+
+void do_range_search_a3v(m3vScanOpaque scan,Relation index,m3vScanOpaque result,ItemPointerData root_tid,std::vector<float> weights,float* vectors,std::vector<int> offsets,float radius,std::vector<ItemPointerData> &p){
+	
+}
+
+/**
+ * IndexPages Outline like below:
+ * |--------------------------|
+ * |		MetaPage		  |
+ * |--------------------------|
+ * |	   IndexPage0		  |
+ * |--------------------------|
+ * |	   IndexPage1		  |
+ * |--------------------------|
+ * |       ..........		  |
+ * |--------------------------|
+ * There is a problem, should we hold all entries in one and the same IndexPage as possible as we can? 
+ * It'a trade-off, we think the similar queries are successive, so the most entries from the same a3v index
+ * can be in the same index tree, and that's Okay.
+ * About the index entry structure is like below:
+ * |--------------------------------------------------------------------------|
+ * | low | high | page_id0 | page_id1 | radius | query_id | offset0 | offset1 |
+ * |  4B   4B       4B         4B        4B        4B         2B        2B	  |
+ * |--------------------------------------------------------------------------|
+ * low: this internal entry's left index in tids array
+ * high: this internal entry's right index in tids array
+ * page_id0: this internal entry's left entry's page id which tells us where it's.
+ * page_id1: this internal entry's left entry's page id which tells us where it's.
+ * radius: this internal entry's radius
+ * // I think we must need this one, because we will do page cluster, so the ItemPointer of this internal query entry will change
+ * // we use query id to
+ * query id: this internal entry's query id key, we use this to get the true record from record cache. 
+ * offset0: this internal entry's left entry's offset in its page.
+ * offset1: this internal entry's right entry's offset in its page.
+ * The whole size of one entry is 28 bytes. For leaf entry, it only needs `low` and `high`. But we don't
+ * distinct them separately, we keep the same the format instead.
+*/
+
 bool m3vgettuple(IndexScanDesc scan, ScanDirection dir)
 {
-	m3vScanOpaque so = (m3vScanOpaque)scan->opaque;
-	MemoryContext oldCtx = MemoryContextSwitchTo(so->tmpCtx);
-
-	/*
-	 * Index can be used to scan backward, but Postgres doesn't support
-	 * backward scan on operators
-	 */
-	Assert(ScanDirectionIsForward(dir));
-
 	/*
 	 * We just support KnnQuery And RangeQuery
 	 */
@@ -418,6 +493,107 @@ bool m3vgettuple(IndexScanDesc scan, ScanDirection dir)
 	if (!RANGE_QUERY(scan) && !KNN_QUERY(scan) || RANGE_QUERY(scan) && KNN_QUERY(scan))
 	{
 		elog(ERROR, "just support Knn Query and Range Query");
+	}
+
+	m3vScanOpaque so = (m3vScanOpaque)scan->opaque;
+	MemoryContext oldCtx = MemoryContextSwitchTo(so->tmpCtx);
+	// if it's the first time to get a3v root.
+	if(so->first){
+		m3vMetaPageData metaPage =  m3vGetMetaPageInfo(scan->indexRelation);
+		int dim =0;
+		for(int i = 0;i < metaPage.columns;i++){
+			dim += metaPage.dimentions[i]; // Dimension of the elements
+		}
+		so->total_len  =dim;
+		so->columns = metaPage.columns;
+		hnswlib::HierarchicalNSW<float>* alg_hnsw;
+		if(metaPage.simliar_query_root_nums == 0){
+			// it's the first time to do query operation, we should insert this one to hnsw index.
+			int max_elements = 10000;   // Maximum number of elements, should be known beforehand
+			int M = 16;                 // Tightly connected with internal dimensionality of the data
+										// strongly affects the memory consumption
+			int ef_construction = 200;  // Controls index search speed/build speed tradeoff
+
+			// Initing index
+			hnswlib::L2Space space(dim);
+			alg_hnsw = new hnswlib::HierarchicalNSW<float>(&space, max_elements, M, ef_construction);
+			std::string path = build_hnsw_index_file_path(scan->indexRelation);
+			init.InsertHnswIndex(path,alg_hnsw);
+			float vector[dim];
+			int offset = 0;
+			// we don't distinct knn query and range query, so we can use one and the same a3v tree index
+			// for the similar query point whatever knn query or range query.
+			for(int i = 0;i < metaPage.columns;i++){
+				if(RANGE_QUERY(scan)){
+					// Range Query
+					Vector* range_scan_point = DatumGetVector(scan->keyData[i].sk_argument);
+					memcpy(vector + offset,range_scan_point->x,sizeof(float) * metaPage.dimentions[i]);
+				}else{
+					// KNN Query
+					Vector* range_scan_point = DatumGetVector(scan->orderByData[i].sk_argument);
+					memcpy(vector + offset,range_scan_point->x,sizeof(float) * metaPage.dimentions[i]);
+				}
+				offset += metaPage.dimentions[i];
+			}
+			// add the first vector query point into hnsw;
+			alg_hnsw->addPoint(vector,++metaPage.simliar_query_root_nums);
+			// commit the meta page info modity.
+			a3vUpdateMetaPage(scan->indexRelation,metaPage.simliar_query_root_nums,metaPage.tuple_nums,MAIN_FORKNUM);
+			// trigger a3v tree build algorithm, and then we insert the root entry postion in buffer page
+			// into init's tids, we will 
+
+			// attentation: every query point data in the query a3v tree will be saved in rocksdb, and we will retrive it by record cache.
+		}else{
+			// so we should get hnsw index from `init`, if we can't find it out, we should load it from disk.
+			// try get root a3v index from hnsw index, and after find out the root, we should give the root entry postion in buffer page
+			// into m3vScanOpaque
+			alg_hnsw = init.LoadHnswIndex(scan->indexRelation,dim);
+		}
+		so->alg_hnsw = alg_hnsw;
+		so->tuple_nums = metaPage.tuple_nums;
+	}
+	/*
+	 * Index can be used to scan backward, but Postgres doesn't support
+	 * backward scan on operators
+	 */
+	Assert(ScanDirectionIsForward(dir));
+
+	// first we should get query point from the hnsw index to find the closest a3v index tree.
+	if(so->first){
+		int offset = 0;
+		float* data = so->query_point;
+		for(int i = 0;i < so->columns;i++){
+			if(RANGE_QUERY(scan)){
+				// Range Query
+				Vector* range_scan_point = DatumGetVector(scan->keyData[i].sk_argument);
+				so->weights[i] = DatumGetFloat8(scan->keyData[i].w);
+				memcpy(data + offset,range_scan_point->x,sizeof(float) * so->dimentions[i]);
+			}else{
+				// KNN Query
+				Vector* knn_scan_point = DatumGetVector(scan->orderByData[i].sk_argument);
+				so->weights[i] = DatumGetFloat8(scan->orderByData[i].w);
+				memcpy(data + offset,knn_scan_point->x,sizeof(float) * so->dimentions[i]);
+			}
+			offset += so->dimentions[i];
+		}
+		std::priority_queue<std::pair<float, hnswlib::labeltype>> result = so->alg_hnsw->searchKnn(so->query_point,1);
+		auto root_point = result.top();
+		hnswlib::labeltype label = root_point.second;
+		// open a new root a3v index.
+		if(root_point.first > CloseQueryThreshold){
+			int index_pages = RelationGetNumberOfBlocks(scan->indexRelation);
+			// we need to new the first page now,and insert it into hnsw index.
+			// there is only one meta page.
+			if(index_pages == 1){
+				InsertNewQuery(scan,so,INVALID_BLOCK_NUMBER);
+			}else{
+				// Get Last Page and try to insert tuple.If it's fill, we need to new a page.
+				InsertNewQuery(scan,so,index_pages);
+			}
+		}else{
+			so->root_tid = init.GetRootTidAtIndex(std::string(RelationGetRelationName(scan->indexRelation)),label);
+			
+		}
 	}
 
 	if (KNN_QUERY(scan))
@@ -436,9 +612,10 @@ bool m3vgettuple(IndexScanDesc scan, ScanDirection dir)
 			/* Get scan value */
 			float8* weights = static_cast<float8*>(palloc0(sizeof(float8) * scan->numberOfOrderBys));
 			Vector** values = static_cast<Vector**>(palloc0(sizeof(Vector* )* scan->numberOfOrderBys));
-			value = GetScanValue(scan,values,weights,true,scan->numberOfOrderBys);
-			so->w = GetKNNScanItems(scan, value);
-
+			// value = GetScanValue(scan,values,weights,true,scan->numberOfOrderBys);
+			// value = GetScanValue2(scan,values,weights,true,scan->numberOfOrderBys);
+			// so->w = GetKNNScanItems(scan, value);
+			int k = scan->orderByData->KNNValues;
 			// /* Release shared lock */
 			// UnlockPage(scan->indexRelation, M3V_SCAN_LOCK, ShareLock);
 
