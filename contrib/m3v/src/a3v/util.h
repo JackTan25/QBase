@@ -23,10 +23,40 @@ static ItemPointerData InvalidItemPointerData = {{0,0},InvalidOffsetNumber};
 using PII = std::pair<std::vector<float>,ItemPointerData>;
 typedef uint32_t PageId;
 #define FLOAT_SIZE sizeof(float)
+
 template<class T>
-std::vector<T> DeserializeVector(const std::string& filename);
+std::vector<T> DeserializeVector(const std::string& filename) {
+    std::vector<T> data;
+    std::ifstream inFile(filename, std::ios::binary);
+    if (!inFile) {
+        std::cerr << "Cannot open the file for reading.\n";
+        return data; // 返回空向量
+    }
+
+    T item;
+    while (inFile.read((char*)&item, sizeof(T))) {
+        data.push_back(item);
+    }
+
+    inFile.close();
+    return data;
+}
+
 template<class T>
-void SerializeVector(const std::vector<T>& data, const std::string& filename);
+void SerializeVector(const std::vector<T>& data, const std::string& filename) {
+    std::ofstream outFile(filename, std::ios::binary);
+    if (!outFile) {
+        std::cerr << "Cannot open the file for writing.\n";
+        return;
+    }
+
+    for (const auto& item : data) {
+        outFile.write((const char*)&item, sizeof(T));
+    }
+
+    outFile.close();
+}
+
 bool file_exists(const std::string& path);
 OffsetNumber WriteA3vTupleToPage(Page page,Item item,Size size);
 PageId CombineGetPageId(uint16 bi_hi,uint16 bi_lo);

@@ -42,39 +42,6 @@ extern "C"
 //     PG_RETURN_FLOAT8(sum_of_all);
 // }
 
-template<class T>
-void SerializeVector(const std::vector<T>& data, const std::string& filename) {
-    std::ofstream outFile(filename, std::ios::binary);
-    if (!outFile) {
-        std::cerr << "Cannot open the file for writing.\n";
-        return;
-    }
-
-    for (const auto& item : data) {
-        outFile.write((const char*)&item, sizeof(T));
-    }
-
-    outFile.close();
-}
-
-template<class T>
-std::vector<T> DeserializeVector(const std::string& filename) {
-    std::vector<T> data;
-    std::ifstream inFile(filename, std::ios::binary);
-    if (!inFile) {
-        std::cerr << "Cannot open the file for reading.\n";
-        return data; // 返回空向量
-    }
-
-    T item;
-    while (inFile.read((char*)&item, sizeof(T))) {
-        data.push_back(item);
-    }
-
-    inFile.close();
-    return data;
-}
-
 bool file_exists(const std::string& path) {
     std::ifstream file(path);
     return file.good();
