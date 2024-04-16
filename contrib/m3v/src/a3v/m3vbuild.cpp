@@ -124,6 +124,31 @@ InsertTuple(Relation index, Datum *values, m3vElement element, m3vBuildState *bu
 	// support m3v_index insert func
 }
 
+static void
+BuildMemoryA3vCallback(Relation index, CALLBACK_ITEM_POINTER, Datum *values,
+			  bool *isnull, bool tupleIsAlive, void *state){
+	m3vBuildState *buildstate = (m3vBuildState *)state;
+	int vector_nums = index->rd_att->natts;
+	// init dims;
+	if(buildstate->dims.empty()){
+		int dimensions = 0;
+		for(int i = 0;i < vector_nums;i++){
+			Vector* vector = DatumGetVector(values[i]);
+			buildstate->dims.push_back(vector->dim);
+			dimensions += vector->dim;
+		}
+		buildstate->dimensions = dimensions;
+	}
+	// combine multi vectors
+	std::vector<float> vec(buildstate->dimensions,0);
+	for(int i = 0;i < vector_nums;i++){
+		Vector* vector = DatumGetVector(values[i]);
+		for(int j = 0;j < vector->dim;j++) vec.push_back(vector->x[j]);
+	}
+	// for build, we should only give the datapoints.
+	buildstate->data_points.push_back({vec,*tid});
+}
+
 /*
  * Callback for table_index_build_scan
  * insert all VectorRecord into RocksDB
@@ -132,8 +157,6 @@ static void
 BuildA3vCallback(Relation index, CALLBACK_ITEM_POINTER, Datum *values,
 			  bool *isnull, bool tupleIsAlive, void *state)
 {
-	elog(INFO,"memory_index: %d",A3vGetIndexType(index));
-	elog(INFO,"BuildA3vCallback");
 	m3vBuildState *buildstate = (m3vBuildState *)state;
 	buildstate->tids.push_back(*tid);
 	// we will insert data into rocksdb
@@ -282,6 +305,12 @@ InitBuildState(m3vBuildState *buildstate, Relation heap, Relation index, IndexIn
 	buildstate->reltuples = 0;
 	buildstate->indtuples = 0;
 	buildstate->tuples_num = 0;
+	buildstate->dims.clear();
+	if(A3vMemoryIndexType(index)){
+		buildstate->data_points.reserve(1000000);
+	}else{
+		buildstate->data_points.clear();
+	}
 	/* Get support functions */
 	buildstate->procinfo = index_getprocinfo(index, 1, M3V_DISTANCE_PROC);
 	buildstate->normprocinfo = m3vOptionalProcInfo(index, M3V_NORM_PROC);
@@ -320,10 +349,19 @@ static void
 BuildGraph(m3vBuildState *buildstate, ForkNumber forkNum)
 {
 	UpdateProgress(PROGRESS_CREATEIDX_SUBPHASE, PROGRESS_M3V_PHASE_LOAD);
-
+	elog(INFO,"memory_index: %d",A3vMemoryIndexType(buildstate->index));
+	elog(INFO,"BuildA3vCallback");
 #if PG_VERSION_NUM >= 120000
-	buildstate->reltuples = table_index_build_scan(buildstate->heap, buildstate->index, buildstate->indexInfo,
-												   true, true, BuildA3vCallback, (void *)buildstate, NULL);
+	if(A3vMemoryIndexType(buildstate->index)){
+		buildstate->reltuples = table_index_build_scan(buildstate->heap, buildstate->index, buildstate->indexInfo,
+												true, true, BuildMemoryA3vCallback, (void *)buildstate, NULL);
+		// after build, we should give the data_points to memory_init.
+		memory_init.appendDataPoints(buildstate->data_points,buildstate->index);
+	}else{
+		buildstate->reltuples = table_index_build_scan(buildstate->heap, buildstate->index, buildstate->indexInfo,
+												true, true, BuildA3vCallback, (void *)buildstate, NULL);
+	}
+
 #else
 	buildstate->reltuples = IndexBuildHeapScan(buildstate->heap, buildstate->index, buildstate->indexInfo,
 											   true, BuildCallback, (void *)buildstate, NULL);

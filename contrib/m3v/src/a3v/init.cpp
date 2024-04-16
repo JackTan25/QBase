@@ -96,9 +96,10 @@ const std::vector<PII>& InMemoryGlobal::LoadDataPoints(Relation index){
     }
 }
 
-hnswlib::HierarchicalNSW<float>* InMemoryGlobal::LoadHnswIndex(Relation index,int dim){
+hnswlib::HierarchicalNSW<float>* InMemoryGlobal::LoadHnswIndex(Relation index,int dim,bool &init){
     std::string index_file_path = build_hnsw_index_file_path(index);
     if(alg_hnsws.count(index_file_path)){
+        init = false;
         return alg_hnsws[index_file_path];
     }else{
         // try load hnsw index from index_file_path
@@ -106,8 +107,13 @@ hnswlib::HierarchicalNSW<float>* InMemoryGlobal::LoadHnswIndex(Relation index,in
         hnswlib::L2Space space(dim);
         hnswlib::HierarchicalNSW<float>* alg_hnsw = new hnswlib::HierarchicalNSW<float>(&space, index_file_path);
         alg_hnsws[index_file_path] = alg_hnsw;
+        init = true;
         return alg_hnsw;
     }
+}
+
+void InMemoryGlobal::buildMultiVectorMemoryIndex(Relation index,std::vector<int> dims){
+
 }
 
 InMemoryGlobal::~InMemoryGlobal(){

@@ -21,7 +21,6 @@ extern "C"
 
 #define DEFAULT_INDEX_TYPE true // memory index
 static ItemPointerData InvalidItemPointerData = {{0,0},InvalidOffsetNumber};
-using PII = std::pair<std::vector<float>,ItemPointerData>;
 typedef uint32_t PageId;
 #define FLOAT_SIZE sizeof(float)
 
@@ -69,4 +68,4 @@ Buffer m3vNewBuffer(Relation index, ForkNumber forkNum);
 /*
  * Get the max number of connections in an upper layer for each element in the index
  */
-bool A3vGetIndexType(Relation index);
+bool A3vMemoryIndexType(Relation index);

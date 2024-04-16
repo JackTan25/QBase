@@ -4,6 +4,7 @@
 #include<string>
 #include "hnswlib.h"
 #include "lru_index_pointer.h"
+
 extern "C"{
 	#ifndef M3V_H
 	#define M3V_H
@@ -17,7 +18,7 @@ extern "C"{
 	#include "utils/sampling.h"
 	#include "storage/itemptr.h"
 }
-
+using PII = std::pair<std::vector<float>,ItemPointerData>;
 #if PG_VERSION_NUM < 110000
 #error "Requires PostgreSQL 11+"
 #endif
@@ -265,11 +266,13 @@ typedef struct m3vBuildState
 	/* Memory */
 	MemoryContext tmpCtx;
 
+	// for disk_a3v, we store the tids and data (in rocksdb) seperately.
 	// we need to store all heap tids, for crack and query.
 	std::vector<ItemPointerData> tids;
-	/* m3v state */
-	// uint16 each_dimentions[FLEXIBLE_ARRAY_MEMBER];
+	// for data_points, we should store tids and data together.
+	std::vector<PII> data_points;
 	int tuples_num;
+	std::vector<int> dims;
 } m3vBuildState;
 
 typedef struct m3vMetaPageData

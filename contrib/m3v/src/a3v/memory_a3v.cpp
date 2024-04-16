@@ -197,3 +197,6 @@ void MemoryA3v::RangeCrackSearchAuxiliary(A3vNode &root, float* query,float radi
         }
     }
 }
+
+
+// build call back

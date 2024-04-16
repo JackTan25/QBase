@@ -60,7 +60,11 @@ class InMemoryGlobal{
 
 		const std::vector<PII>& LoadDataPoints(Relation index);
 
-		hnswlib::HierarchicalNSW<float>* LoadHnswIndex(Relation index,int dim);
+		hnswlib::HierarchicalNSW<float>* LoadHnswIndex(Relation index,int dim,bool& init);
+		// for now, support single column firstly in 2024-4-17, 
+		// support multi-vector in 4.18
+		// support prefilter in 4.19.
+		void buildMultiVectorMemoryIndex(Relation index,std::vector<int> dims);
 
 		~InMemoryGlobal();
 

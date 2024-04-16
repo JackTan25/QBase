@@ -135,7 +135,7 @@ void InsertNewQuery(IndexScanDesc scan,m3vScanOpaque so,int block_number){
     ReleaseBuffer(buf);
 }
 
-bool A3vGetIndexType(Relation index){
+bool A3vMemoryIndexType(Relation index){
     m3vOptions* opts =  (m3vOptions*)index->rd_options;
     if (!opts)
 		return DEFAULT_INDEX_TYPE;
