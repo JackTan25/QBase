@@ -35,6 +35,7 @@ message(STATUS "vector path: ${CMAKE_SOURCE_DIR}/src/vector.h")
 add_library(${PROJECT_NAME} SHARED
     src/a3v/simd_func.cpp
     src/a3v/memory_a3v.cpp
+    src/a3v/disk_a3v.cpp
     src/a3v/init.cpp
     src/a3v/m3v.cpp 
     src/a3v/m3vbuild.cpp 

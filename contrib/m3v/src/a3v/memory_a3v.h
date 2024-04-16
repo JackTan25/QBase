@@ -8,6 +8,7 @@
 // for result_pq: <distance,id>, id stands for the index in `data_points`
 using PQNode = std::pair<float,int>;
 const int CRACKTHRESHOLD = 128;
+const int ReserveRange = 100;
 #define Min(x,y) ((x) < (y) ? (x) : (y))
 #define Max(x,y) ((x) > (y) ? (x) : (y))
 #define INITIAL_NODES 300 // hack value
@@ -31,9 +32,14 @@ class MemoryA3v{
 	
 	int CrackInTwo(int start_,int end_,float epsilon);
 
-	void KnnCrackSearch(float* query,int k);
+	int CrackInTwoMedicore(int start_,int end_,float radius,float newE,float* query,std::vector<int>& result_ids,float& maxDistance);
 
-	void RangeCrackSearch(float* query,float radius);
+	// result_pq should be empty initially.
+	void KnnCrackSearch(float* query,int k, std::priority_queue<PQNode>& result_pq /**Max heap**/);
+
+	void RangeCrackSearch(float* query,float radius,std::vector<int>& result_ids);
+
+	void RangeCrackSearchAuxiliary(A3vNode &root, float* query,float radius,std::vector<int>& result_ids);
 
 	private:
 		std::vector<float> distances_caching; // error 2024.4.14
