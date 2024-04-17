@@ -19,6 +19,7 @@ extern "C"{
 	#include "storage/itemptr.h"
 }
 using PII = std::pair<std::vector<float>,ItemPointerData>;
+using PQNode = std::pair<float,int>;
 #if PG_VERSION_NUM < 110000
 #error "Requires PostgreSQL 11+"
 #endif
@@ -395,8 +396,10 @@ typedef struct m3vScanOpaqueData
 	Oid collation;
 	int columns;
 	std::vector<ItemPointerData> tids;
-	std::priority_queue<knn_guide,std::vector<knn_guide>,MinHeapComp> guide_pq;
-	std::priority_queue<knn_result,std::vector<knn_result>,MaxHeapComp>result_pq;
+	std::priority_queue<PQNode> result_pq;
+	std::vector<PII>* data_points;
+	std::vector<int> result_ids;
+	int range_result_idx;
 	// 1. we support 2 vector search at most.
 	float weights[3];
 	// 2. the largest dimension is 300, in fact we should make it configureable in CMakeLists.

@@ -1,6 +1,7 @@
 #include "lru_index_pointer.h"
 #include "hnswlib.h"
 #include "util.h"
+#include "memory_a3v.h"
 #include <fstream>
 
 #define INVALID_RADIUS __FLT_MIN__
@@ -58,21 +59,40 @@ class InMemoryGlobal{
 
 		void appendDataPoints(const std::vector<PII>& data,Relation index);
 
+		void SetDimensions(const std::vector<int> &dimensions_,Relation index);
+
+		const std::vector<int>& GetDimensions(Relation index);
+
 		const std::vector<PII>& LoadDataPoints(Relation index);
 
-		hnswlib::HierarchicalNSW<float>* LoadHnswIndex(Relation index,int dim,bool& init);
+		std::vector<PII>* GetDataPointsPointer(Relation index);
 		// for now, support single column firstly in 2024-4-17, 
 		// support multi-vector in 4.18
 		// support prefilter in 4.19.
-		void buildMultiVectorMemoryIndex(Relation index,std::vector<int> dims);
+		MemoryA3v* GetMultiVectorMemoryIndex(Relation index,const std::vector<int>& dims,float* query);
 
 		~InMemoryGlobal();
 
 	private:
+
+		// for now, support single column firstly in 2024-4-17, 
+		// support multi-vector in 4.18
+		// support prefilter in 4.19.
+		// void BuildMultiVectorMemoryIndex(Relation index,const std::vector<int>& dims);
+		
+		hnswlib::HierarchicalNSW<float>* LoadHnswIndex(Relation index,int dim,bool& init);
+
 		// index_file_name => HnswIndex
 		std::unordered_map<std::string,hnswlib::HierarchicalNSW<float>*> alg_hnsws;		
-		// index_file_name => data points
+		// index_file_name => (data points)
 		std::unordered_map<std::string,std::vector<PII>> points;
+		// index_file_name => (dimensions)
+		std::unordered_map<std::string,std::vector<int>> dimensions; //todo: dimensions serialize and deserialize
+		// for one user a3v_index, it can reference to multi a3v_indexes(a forest, we need to retrive correlated one from hnsw index).
+		// the rule is below:
+		//	 we will find the top-1 point from hnsw index, and do search from here.
+		// index_file_name => MemoryA3v
+		std::unordered_map<std::string,std::vector<MemoryA3v*>> memory_indexes;
 };
 
 extern InMemoryGlobal memory_init;

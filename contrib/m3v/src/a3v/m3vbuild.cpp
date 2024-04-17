@@ -357,6 +357,7 @@ BuildGraph(m3vBuildState *buildstate, ForkNumber forkNum)
 												true, true, BuildMemoryA3vCallback, (void *)buildstate, NULL);
 		// after build, we should give the data_points to memory_init.
 		memory_init.appendDataPoints(buildstate->data_points,buildstate->index);
+		memory_init.SetDimensions(buildstate->dims,buildstate->index);
 	}else{
 		buildstate->reltuples = table_index_build_scan(buildstate->heap, buildstate->index, buildstate->indexInfo,
 												true, true, BuildA3vCallback, (void *)buildstate, NULL);

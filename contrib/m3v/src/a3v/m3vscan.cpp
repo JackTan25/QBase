@@ -433,21 +433,59 @@ std::string build_a3v_index_forest_query_ids_file_path(Relation index){
  * result: big heap
 */
 void do_knn_search_a3v(m3vScanOpaque scan, Relation index,m3vScanOpaque result,ItemPointerData root_tid,std::vector<float> weights,float* vectors,std::vector<int> offsets,int k,std::vector<ItemPointerData> &p){
-	int actualK = k;
-	int i,ii,crack;
-	// for the left range, we can get the 
-	float median,leftMinDist,rightMinDist,dist,distTop;
-	// 1. guide_pq is used to tell us which node we should traverse next.
-	// 2. result_pq is used to record the top-k results 
-	auto &guide_pq = scan->guide_pq;
-	auto &result_pq = scan->result_pq;
-	while(!guide_pq.empty()&&(result_pq.size() < k || std::get<0>(guide_pq.top()) < std::get<0>(result_pq.top()))){
-		
-	}
+
 }
 
-void do_range_search_a3v(m3vScanOpaque scan,Relation index,m3vScanOpaque result,ItemPointerData root_tid,std::vector<float> weights,float* vectors,std::vector<int> offsets,float radius,std::vector<ItemPointerData> &p){
+void do_range_search_a3v(m3vScanOpaque so,Relation index,m3vScanOpaque result,ItemPointerData root_tid,std::vector<float> weights,float* vectors,std::vector<int> offsets,float radius,std::vector<ItemPointerData> &p){
 	
+}
+
+bool MemoryA3vIndexGetTuple(IndexScanDesc scan,ItemPointerData& result_tid){
+	m3vScanOpaque so = (m3vScanOpaque)(scan->opaque);
+	Relation index = scan->indexRelation;
+	if(so->first){
+		so->range_result_idx = 0;
+		so->data_points = memory_init.GetDataPointsPointer(index);
+		// 1. get query point
+		const std::vector<int> dimensions =  memory_init.GetDimensions(scan->indexRelation);
+		int sums = 0,offset = 0;
+		for(int i = 0;i < dimensions.size();i++){
+			sums += dimensions[i];
+		}
+		float query[sums];
+		for(int i = 0;i < dimensions.size();i++){
+			Vector* query_point = DatumGetVector(scan->keyData[i].sk_argument);
+			memcpy(query + offset,query_point->x,sizeof(float) * dimensions[i]);
+			offset += dimensions[i];
+		}
+		// get memory_index from memory init.
+		MemoryA3v* a3v_index = memory_init.GetMultiVectorMemoryIndex(index,dimensions,query);
+		// knn search
+		if(KNN_QUERY(scan)){
+			a3v_index->KnnCrackSearch(query,scan->orderByData->KNNValues,so->result_pq);
+		}else{
+			float8 radius = DatumGetFloat8(scan->keyData->sk_argument);
+			a3v_index->RangeCrackSearch(query,radius,so->result_ids);
+			sort(so->result_ids.begin(),so->result_ids.end());
+		}
+		// after search, we need to sort for tids, this is used to improve cache hits.
+		so->first = false;
+	}
+
+	if(KNN_QUERY(scan)){
+		if(!so->result_pq.empty()){
+			result_tid = (*so->data_points)[so->result_pq.top().second].second;
+			so->result_pq.pop();
+			return true;
+		}
+		return false;
+	}else{
+		if(so->range_result_idx < so->result_ids.size()){
+			result_tid = (*so->data_points)[so->range_result_idx++].second;
+			return true;
+		}
+		return false;
+	}
 }
 
 /**
@@ -485,6 +523,7 @@ void do_range_search_a3v(m3vScanOpaque scan,Relation index,m3vScanOpaque result,
 
 bool m3vgettuple(IndexScanDesc scan, ScanDirection dir)
 {
+
 	/*
 	 * We just support KnnQuery And RangeQuery
 	 */
@@ -493,6 +532,17 @@ bool m3vgettuple(IndexScanDesc scan, ScanDirection dir)
 	if (!RANGE_QUERY(scan) && !KNN_QUERY(scan) || RANGE_QUERY(scan) && KNN_QUERY(scan))
 	{
 		elog(ERROR, "just support Knn Query and Range Query");
+	}
+
+	if(A3vMemoryIndexType(scan->indexRelation)){
+		ItemPointerData result_tid;
+		bool has_next = MemoryA3vIndexGetTuple(scan,result_tid);
+		#if PG_VERSION_NUM >= 120000
+		scan->xs_heaptid = result_tid;
+		#else
+				scan->xs_ctup.t_self = hc->data_tid;
+		#endif
+		return has_next;
 	}
 
 	m3vScanOpaque so = (m3vScanOpaque)scan->opaque;

@@ -6,7 +6,7 @@
 #include "util.h"
 // for guide_pq: <distance,id>, id stands for a node in `index`.
 // for result_pq: <distance,id>, id stands for the index in `data_points`
-using PQNode = std::pair<float,int>;
+
 const int CRACKTHRESHOLD = 128;
 const int ReserveRange = 100;
 #define Min(x,y) ((x) < (y) ? (x) : (y))
@@ -28,24 +28,25 @@ class A3vNode{
 };
 
 class MemoryA3v{
-	MemoryA3v(int dim,std::vector<PII>& data_points_);
-	
-	int CrackInTwo(int start_,int end_,float epsilon);
+	public:
+		MemoryA3v(const int dim,const std::vector<PII>& data_points_);
 
-	int CrackInTwoMedicore(int start_,int end_,float radius,float newE,float* query,std::vector<int>& result_ids,float& maxDistance);
+		// result_pq should be empty initially.
+		void KnnCrackSearch(float* query,int k, std::priority_queue<PQNode>& result_pq /**Max heap**/);
 
-	// result_pq should be empty initially.
-	void KnnCrackSearch(float* query,int k, std::priority_queue<PQNode>& result_pq /**Max heap**/);
-
-	void RangeCrackSearch(float* query,float radius,std::vector<int>& result_ids);
-
-	void RangeCrackSearchAuxiliary(A3vNode &root, float* query,float radius,std::vector<int>& result_ids);
+		void RangeCrackSearch(float* query,float radius,std::vector<int>& result_ids);
 
 	private:
+		void RangeCrackSearchAuxiliary(A3vNode &root, float* query,float radius,std::vector<int>& result_ids);
+				
+		int CrackInTwo(int start_,int end_,float epsilon);
+
+		int CrackInTwoMedicore(int start_,int end_,float radius,float newE,float* query,std::vector<int>& result_ids,float& maxDistance);
+
 		std::vector<float> distances_caching; // error 2024.4.14
 		std::vector<A3vNode> index;
 		// every index will share this one.
-		std::vector<PII>& data_points;
+		const std::vector<PII>& data_points;
 		std::vector<int> swap_indexes;
 		int dim_;
 };
