@@ -60,6 +60,13 @@ void m3vInit(void)
 						,AccessExclusiveLock
 	#endif
 			);
+	
+	add_real_reloption(m3v_relopt_kind, "close_query_threshold", "the close query threshold to build new index",
+					  CLOSE_QUERY_THRESHOLD,CLOSE_MIN_QUERY_THRESHOLD,CLOSE_MAX_QUERY_THRESHOLD
+	#if PG_VERSION_NUM >= 130000
+						,AccessExclusiveLock
+	#endif
+			);
 
 	DefineCustomBoolVariable("a3v.memory_index", "Sets the Index type",
 							"Valid value is true or false", &a3v_memory_index,
@@ -127,6 +134,7 @@ m3voptions(Datum reloptions, bool validate)
 {
 	static const relopt_parse_elt tab[] = {
 		{"memory_index",RELOPT_TYPE_BOOL,offsetof(m3vOptions,memory_index)},
+		{"close_query_threshold",RELOPT_TYPE_REAL,offsetof(m3vOptions,close_query_threshold)},
 	};
 
 #if PG_VERSION_NUM >= 130000

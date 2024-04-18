@@ -42,7 +42,7 @@ extern "C"{
 }
 
 GlobalInit init;
-InMemoryGlobal in_memory_init;
+InMemoryGlobal memory_init;
 
 
 std::vector<uint32_t> GetOffsets(Relation index){
@@ -143,7 +143,7 @@ BuildMemoryA3vCallback(Relation index, CALLBACK_ITEM_POINTER, Datum *values,
 	std::vector<float> vec(buildstate->dimensions,0);
 	for(int i = 0;i < vector_nums;i++){
 		Vector* vector = DatumGetVector(values[i]);
-		for(int j = 0;j < vector->dim;j++) vec.push_back(vector->x[j]);
+		for(int j = 0;j < vector->dim;j++) vec[j] = vector->x[j];
 	}
 	// for build, we should only give the datapoints.
 	buildstate->data_points.push_back({vec,*tid});

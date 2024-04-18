@@ -233,6 +233,7 @@ typedef struct m3vOptions
 {
 	int32 vl_len_;		/* varlena header (do not touch directly!) */
 	bool memory_index;
+	float close_query_threshold;
 } m3vOptions;
 
 typedef struct m3vBuildState
@@ -396,10 +397,9 @@ typedef struct m3vScanOpaqueData
 	Oid collation;
 	int columns;
 	std::vector<ItemPointerData> tids;
-	std::priority_queue<PQNode> result_pq;
 	std::vector<PII>* data_points;
-	std::vector<int> result_ids;
-	int range_result_idx;
+	std::vector<int>* result_ids;
+	int result_idx;
 	// 1. we support 2 vector search at most.
 	float weights[3];
 	// 2. the largest dimension is 300, in fact we should make it configureable in CMakeLists.

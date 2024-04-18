@@ -22,7 +22,7 @@ void A3vNode::SetQuery(std::vector<float>& query_){
 }
 
 MemoryA3v::MemoryA3v(const int dim,const std::vector<PII>& data_points_):dim_(dim),data_points(data_points_),swap_indexes(data_points.size()){
-    distances_caching.reserve(data_points.size());
+    distances_caching.resize(data_points.size());
     for(int i = 0;i < data_points.size();i++) swap_indexes[i] = i,distances_caching[swap_indexes[i]] = -1; // the initial value should be -1??
     // init root
     index.push_back(A3vNode(-1,-1,0,data_points.size()-1,-1.0,0));
@@ -55,10 +55,10 @@ void MemoryA3v::KnnCrackSearch(float* query,int k,std::priority_queue<PQNode>& r
             for(int i = t.start;i <= t.end;i++){
                 distances_caching[swap_indexes[i]] = SIMDFunc(data_points[swap_indexes[i]].first.data(),query,&dim_);
                 if(result_pq.size() < k){
-                    result_pq.push({distances_caching[swap_indexes[i]],i});
+                    result_pq.push({distances_caching[swap_indexes[i]],swap_indexes[i]});
                 }else if(distances_caching[swap_indexes[i]] < result_pq.top().first){
                     result_pq.pop();
-                    result_pq.push({distances_caching[swap_indexes[i]],i});
+                    result_pq.push({distances_caching[swap_indexes[i]],swap_indexes[i]});
                 }
             }
             guide_pq.pop();

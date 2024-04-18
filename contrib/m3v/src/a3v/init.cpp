@@ -99,6 +99,7 @@ const std::vector<int>& InMemoryGlobal::GetDimensions(Relation index){
 const std::vector<PII>& InMemoryGlobal::LoadDataPoints(Relation index){
     std::string index_file_path = build_memory_index_points_file_path(index);
     if(points.count(index_file_path)){
+        // elog(INFO,"LoadDataPoints: %s",index_file_path.c_str());
         return points[index_file_path];
     }else{
         points[index_file_path] = DeserializeVector<PII>(index_file_path);
@@ -112,19 +113,31 @@ std::vector<PII>* InMemoryGlobal::GetDataPointsPointer(Relation index){
     return &points[index_file_path];
 }
 
-hnswlib::HierarchicalNSW<float>* InMemoryGlobal::LoadHnswIndex(Relation index,int dim,bool &init){
+std::shared_ptr<hnswlib::HierarchicalNSW<float>> InMemoryGlobal::LoadHnswIndex(Relation index,int dim,bool &init){
     std::string index_file_path = build_hnsw_index_file_path(index);
     if(alg_hnsws.count(index_file_path)){
         init = false;
         return alg_hnsws[index_file_path];
     }else{
-        // try load hnsw index from index_file_path
-        // Initing index
-        hnswlib::L2Space space(dim);
-        hnswlib::HierarchicalNSW<float>* alg_hnsw = new hnswlib::HierarchicalNSW<float>(&space, index_file_path);
-        alg_hnsws[index_file_path] = alg_hnsw;
-        init = true;
-        return alg_hnsw;
+        // we can load from disk
+        if(file_exists(index_file_path)){
+            // try load hnsw index from index_file_path
+            // Initing index
+            index_space[index_file_path] = std::make_shared<hnswlib::L2Space>(dim);
+            alg_hnsws[index_file_path] = std::make_shared<hnswlib::HierarchicalNSW<float>>(index_space[index_file_path].get(), index_file_path);
+            init = false;
+        }else{
+            // give a new index
+            int max_elements = 10000;   // Maximum number of elements, should be known beforehand
+            int M = 16;                 // Tightly connected with internal dimensionality of the data
+                                        // strongly affects the memory consumption
+            int ef_construction = 200;  // Controls index search speed/build speed tradeoff
+            // Initing index
+            index_space[index_file_path] = std::make_shared<hnswlib::L2Space>(dim);
+            alg_hnsws[index_file_path] = std::make_shared<hnswlib::HierarchicalNSW<float>>(index_space[index_file_path].get(), max_elements, M, ef_construction);
+            init = true;
+        }
+        return alg_hnsws[index_file_path];
     }
 }
 
@@ -132,11 +145,12 @@ hnswlib::HierarchicalNSW<float>* InMemoryGlobal::LoadHnswIndex(Relation index,in
 	
 // }
 
-MemoryA3v* InMemoryGlobal::GetMultiVectorMemoryIndex(Relation index,const std::vector<int>& dims,float* query){
+std::shared_ptr<MemoryA3v> InMemoryGlobal::GetMultiVectorMemoryIndex(Relation index,const std::vector<int>& dims,float* query){
 	std::string index_file_path = build_memory_index_points_file_path(index);
 	bool init;
 	// support single index for now.
-	hnswlib::HierarchicalNSW<float>* hnsw_index = LoadHnswIndex(index,dims[0],init);
+	std::shared_ptr<hnswlib::HierarchicalNSW<float>> hnsw_index = LoadHnswIndex(index,dims[0],init);
+    // elog(INFO,"(int*)hnsw_index->dist_func_param_: %d",(*(size_t*)hnsw_index->dist_func_param_));
 	if(init){
 		int lable = -1;
 		if(!memory_indexes.count(index_file_path)){
@@ -144,21 +158,22 @@ MemoryA3v* InMemoryGlobal::GetMultiVectorMemoryIndex(Relation index,const std::v
 		}else{
 			lable = memory_indexes[index_file_path].size();
 		}
+        std::shared_ptr<MemoryA3v> a3v_index = std::make_shared<MemoryA3v>(dims[0],memory_init.LoadDataPoints(index));
+        // elog(INFO,"(int*)hnsw_index->dist_func_param_: %d",*(int*)hnsw_index->dist_func_param_);
+		memory_indexes[index_file_path].push_back(a3v_index);
 		hnsw_index->addPoint(query,lable);
 		// we should add new memory index.
-        MemoryA3v* a3v_index = new MemoryA3v(dims[0],memory_init.LoadDataPoints(index));
-		memory_indexes[index_file_path].push_back(a3v_index);
+		
 	}
 	std::priority_queue<std::pair<float, hnswlib::labeltype>> result = hnsw_index->searchKnn(query,1);
+    // CloseQueryThreshold
+    // A3vMemoryIndexType(index)
 	auto root_point = result.top();
 	hnswlib::labeltype label = root_point.second;
     return memory_indexes[index_file_path][label];
 }
 
 InMemoryGlobal::~InMemoryGlobal(){
-    for(auto [k,v]: alg_hnsws){
-        delete v;
-    }
     // std::string path = std::string(PROJECT_ROOT_PATH) + "/memory_data_points.bin";
     for(auto item : points){
         std::string path = item.first;
@@ -166,10 +181,4 @@ InMemoryGlobal::~InMemoryGlobal(){
             SerializeVector<PII>(item.second,path);
         }
     }
-
-	// release memory indexes
-	for(auto [k,v]: memory_indexes){
-        for(auto p : v)
-		delete p;
-	}
 }

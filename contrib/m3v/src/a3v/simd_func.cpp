@@ -3,7 +3,10 @@
 #include <iostream>
 #include <stddef.h>
 #include "simd_func.h"
-
+extern "C"{
+    #include "postgres.h"
+#include <cmath>
+}
 SIMDFuncType SIMDFunc = nullptr;
 // using SIMDFuncType = float (*)(const float *, const float *, int);
 #if defined(__GNUC__)
@@ -39,7 +42,6 @@ export float F32L2AVX512(const void *pv1_, const void *pv2_,const void *dim_) {
     _mm512_store_ps(TmpRes, sum);
     float res = TmpRes[0] + TmpRes[1] + TmpRes[2] + TmpRes[3] + TmpRes[4] + TmpRes[5] + TmpRes[6] + TmpRes[7] + TmpRes[8] + TmpRes[9] + TmpRes[10] +
                 TmpRes[11] + TmpRes[12] + TmpRes[13] + TmpRes[14] + TmpRes[15];
-
     return (res);
 }
 
@@ -80,11 +82,11 @@ export float F32L2AVX(const void *pv1_, const void *pv2_, const void* dim_) {
     }
 
     _mm256_store_ps(TmpRes, sum);
-    return TmpRes[0] + TmpRes[1] + TmpRes[2] + TmpRes[3] + TmpRes[4] + TmpRes[5] + TmpRes[6] + TmpRes[7];
-}
+    float res = TmpRes[0] + TmpRes[1] + TmpRes[2] + TmpRes[3] + TmpRes[4] + TmpRes[5] + TmpRes[6] + TmpRes[7];
+    return std::sqrt(res);
 
 void SetSIMDFunc(){
-    std::cout<<"Set F32L2AVX"<<std::endl;
+    elog(INFO,"Set F32L2AVX");
     SIMDFunc = F32L2AVX;
     // SIMDFunc = base_hnsw::HybridSimd;
 }
@@ -94,12 +96,12 @@ void SetSIMDFunc(){
         float res = 0;
         const float* pv1 = (float*)(pv1_);
         const float* pv2 = (float*)(pv2_);
-        size_t dim = *((float*)(dim_));
+        size_t dim = *((int*)(dim_));
         for (size_t i = 0; i < dim; i++) {
             float t = pv1[i] - pv2[i];
             res += t * t;
         }
-        return res;
+        return std::sqrt(res);
     }
 
     void SetSIMDFunc(){

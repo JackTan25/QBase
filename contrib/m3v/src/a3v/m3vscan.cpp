@@ -19,7 +19,7 @@ extern "C"{
 #define KNN_QUERY(scan) (scan->orderByData != NULL && ((scan->orderByData->sk_flags & SK_ISNULL) == false))
 #define RANGE_QUERY(scan) (scan->keyData != NULL && ((scan->keyData->sk_flags & SK_ISNULL) == false))
 #define CRACKTHRESHOLD 128
-#define CloseQueryThreshold 128
+
 // https://citeseerx.ist.psu.edu/viewdoc/download;jsessionid=AB48C5606D99B76204CD6A51067CFB7F?doi=10.1.1.75.5014&rep=rep1&type=pdf
 float8 getKDistance(pairingheap *heap, int k, int nn_size);
 /**
@@ -371,6 +371,9 @@ m3vbeginscan(Relation index, int nkeys, int norderbys)
 	scan = RelationGetIndexScan(index, nkeys, norderbys);
 
 	so = (m3vScanOpaque)palloc(sizeof(m3vScanOpaqueData));
+	if(KNN_QUERY(scan)){
+		so->result_ids = new std::vector<int>();
+	}
 	so->first = true;
 	so->tmpCtx = AllocSetContextCreate(CurrentMemoryContext,
 									   "M3v scan temporary context",
@@ -403,7 +406,9 @@ void m3vendscan(IndexScanDesc scan)
 
 	/* Release shared lock */
 	UnlockPage(scan->indexRelation, M3V_SCAN_LOCK, ShareLock);
-
+	if(KNN_QUERY(scan)){
+		delete so->result_ids;
+	}
 	MemoryContextDelete(so->tmpCtx);
 
 	pfree(so);
@@ -415,7 +420,8 @@ std::string build_hnsw_index_file_path(Relation index){
 }
 
 std::string build_memory_index_points_file_path(Relation index){
-	return std::string(PROJECT_ROOT_PATH) + "/" + std::string(RelationGetRelationName(index)) + "_memory_points.bin";
+	std::string path = std::string(PROJECT_ROOT_PATH) + "/" + std::string(RelationGetRelationName(index)) + "_memory_points.bin";
+	return path;
 }
 
 // store query ids std::vector. The ids should be tids to specify the entry position.
@@ -443,8 +449,10 @@ void do_range_search_a3v(m3vScanOpaque so,Relation index,m3vScanOpaque result,It
 bool MemoryA3vIndexGetTuple(IndexScanDesc scan,ItemPointerData& result_tid){
 	m3vScanOpaque so = (m3vScanOpaque)(scan->opaque);
 	Relation index = scan->indexRelation;
+	Vector* query_point;
 	if(so->first){
-		so->range_result_idx = 0;
+		so->result_idx = 0;
+		so->result_ids->clear();
 		so->data_points = memory_init.GetDataPointsPointer(index);
 		// 1. get query point
 		const std::vector<int> dimensions =  memory_init.GetDimensions(scan->indexRelation);
@@ -454,38 +462,37 @@ bool MemoryA3vIndexGetTuple(IndexScanDesc scan,ItemPointerData& result_tid){
 		}
 		float query[sums];
 		for(int i = 0;i < dimensions.size();i++){
-			Vector* query_point = DatumGetVector(scan->keyData[i].sk_argument);
+			if(KNN_QUERY(scan)){
+				query_point = DatumGetVector(scan->orderByData[i].sk_argument);
+			}else{
+				query_point = DatumGetVector(scan->keyData[i].sk_argument);
+			}
 			memcpy(query + offset,query_point->x,sizeof(float) * dimensions[i]);
 			offset += dimensions[i];
 		}
 		// get memory_index from memory init.
-		MemoryA3v* a3v_index = memory_init.GetMultiVectorMemoryIndex(index,dimensions,query);
+		std::shared_ptr<MemoryA3v> a3v_index = memory_init.GetMultiVectorMemoryIndex(index,dimensions,query);
 		// knn search
 		if(KNN_QUERY(scan)){
-			a3v_index->KnnCrackSearch(query,scan->orderByData->KNNValues,so->result_pq);
+			std::priority_queue<PQNode> result_pq;
+			a3v_index->KnnCrackSearch(query,scan->orderByData->KNNValues,result_pq);
+			while(!result_pq.empty()){
+				so->result_ids->push_back(result_pq.top().second);result_pq.pop();
+			}
 		}else{
 			float8 radius = DatumGetFloat8(scan->keyData->sk_argument);
-			a3v_index->RangeCrackSearch(query,radius,so->result_ids);
-			sort(so->result_ids.begin(),so->result_ids.end());
+			a3v_index->RangeCrackSearch(query,radius,*so->result_ids);
+			// after search, we need to sort for tids, this is used to improve cache hits.
+			sort(so->result_ids->begin(),so->result_ids->end());
 		}
-		// after search, we need to sort for tids, this is used to improve cache hits.
 		so->first = false;
 	}
-
-	if(KNN_QUERY(scan)){
-		if(!so->result_pq.empty()){
-			result_tid = (*so->data_points)[so->result_pq.top().second].second;
-			so->result_pq.pop();
-			return true;
-		}
-		return false;
-	}else{
-		if(so->range_result_idx < so->result_ids.size()){
-			result_tid = (*so->data_points)[so->range_result_idx++].second;
-			return true;
-		}
-		return false;
+	if(so->result_idx < so->result_ids->size()){
+		int idx = (*so->result_ids)[so->result_ids->size() - 1 - so->result_idx++];
+		result_tid = (*so->data_points)[idx].second;
+		return true;
 	}
+	return false;
 }
 
 /**
@@ -536,7 +543,10 @@ bool m3vgettuple(IndexScanDesc scan, ScanDirection dir)
 
 	if(A3vMemoryIndexType(scan->indexRelation)){
 		ItemPointerData result_tid;
+		auto begin_query = std::chrono::steady_clock::now();
 		bool has_next = MemoryA3vIndexGetTuple(scan,result_tid);
+		auto end_query = std::chrono::steady_clock::now();
+		elog(INFO,"time cost %d millseconds",std::chrono::duration_cast<std::chrono::milliseconds>(end_query - begin_query).count());
 		#if PG_VERSION_NUM >= 120000
 		scan->xs_heaptid = result_tid;
 		#else
@@ -630,7 +640,7 @@ bool m3vgettuple(IndexScanDesc scan, ScanDirection dir)
 		auto root_point = result.top();
 		hnswlib::labeltype label = root_point.second;
 		// open a new root a3v index.
-		if(root_point.first > CloseQueryThreshold){
+		if(root_point.first > A3vCloseQueryThreshold(scan->indexRelation)){
 			int index_pages = RelationGetNumberOfBlocks(scan->indexRelation);
 			// we need to new the first page now,and insert it into hnsw index.
 			// there is only one meta page.

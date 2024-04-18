@@ -142,6 +142,13 @@ bool A3vMemoryIndexType(Relation index){
     return opts->memory_index;
 }
 
+float A3vCloseQueryThreshold(Relation index){
+    m3vOptions* opts =  (m3vOptions*)index->rd_options;
+    if (!opts)
+		return CLOSE_QUERY_THRESHOLD;
+    return opts->close_query_threshold;
+}
+
 // gcc -I$(pg_config --includedir-server) -shared -fPIC -o pg_exec.so pg_exec.c
 // CREATE FUNCTION Print() RETURNS float8 AS 'util.so', 'Print' LANGUAGE C STRICT;
 

@@ -20,6 +20,9 @@ extern "C"
 }
 
 #define DEFAULT_INDEX_TYPE true // memory index
+#define CLOSE_QUERY_THRESHOLD 128
+#define CLOSE_MIN_QUERY_THRESHOLD 0.1
+#define CLOSE_MAX_QUERY_THRESHOLD 128
 static ItemPointerData InvalidItemPointerData = {{0,0},InvalidOffsetNumber};
 typedef uint32_t PageId;
 #define FLOAT_SIZE sizeof(float)
@@ -69,3 +72,4 @@ Buffer m3vNewBuffer(Relation index, ForkNumber forkNum);
  * Get the max number of connections in an upper layer for each element in the index
  */
 bool A3vMemoryIndexType(Relation index);
+float A3vCloseQueryThreshold(Relation index);

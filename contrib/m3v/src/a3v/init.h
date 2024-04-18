@@ -69,7 +69,7 @@ class InMemoryGlobal{
 		// for now, support single column firstly in 2024-4-17, 
 		// support multi-vector in 4.18
 		// support prefilter in 4.19.
-		MemoryA3v* GetMultiVectorMemoryIndex(Relation index,const std::vector<int>& dims,float* query);
+		std::shared_ptr<MemoryA3v> GetMultiVectorMemoryIndex(Relation index,const std::vector<int>& dims,float* query);
 
 		~InMemoryGlobal();
 
@@ -80,10 +80,10 @@ class InMemoryGlobal{
 		// support prefilter in 4.19.
 		// void BuildMultiVectorMemoryIndex(Relation index,const std::vector<int>& dims);
 		
-		hnswlib::HierarchicalNSW<float>* LoadHnswIndex(Relation index,int dim,bool& init);
+		std::shared_ptr<hnswlib::HierarchicalNSW<float>>  LoadHnswIndex(Relation index,int dim,bool& init);
 
 		// index_file_name => HnswIndex
-		std::unordered_map<std::string,hnswlib::HierarchicalNSW<float>*> alg_hnsws;		
+		std::unordered_map<std::string,std::shared_ptr<hnswlib::HierarchicalNSW<float>>> alg_hnsws;		
 		// index_file_name => (data points)
 		std::unordered_map<std::string,std::vector<PII>> points;
 		// index_file_name => (dimensions)
@@ -92,7 +92,9 @@ class InMemoryGlobal{
 		// the rule is below:
 		//	 we will find the top-1 point from hnsw index, and do search from here.
 		// index_file_name => MemoryA3v
-		std::unordered_map<std::string,std::vector<MemoryA3v*>> memory_indexes;
+		std::unordered_map<std::string,std::vector<std::shared_ptr<MemoryA3v>>> memory_indexes;
+		// dimension
+		std::unordered_map<std::string,std::shared_ptr<hnswlib::L2Space>> index_space;
 };
 
 extern InMemoryGlobal memory_init;
