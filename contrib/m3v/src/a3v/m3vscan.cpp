@@ -530,7 +530,6 @@ bool MemoryA3vIndexGetTuple(IndexScanDesc scan,ItemPointerData& result_tid){
 
 bool m3vgettuple(IndexScanDesc scan, ScanDirection dir)
 {
-
 	/*
 	 * We just support KnnQuery And RangeQuery
 	 */
@@ -543,10 +542,10 @@ bool m3vgettuple(IndexScanDesc scan, ScanDirection dir)
 
 	if(A3vMemoryIndexType(scan->indexRelation)){
 		ItemPointerData result_tid;
-		auto begin_query = std::chrono::steady_clock::now();
+		// auto begin_query = std::chrono::steady_clock::now();
 		bool has_next = MemoryA3vIndexGetTuple(scan,result_tid);
-		auto end_query = std::chrono::steady_clock::now();
-		elog(INFO,"time cost %d millseconds",std::chrono::duration_cast<std::chrono::milliseconds>(end_query - begin_query).count());
+		// auto end_query = std::chrono::steady_clock::now();
+		// elog(INFO,"time cost %d millseconds",std::chrono::duration_cast<std::chrono::milliseconds>(end_query - begin_query).count());
 		#if PG_VERSION_NUM >= 120000
 		scan->xs_heaptid = result_tid;
 		#else

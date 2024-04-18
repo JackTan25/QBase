@@ -5152,9 +5152,9 @@ fix_indexqual_operand(Node *node, IndexOptInfo *index, int indexcol)
 
 	if (index->indexkeys[indexcol] != 0)
 	{
-		char *s = nodeToString(node);
-		char *f = format_node_dump(s);
-		elog(LOG, "fix_indexqual_operand:\n %s\n", f);
+		// char *s = nodeToString(node);
+		// char *f = format_node_dump(s);
+		// elog(LOG, "fix_indexqual_operand:\n %s\n", f);
 		/* It's a simple index column */
 		// if(IsA(node, Var)){
 		// 	elog(INFO,"is a var");

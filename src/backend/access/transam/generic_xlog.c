@@ -323,7 +323,7 @@ GenericXLogRegisterBuffer(GenericXLogState *state, Buffer buffer, int flags)
 			return (Page) page->image;
 		}
 	}
-	elog(INFO,"MAX_GENERIC_XLOG_PAGES: %d",MAX_GENERIC_XLOG_PAGES);
+	// elog(INFO,"MAX_GENERIC_XLOG_PAGES: %d",MAX_GENERIC_XLOG_PAGES);
 	elog(ERROR, "maximum number %d of generic xlog buffers is exceeded",
 		 MAX_GENERIC_XLOG_PAGES);
 	/* keep compiler quiet */

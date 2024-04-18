@@ -977,9 +977,9 @@ build_index_paths(PlannerInfo *root, RelOptInfo *rel,
 	}
 	else if (index->amcanorderbyop && pathkeys_possibly_useful)
 	{
-		char *s = nodeToString(root->query_pathkeys);
-		char *f = format_node_dump(s);
-		elog(LOG, "query_path_keys:\n %s\n", f);
+		// char *s = nodeToString(root->query_pathkeys);
+		// char *f = format_node_dump(s);
+		// elog(LOG, "query_path_keys:\n %s\n", f);
 		/* see if we can generate ordering operators for query_pathkeys */
 
 		match_pathkeys_to_index(index, root->query_pathkeys,
@@ -2205,12 +2205,12 @@ match_clause_to_index(PlannerInfo *root,
 			clauseset->indexclauses[i] = 
 				lappend(clauseset->indexclauses[i], match_multi_vector_to_indexcol(root,rinfo,i,index));
 			ListCell* lc;
-			foreach(lc,clauseset->indexclauses[i]){
+			// foreach(lc,clauseset->indexclauses[i]){
 
-				char *ss1 = nodeToString(rinfo->clause);
-				char *f1 = format_node_dump(ss1);
-				elog(LOG, "rinfo :\n %s\n", f1);
-			}
+			// 	char *ss1 = nodeToString(rinfo->clause);
+			// 	char *f1 = format_node_dump(ss1);
+			// 	elog(LOG, "rinfo :\n %s\n", f1);
+			// }
 			clauseset->nonempty = true;
 		}
 		return;
@@ -3394,7 +3394,7 @@ match_clause_to_ordering_op(IndexOptInfo *index,
 
 	char *s = nodeToString(clause);
 	char *f = format_node_dump(s);
-	elog(LOG, "clause see:\n %s\n", f);
+	// elog(LOG, "clause see:\n %s\n", f);
 	/*
 	 * Check for clauses of the form: (indexkey operator constant) or
 	 * (constant operator indexkey).

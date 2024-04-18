@@ -277,7 +277,7 @@ planner(Query *parse, const char *query_string, int cursorOptions,
 		result = (*planner_hook)(parse, query_string, cursorOptions, boundParams);
 	else
 		result = standard_planner(parse, query_string, cursorOptions, boundParams);
-	print(result);
+	// print(result);
 	return result;
 }
 
@@ -3498,9 +3498,9 @@ standard_qp_callback(PlannerInfo *root, void *extra)
 		make_pathkeys_for_sortclauses(root,
 									  parse->sortClause,
 									  tlist);
-	char *sort_clause_string = nodeToString(root->sort_pathkeys);
-	char *sort_clause_format = format_node_dump(sort_clause_string);
-	elog(LOG, "sort_clause:\n %s\n", sort_clause_format);
+	// char *sort_clause_string = nodeToString(root->sort_pathkeys);
+	// char *sort_clause_format = format_node_dump(sort_clause_string);
+	// elog(LOG, "sort_clause:\n %s\n", sort_clause_format);
 	/*
 	 * Figure out whether we want a sorted result from query_planner.
 	 *

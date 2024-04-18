@@ -32,10 +32,10 @@ int MemoryA3v::CrackInTwo(int start_,int end_,float epsilon){
     int i = start_,j = end_;
     while(true){
         while(distances_caching[swap_indexes[i]] <= epsilon && i < end_+1) i++;
-        while(distances_caching[j] > epsilon && j > start_-1) j--;
+        while(distances_caching[swap_indexes[j]] > epsilon && j > start_-1) j--;
         if(i >= j) break;
         std::swap(swap_indexes[i],swap_indexes[j]);
-        std::swap(distances_caching[swap_indexes[i]],distances_caching[swap_indexes[j]]);
+        // std::swap(distances_caching[swap_indexes[i]],distances_caching[swap_indexes[j]]);
     }
     return j;
 }
@@ -49,7 +49,9 @@ void MemoryA3v::KnnCrackSearch(float* query,int k,std::priority_queue<PQNode>& r
     // init, we should give the root node as a guide way for guide_pq.
     guide_pq.push({0,0});
     while(!guide_pq.empty() && (result_pq.size() < k || guide_pq.top() < result_pq.top())){
+        // elog(INFO,"test");
         auto& t = index[guide_pq.top().second];
+        int root_idx = guide_pq.top().second;
         // leaf node process
         if(t.left_node == -1 && t.right_node == -1){
             for(int i = t.start;i <= t.end;i++){
@@ -75,10 +77,13 @@ void MemoryA3v::KnnCrackSearch(float* query,int k,std::priority_queue<PQNode>& r
                 t.SetQuery(vec);
 
                 if(crack >= t.start && t.end >= crack + 1){
+                    // if extend the capcity of index, the reference t won't reference to the correct position.
                     index.push_back(A3vNode(-1,-1,t.start,crack,-1,index.size()));
-                    t.left_node = index.size()-1;
+                    index[root_idx].left_node = index.size()-1;
+                    // t.left_node = index.size()-1;
                     index.push_back(A3vNode(-1,-1,crack+1,t.end,-1,index.size()));
-                    t.right_node = index.size()-1;
+                    index[root_idx].right_node = index.size()-1;
+                    // t.right_node = index.size()-1;
                 }
             }
         }else{
@@ -133,7 +138,7 @@ int MemoryA3v::CrackInTwoMedicore(int start_,int end_,float radius,float median,
 
         if(i >= j) break;
         std::swap(swap_indexes[i],swap_indexes[j]);
-        std::swap(distances_caching[swap_indexes[i]],distances_caching[swap_indexes[j]]);
+        // std::swap(distances_caching[swap_indexes[i]],distances_caching[swap_indexes[j]]);
     }
 }
 
