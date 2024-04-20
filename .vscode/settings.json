@@ -142,6 +142,10 @@
     "semaphore": "cpp",
     "span": "cpp",
     "stop_token": "cpp",
-    "vector.h": "c"
+    "vector.h": "c",
+    "strstream": "cpp",
+    "cfenv": "cpp",
+    "complex": "cpp",
+    "typeindex": "cpp"
   }
 }

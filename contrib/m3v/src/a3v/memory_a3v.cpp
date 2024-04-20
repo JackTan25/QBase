@@ -21,7 +21,7 @@ void A3vNode::SetQuery(std::vector<float>& query_){
     query = query_;
 }
 
-MemoryA3v::MemoryA3v(const int dim,const std::vector<PII>& data_points_):dim_(dim),data_points(data_points_),swap_indexes(data_points.size()){
+MemoryA3v::MemoryA3v(const std::vector<int> &dims,const std::vector<PII>& data_points_):dims_(dims),data_points(data_points_),swap_indexes(data_points.size()){
     distances_caching.resize(data_points.size());
     for(int i = 0;i < data_points.size();i++) swap_indexes[i] = i,distances_caching[swap_indexes[i]] = -1; // the initial value should be -1??
     // init root
@@ -41,11 +41,16 @@ int MemoryA3v::CrackInTwo(int start_,int end_,float epsilon){
 }
 
 // result_pq should be empty initially.
-void MemoryA3v::KnnCrackSearch(float* query,int k,std::priority_queue<PQNode>& result_pq /**Max heap**/ ){
+void MemoryA3v::KnnCrackSearch(m3vScanOpaque so, float* query,int k,std::priority_queue<PQNode>& result_pq /**Max heap**/ ,const std::vector<int> &dimensions){
     // Min heap
     std::priority_queue<PQNode,std::vector<PQNode>,std::greater<PQNode>> guide_pq;
     std::vector<float> rnd_dists;
-    float median,leftMinDist,rightMinDist;int crack;
+    float median,leftMinDist,rightMinDist,temp_distance_1;int crack;
+    float min_w = 1.0;
+    int sum = 0;
+    for(int i = 0;i < dimensions.size();i++){
+        min_w = std::min(min_w,so->weights[i]);sum += dimensions[i];
+    }
     // init, we should give the root node as a guide way for guide_pq.
     guide_pq.push({0,0});
     while(!guide_pq.empty() && (result_pq.size() < k || guide_pq.top() < result_pq.top())){
@@ -55,12 +60,13 @@ void MemoryA3v::KnnCrackSearch(float* query,int k,std::priority_queue<PQNode>& r
         // leaf node process
         if(t.left_node == -1 && t.right_node == -1){
             for(int i = t.start;i <= t.end;i++){
-                distances_caching[swap_indexes[i]] = SIMDFunc(data_points[swap_indexes[i]].first.data(),query,&dim_);
+                float d = hyper_distance_func_with_weights(query,data_points[swap_indexes[i]].first.data(),dimensions,so->weights,&temp_distance_1);
+                distances_caching[swap_indexes[i]] = temp_distance_1;
                 if(result_pq.size() < k){
-                    result_pq.push({distances_caching[swap_indexes[i]],swap_indexes[i]});
-                }else if(distances_caching[swap_indexes[i]] < result_pq.top().first){
+                    result_pq.push({d,swap_indexes[i]});
+                }else if(d < result_pq.top().first){
                     result_pq.pop();
-                    result_pq.push({distances_caching[swap_indexes[i]],swap_indexes[i]});
+                    result_pq.push({d,swap_indexes[i]});
                 }
             }
             guide_pq.pop();
@@ -73,7 +79,7 @@ void MemoryA3v::KnnCrackSearch(float* query,int k,std::priority_queue<PQNode>& r
                 float median = rnd_dists[1];
                 crack = CrackInTwo(t.start,t.end,median);
                 t.radius = median;
-                std::vector<float> vec(query, query + dim_);
+                std::vector<float> vec(query, query + sum);
                 t.SetQuery(vec);
 
                 if(crack >= t.start && t.end >= crack + 1){
@@ -87,10 +93,10 @@ void MemoryA3v::KnnCrackSearch(float* query,int k,std::priority_queue<PQNode>& r
                 }
             }
         }else{
-            float dist = SIMDFunc(t.query.data(),query,&dim_);
+            float dist = hyper_distance_func_with_weights(query,index[root_idx].query.data(),dimensions,so->weights,&temp_distance_1);
             guide_pq.pop();
             leftMinDist = Max(0.0f,dist - t.radius);
-            rightMinDist = Max(0.0f,t.radius - dist);
+            rightMinDist = Max(0.0f,min_w * t.radius - dist);
             if(result_pq.size() < k){
                 guide_pq.push({leftMinDist,t.left_node});
                 guide_pq.push({rightMinDist,t.right_node});
@@ -116,7 +122,9 @@ int MemoryA3v::CrackInTwoMedicore(int start_,int end_,float radius,float median,
                 if(distance_i > maxDistance){
                     maxDistance = distance_i;
                 }
-                result_ids.push_back(swap_indexes[i]);
+                // we use dist1.0 to crack, so we use distance_caching_1.0 to add result, we will add
+                // outside.
+                // result_ids.push_back(swap_indexes[i]);
             }
             i++;
             if(i < end_+1) distance_i = distances_caching[swap_indexes[i]];
@@ -129,7 +137,9 @@ int MemoryA3v::CrackInTwoMedicore(int start_,int end_,float radius,float median,
                     if(distance_j > maxDistance){
                         maxDistance = distance_j;
                     }
-                    result_ids.push_back(swap_indexes[j]);
+                    // we use dist1.0 to crack, so we use distance_caching_1.0 to add result, we will add
+                    // outside.
+                    // result_ids.push_back(swap_indexes[j]);
                 }
                 j--;
                 if(j > start_ - 1) distance_j = distances_caching[swap_indexes[j]];
@@ -142,28 +152,37 @@ int MemoryA3v::CrackInTwoMedicore(int start_,int end_,float radius,float median,
     }
 }
 
-void MemoryA3v::RangeCrackSearch(float* query,float radius,std::vector<int>& result_ids){
+void MemoryA3v::RangeCrackSearch(m3vScanOpaque so,float* query,float radius,std::vector<int>& result_ids,const std::vector<int> &dimensions){
     result_ids.clear();result_ids.reserve(ReserveRange);
-    RangeCrackSearchAuxiliary(index[0],query,radius,result_ids);
+    int dim = 0;
+    for(int i = 0;i < dimensions.size();i++) dim += dimensions[i];
+    RangeCrackSearchAuxiliary(so,0,query,radius,result_ids,dimensions,dim);
 }
 
-void MemoryA3v::RangeCrackSearchAuxiliary(A3vNode &root, float* query,float radius,std::vector<int>& result_ids){
+void MemoryA3v::RangeCrackSearchAuxiliary(m3vScanOpaque so,int root_idx, float* query,float radius,std::vector<int>& result_ids,const std::vector<int> &dimensions,int dim){
     std::vector<float> rnd_dists;
-    float maxDistance, dist, median;
+    float maxDistance, dist, median,temp_distance_1;
     int crack;
     // leaf node
+    A3vNode& root = index[root_idx];
     if(root.left_node == -1 && root.right_node == -1){
         for(int i = root.start;i <= root.end;i++){
-            distances_caching[swap_indexes[i]] = SIMDFunc(data_points[swap_indexes[i]].first.data(),query,&dim_);
+            dist = hyper_distance_func_with_weights(query,data_points[swap_indexes[i]].first.data(),dimensions,so->weights,&temp_distance_1);
+            distances_caching[swap_indexes[i]] = temp_distance_1;
+            if(dist <= radius){
+                result_ids.push_back(swap_indexes[i]);
+            }
         }
 
-        if(root.end - root.start + 1 <= CRACKTHRESHOLD){
-            for(int i = root.start;i <= root.end;i++){
-                if(distances_caching[swap_indexes[i]] <= radius){
-                    result_ids.push_back(swap_indexes[i]);
-                }
-            }
-        }else{
+        // if(root.end - root.start + 1 <= CRACKTHRESHOLD){
+        //     for(int i = root.start;i <= root.end;i++){
+        //         if(distances_caching[swap_indexes[i]] <= radius){
+        //             result_ids.push_back(swap_indexes[i]);
+        //         }
+        //     }
+        // }else
+        if(root.end - root.start + 1 > CRACKTHRESHOLD)
+        {
             rnd_dists.clear();
             rnd_dists.push_back(distances_caching[swap_indexes[root.start + (std::rand() % (root.end - root.start + 1))]]);
             rnd_dists.push_back(distances_caching[swap_indexes[root.start + (std::rand() % (root.end - root.start + 1))]]);
@@ -172,33 +191,33 @@ void MemoryA3v::RangeCrackSearchAuxiliary(A3vNode &root, float* query,float radi
             median = rnd_dists[1];
             maxDistance = -1.0;
             crack = CrackInTwoMedicore(root.start,root.end,radius,median,query,result_ids,maxDistance);
-            std::vector<float> vec(query, query + dim_);
-            root.SetQuery(vec);
-            root.radius = median;
+            std::vector<float> vec(query, query + dim);
+            index[root_idx].SetQuery(vec);
+            index[root_idx].radius = median;
             if(crack >= root.start && root.end >= crack + 1){
                 index.push_back(A3vNode(-1,-1,root.start,crack,-1,index.size()));
-                root.left_node = index.size()-1;
+                index[root_idx].left_node = index.size()-1;
                 index.push_back(A3vNode(-1,-1,crack+1,root.end,-1,index.size()));
-                root.right_node = index.size()-1;
+                index[root_idx].right_node = index.size()-1;
             }
         }
     }else{
-        dist = SIMDFunc(root.query.data(),query,&dim_);
+        dist = hyper_distance_func_with_weights(query,index[root_idx].query.data(),dimensions,so->weights,&temp_distance_1);
         if(dist < radius + root.radius){
             if(dist < radius - root.radius){
                 auto& left_node = index[root.left_node];
                 for(int j = left_node.start;j <= left_node.end;j++){
                     result_ids.push_back(swap_indexes[j]);
                 }
-                RangeCrackSearchAuxiliary(index[root.right_node],query,radius,result_ids);
+                RangeCrackSearchAuxiliary(so,root.right_node,query,radius,result_ids,dimensions,dim);
             }else{
-                RangeCrackSearchAuxiliary(index[root.left_node],query,radius,result_ids);
+                RangeCrackSearchAuxiliary(so,root.left_node,query,radius,result_ids,dimensions,dim);
                 if(dist >= root.radius - radius){
-                    RangeCrackSearchAuxiliary(index[root.right_node],query,radius,result_ids);
+                    RangeCrackSearchAuxiliary(so,root.right_node,query,radius,result_ids,dimensions,dim);
                 }
             }
         }else{
-            RangeCrackSearchAuxiliary(index[root.right_node],query,radius,result_ids);
+            RangeCrackSearchAuxiliary(so,root.right_node,query,radius,result_ids,dimensions,dim);
         }
     }
 }

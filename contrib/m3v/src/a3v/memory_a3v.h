@@ -29,15 +29,15 @@ class A3vNode{
 
 class MemoryA3v{
 	public:
-		MemoryA3v(const int dim,const std::vector<PII>& data_points_);
+		MemoryA3v(const std::vector<int>& dims,const std::vector<PII>& data_points_);
 
 		// result_pq should be empty initially.
-		void KnnCrackSearch(float* query,int k, std::priority_queue<PQNode>& result_pq /**Max heap**/);
+		void KnnCrackSearch(m3vScanOpaque so, float* query,int k, std::priority_queue<PQNode>& result_pq /**Max heap**/,const std::vector<int> &dimensions);
 
-		void RangeCrackSearch(float* query,float radius,std::vector<int>& result_ids);
+		void RangeCrackSearch(m3vScanOpaque so, float* query,float radius,std::vector<int>& result_ids,const std::vector<int> &dimensions);
 
 	private:
-		void RangeCrackSearchAuxiliary(A3vNode &root, float* query,float radius,std::vector<int>& result_ids);
+		void RangeCrackSearchAuxiliary(m3vScanOpaque so,int root_idx, float* query,float radius,std::vector<int>& result_ids,const std::vector<int> &dimensions,int dim);
 				
 		int CrackInTwo(int start_,int end_,float epsilon);
 
@@ -48,5 +48,5 @@ class MemoryA3v{
 		// every index will share this one.
 		const std::vector<PII>& data_points;
 		std::vector<int> swap_indexes;
-		int dim_;
+		std::vector<int> dims_;
 };

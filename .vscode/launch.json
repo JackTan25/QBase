@@ -5,7 +5,7 @@
       "name": "postgresql",
       "type": "cppdbg",
       "request": "attach",
-      "program": "/data/bin/postgres",
+      "program": "/home/tanboyu/cpp_workspace/qbase_data/bin/postgres",
       "processId": "${command:pickProcess}",
       "MIMode": "gdb",
       "setupCommands": [

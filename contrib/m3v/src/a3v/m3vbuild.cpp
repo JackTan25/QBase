@@ -377,7 +377,6 @@ BuildIndex(Relation heap, Relation index, IndexInfo *indexInfo,
 		   m3vBuildState *buildstate, ForkNumber forkNum)
 {
 	InitBuildState(buildstate, heap, index, indexInfo, forkNum);
-
 	if (buildstate->heap != NULL)
 		BuildGraph(buildstate, forkNum);
 

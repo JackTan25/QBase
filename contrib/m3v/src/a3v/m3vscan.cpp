@@ -439,13 +439,18 @@ std::string build_a3v_index_forest_query_ids_file_path(Relation index){
  * result: big heap
 */
 void do_knn_search_a3v(m3vScanOpaque scan, Relation index,m3vScanOpaque result,ItemPointerData root_tid,std::vector<float> weights,float* vectors,std::vector<int> offsets,int k,std::vector<ItemPointerData> &p){
-
+	
 }
 
 void do_range_search_a3v(m3vScanOpaque so,Relation index,m3vScanOpaque result,ItemPointerData root_tid,std::vector<float> weights,float* vectors,std::vector<int> offsets,float radius,std::vector<ItemPointerData> &p){
 	
 }
 
+// multi-vector search:
+// 1. single vector search, we should drop 
+// 2. multi vector search, we should do similar search (do w1.0 search with crack and then do search without crack)
+// todo!: multi-bacth similar query requests.
+// todo!: planner prefilter and range filter.
 bool MemoryA3vIndexGetTuple(IndexScanDesc scan,ItemPointerData& result_tid){
 	m3vScanOpaque so = (m3vScanOpaque)(scan->opaque);
 	Relation index = scan->indexRelation;
@@ -463,8 +468,10 @@ bool MemoryA3vIndexGetTuple(IndexScanDesc scan,ItemPointerData& result_tid){
 		float query[sums];
 		for(int i = 0;i < dimensions.size();i++){
 			if(KNN_QUERY(scan)){
+				so->weights[i] = DatumGetFloat8(scan->orderByData[i].w);
 				query_point = DatumGetVector(scan->orderByData[i].sk_argument);
 			}else{
+				so->weights[i] = DatumGetFloat8(scan->keyData[i].w);
 				query_point = DatumGetVector(scan->keyData[i].sk_argument);
 			}
 			memcpy(query + offset,query_point->x,sizeof(float) * dimensions[i]);
@@ -475,13 +482,13 @@ bool MemoryA3vIndexGetTuple(IndexScanDesc scan,ItemPointerData& result_tid){
 		// knn search
 		if(KNN_QUERY(scan)){
 			std::priority_queue<PQNode> result_pq;
-			a3v_index->KnnCrackSearch(query,scan->orderByData->KNNValues,result_pq);
+			a3v_index->KnnCrackSearch(so,query,scan->orderByData->KNNValues,result_pq,dimensions);
 			while(!result_pq.empty()){
 				so->result_ids->push_back(result_pq.top().second);result_pq.pop();
 			}
 		}else{
 			float8 radius = DatumGetFloat8(scan->keyData->sk_argument);
-			a3v_index->RangeCrackSearch(query,radius,*so->result_ids);
+			a3v_index->RangeCrackSearch(so,query,radius,*so->result_ids,dimensions);
 			// after search, we need to sort for tids, this is used to improve cache hits.
 			sort(so->result_ids->begin(),so->result_ids->end());
 		}
@@ -621,19 +628,20 @@ bool m3vgettuple(IndexScanDesc scan, ScanDirection dir)
 	if(so->first){
 		int offset = 0;
 		float* data = so->query_point;
+		const std::vector<int>& dimensions = init.GetDimensions(scan->indexRelation);
 		for(int i = 0;i < so->columns;i++){
 			if(RANGE_QUERY(scan)){
 				// Range Query
 				Vector* range_scan_point = DatumGetVector(scan->keyData[i].sk_argument);
 				so->weights[i] = DatumGetFloat8(scan->keyData[i].w);
-				memcpy(data + offset,range_scan_point->x,sizeof(float) * so->dimentions[i]);
+				memcpy(data + offset,range_scan_point->x,sizeof(float) * dimensions[i]);
 			}else{
 				// KNN Query
 				Vector* knn_scan_point = DatumGetVector(scan->orderByData[i].sk_argument);
 				so->weights[i] = DatumGetFloat8(scan->orderByData[i].w);
-				memcpy(data + offset,knn_scan_point->x,sizeof(float) * so->dimentions[i]);
+				memcpy(data + offset,knn_scan_point->x,sizeof(float) * dimensions[i]);
 			}
-			offset += so->dimentions[i];
+			offset += dimensions[i];
 		}
 		std::priority_queue<std::pair<float, hnswlib::labeltype>> result = so->alg_hnsw->searchKnn(so->query_point,1);
 		auto root_point = result.top();

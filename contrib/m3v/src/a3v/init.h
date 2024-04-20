@@ -32,6 +32,8 @@ class GlobalInit{
 
 		ItemPointerData GetRootTidAtIndex(std::string index_name,int index);
 
+		const std::vector<int>& GetDimensions(Relation index);
+
 		~GlobalInit();
 
     private:
@@ -39,6 +41,8 @@ class GlobalInit{
         std::unordered_map<std::string,IndexPointerLruCache*> mp;
 		// index_file_name => HnswIndex
 		std::unordered_map<std::string,hnswlib::HierarchicalNSW<float>*> alg_hnsws;
+		// index_file_name => (dimensions)
+		std::unordered_map<std::string,std::vector<int>> dimensions; //todo: dimensions serialize and deserialize
 		// std::mutex lock_;
 		// root link tids, we can get the simliarest point, that's the root point.
 		// and then we can search root from the hsnw index, it will give us a index,
@@ -81,7 +85,7 @@ class InMemoryGlobal{
 		// void BuildMultiVectorMemoryIndex(Relation index,const std::vector<int>& dims);
 		
 		std::shared_ptr<hnswlib::HierarchicalNSW<float>>  LoadHnswIndex(Relation index,int dim,bool& init);
-
+		
 		// index_file_name => HnswIndex
 		std::unordered_map<std::string,std::shared_ptr<hnswlib::HierarchicalNSW<float>>> alg_hnsws;		
 		// index_file_name => (data points)

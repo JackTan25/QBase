@@ -400,13 +400,13 @@ typedef struct m3vScanOpaqueData
 	std::vector<PII>* data_points;
 	std::vector<int>* result_ids;
 	int result_idx;
-	// 1. we support 2 vector search at most.
+	// 1. we support 3 vector search at most.
 	float weights[3];
 	// 2. the largest dimension is 300, in fact we should make it configureable in CMakeLists.
 	// for now, we use this for experiment.
 	float query_point[300];
 	// 3. dimentions
-	uint16 dimentions[3];
+	// uint16 dimentions[3];
 	// 4. float lens,if vector(3),vector(4),vector(5),then it's 12
 	uint16 total_len;
 	// 4. use hnsw to search the close root index.

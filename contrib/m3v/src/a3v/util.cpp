@@ -115,8 +115,9 @@ void InsertNewQuery(IndexScanDesc scan,m3vScanOpaque so,int block_number){
     }
     std::vector<uint32_t> offsets;
     int size = 0;
+    const std::vector<int> dimensions = init.GetDimensions(scan->indexRelation);
     for(int i = 0;i < so->columns;i++){
-        size += so->dimentions[i] * sizeof(float);
+        size += dimensions[i] * sizeof(float);
         offsets.push_back(size);
     }
     so->cache = init.GetIndexCache(offsets, so->columns,std::string(RelationGetRelationName(scan->indexRelation)));

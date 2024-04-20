@@ -1,11 +1,13 @@
 #pragma once
 
+#include <immintrin.h>
+#include<vector>
 #include <iostream>
 #include <stddef.h>
 #include "simd_func.h"
 extern "C"{
     #include "postgres.h"
-#include <cmath>
+    #include <cmath>
 }
 SIMDFuncType SIMDFunc = nullptr;
 // using SIMDFuncType = float (*)(const float *, const float *, int);
@@ -83,10 +85,11 @@ export float F32L2AVX(const void *pv1_, const void *pv2_, const void* dim_) {
 
     _mm256_store_ps(TmpRes, sum);
     float res = TmpRes[0] + TmpRes[1] + TmpRes[2] + TmpRes[3] + TmpRes[4] + TmpRes[5] + TmpRes[6] + TmpRes[7];
-    return std::sqrt(res);
+    return std::sqrt(res) * 0.2;
+}
 
 void SetSIMDFunc(){
-    elog(INFO,"Set F32L2AVX");
+    // elog(INFO,"Set F32L2AVX");
     SIMDFunc = F32L2AVX;
     // SIMDFunc = base_hnsw::HybridSimd;
 }
@@ -109,3 +112,20 @@ void SetSIMDFunc(){
         SIMDFunc = F32L2BF;
     }
 #endif
+
+float hyper_distance_func_with_weights(const float *query,const float* data_point, const std::vector<int> &dimensions,float* weights,float* distance_1){
+    float res = 0.0;
+    *distance_1 = 0.0;
+    int offset = 0.0;
+    for(int i = 0;i < dimensions.size();++i){
+        float d = SIMDFunc(query+offset,data_point+offset,&dimensions[i]);
+        *distance_1 += d;
+        res += d * weights[i];
+        offset += dimensions[i];
+    }
+    return res;
+}
+
+// float hyper_distance_func_without_weights(float *query,float* data_point,int dim){
+//     return SIMDFunc(query,data_point,&dim);
+// }

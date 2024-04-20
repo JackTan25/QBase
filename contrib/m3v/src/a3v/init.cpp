@@ -63,6 +63,17 @@ ItemPointerData GlobalInit::GetRootTidAtIndex(std::string index_name,int index){
     return tids[index_name][index];
 }
 
+const std::vector<int>& GlobalInit::GetDimensions(Relation index){
+    std::string index_file_path = build_memory_index_points_file_path(index);
+    if(!dimensions.count(index_file_path)){
+        for(int i = 0;i < index->rd_att->natts;++i){
+            Form_pg_attribute attr = TupleDescAttr(index->rd_att, 0);
+	        dimensions[index_file_path].push_back(attr->atttypmod);
+        }
+    }
+    return dimensions[index_file_path];
+}
+
 GlobalInit::~GlobalInit(){
     // we need to release all new memory.
     for(auto [k,v]: mp){
@@ -93,6 +104,12 @@ void InMemoryGlobal::SetDimensions(const std::vector<int> &dimensions_,Relation 
 
 const std::vector<int>& InMemoryGlobal::GetDimensions(Relation index){
     std::string index_file_path = build_memory_index_points_file_path(index);
+    if(!dimensions.count(index_file_path)){
+        for(int i = 0;i < index->rd_att->natts;++i){
+            Form_pg_attribute attr = TupleDescAttr(index->rd_att, 0);
+	        dimensions[index_file_path].push_back(attr->atttypmod);
+        }
+    }
     return dimensions[index_file_path];
 }
 
@@ -148,8 +165,10 @@ std::shared_ptr<hnswlib::HierarchicalNSW<float>> InMemoryGlobal::LoadHnswIndex(R
 std::shared_ptr<MemoryA3v> InMemoryGlobal::GetMultiVectorMemoryIndex(Relation index,const std::vector<int>& dims,float* query){
 	std::string index_file_path = build_memory_index_points_file_path(index);
 	bool init;
+    int dim = 0;
+    for(int i = 0;i < dims.size();i++) dim += dims[i];
 	// support single index for now.
-	std::shared_ptr<hnswlib::HierarchicalNSW<float>> hnsw_index = LoadHnswIndex(index,dims[0],init);
+	std::shared_ptr<hnswlib::HierarchicalNSW<float>> hnsw_index = LoadHnswIndex(index,dim,init);
     // elog(INFO,"(int*)hnsw_index->dist_func_param_: %d",(*(size_t*)hnsw_index->dist_func_param_));
 	if(init){
 		int lable = -1;
@@ -158,7 +177,7 @@ std::shared_ptr<MemoryA3v> InMemoryGlobal::GetMultiVectorMemoryIndex(Relation in
 		}else{
 			lable = memory_indexes[index_file_path].size();
 		}
-        std::shared_ptr<MemoryA3v> a3v_index = std::make_shared<MemoryA3v>(dims[0],memory_init.LoadDataPoints(index));
+        std::shared_ptr<MemoryA3v> a3v_index = std::make_shared<MemoryA3v>(dims,memory_init.LoadDataPoints(index));
         // elog(INFO,"(int*)hnsw_index->dist_func_param_: %d",*(int*)hnsw_index->dist_func_param_);
 		memory_indexes[index_file_path].push_back(a3v_index);
 		hnsw_index->addPoint(query,lable);
