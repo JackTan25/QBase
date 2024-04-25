@@ -30,8 +30,10 @@
 
 #include "executor/execdebug.h"
 #include "executor/nodeBitmapAnd.h"
-
-
+#include "access/genam.h"
+#include "utils/lsyscache.h"
+#include "utils/rel.h"
+#include "access/relscan.h"
 /* ----------------------------------------------------------------
  *		ExecBitmapAnd
  *
@@ -113,7 +115,7 @@ MultiExecBitmapAnd(BitmapAndState *node)
 	int			nplans;
 	int			i;
 	TIDBitmap  *result = NULL;
-
+	bool 		is_vector_search = false;
 	/* must provide our own instrumentation support */
 	if (node->ps.instrument)
 		InstrStartNode(node->ps.instrument);
@@ -123,15 +125,28 @@ MultiExecBitmapAnd(BitmapAndState *node)
 	 */
 	bitmapplans = node->bitmapplans;
 	nplans = node->nplans;
-
+	for (i = 0; i < nplans; i++){
+		PlanState  *subnode = bitmapplans[i];
+		if(nodeTag(subnode) == T_BitmapIndexScanState){
+			BitmapIndexScanState* state_ = (BitmapIndexScanState*) subnode;
+			IndexScanDesc scan = (IndexScanDesc)state_->biss_ScanDesc;
+			char *name = get_am_name_me(scan->indexRelation->rd_id);
+			if(name&&strcmp(name,"a3v")){
+				is_vector_search = true;break;
+			}
+		}
+	}
 	/*
 	 * Scan all the subplans and AND their result bitmaps
 	 */
+	TIDBitmap  *subresult;
 	for (i = 0; i < nplans; i++)
 	{
 		PlanState  *subnode = bitmapplans[i];
-		TIDBitmap  *subresult;
-
+		if(nodeTag(subnode) == T_BitmapIndexScanState && is_vector_search){
+			BitmapIndexScanState* state = (BitmapIndexScanState*) subnode;
+			state->biss_result = result;
+		}
 		subresult = (TIDBitmap *) MultiExecProcNode(subnode);
 
 		if (!subresult || !IsA(subresult, TIDBitmap))
@@ -141,10 +156,13 @@ MultiExecBitmapAnd(BitmapAndState *node)
 			result = subresult; /* first subplan */
 		else
 		{
-			tbm_intersect(result, subresult);
-			tbm_free(subresult);
+			if(!is_vector_search){
+				tbm_intersect(result, subresult);
+				tbm_free(subresult);
+			}else{
+				result = subresult;
+			}
 		}
-
 		/*
 		 * If at any stage we have a completely empty bitmap, we can fall out
 		 * without evaluating the remaining subplans, since ANDing them can no

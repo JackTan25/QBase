@@ -415,7 +415,28 @@ standard_planner(Query *parse, const char *query_string, int cursorOptions,
 	/* Select best Path and turn it into a Plan */
 	final_rel = fetch_upper_rel(root, UPPERREL_FINAL, NULL);
 	best_path = get_cheapest_fractional_path(final_rel, tuple_fraction);
-
+	// {
+	// 		int type_tag = nodeTag(best_path);
+	// 		Path* path_;
+	// 		if(type_tag == 297){
+	// 			LimitPath* limit_path =  (LimitPath*)best_path;
+	// 			path_ = limit_path->subpath;
+	// 			type_tag = nodeTag(path_);
+	// 		}
+	// 		elog(INFO,"before cur rel: %d",type_tag);
+	// 		if(type_tag == 262){ // T_BitmapHeapPath
+	// 			BitmapHeapPath* bit_heap_path = (BitmapHeapPath*)(path_);
+	// 			elog(INFO,"BitmapHeapPath child: %d",nodeTag(bit_heap_path->bitmapqual));
+	// 			if(nodeTag(bit_heap_path->bitmapqual) == 260){ // T_IndexPath
+	// 				// indexclauses
+	// 				IndexPath* index_path =  (IndexPath*)(bit_heap_path->bitmapqual);
+	// 				ListCell* cell;
+	// 				foreach(cell,index_path->indexclauses){
+	// 					elog_node_display(INFO,"Indexpath indexcaluse:",lfirst(cell),true);
+	// 				}
+	// 			}
+	// 		}
+	// }
 	top_plan = create_plan(root, best_path);
 
 	/*
@@ -1081,7 +1102,86 @@ subquery_planner(PlannerGlobal *glob, Query *parse,
 	 * doing this here not in grouping_planner, we include initPlan costs in
 	 * the decision, though it's unlikely that will change anything.)
 	 */
+	// here we can check the last cheapest path for vector search(that's why it's called final rel),
+	// so if it's a vector search, we should change it into bitmap scan here.
+	// in fact we will get: (select * from t where a > xx order by v <-> xxx limit k)
+	//	index scan:
+	//		filter
+	// we need change it into 
+	// 	bitmap index scan(btree)/bitmap heap scan, bitmap index scan(heap scan), this is a
+	// prefilter stargety.
+	
+	// ListCell* p;
+	// foreach (p, final_rel->pathlist)
+	// {
+	// 	//  explain select * from my_table where id < 2000 and  int_field > 999990 limit 3;
+	// 	// 1. limit_path -> bitmap_heap_path -> index_path
+	// 	// 2. limit_path -> index_path
+	// 	// 3. limit_path -> seqscan_path
+	// 	Path *path = (Path *)lfirst(p);
+	// 	int type_tag = nodeTag(path);
+	// 	if(type_tag == 297){
+	// 		LimitPath* limit_path =  (LimitPath*)path;
+	// 		path = limit_path->subpath;
+	// 		type_tag = nodeTag(path);
+	// 	}
+	// 	elog(INFO,"before cur rel: %d",type_tag);
+	// 	if(type_tag == 262){ // T_BitmapHeapPath
+	// 		BitmapHeapPath* bit_heap_path = (BitmapHeapPath*)(path);
+	// 		elog(INFO,"BitmapHeapPath child: %d",nodeTag(bit_heap_path->bitmapqual));
+	// 		if(nodeTag(bit_heap_path->bitmapqual) == 260){ // T_IndexPath
+	// 			// indexclauses
+	// 			IndexPath* index_path =  (IndexPath*)(bit_heap_path->bitmapqual);
+	// 			ListCell* cell;
+	// 			foreach(cell,index_path->indexclauses){
+	// 				elog_node_display(INFO,"Indexpath indexcaluse:",lfirst(cell),true);
+	// 			}
+	// 		}
+	// 	}else if(type_tag == 260){ // T_IndexPath
+	// 		IndexPath* index_path =  (IndexPath*)(path);
+	// 		elog(INFO,"IndexPath no child");
+	// 	}else if(type_tag == 259){
+	// 		// T_SeqScan/T_SampleScan/T_FunctionScan/ValuesScan etc.
+	// 		elog(INFO,"normal path: %d",path->pathtype);
+	// 	}
+	// }
+
 	set_cheapest(final_rel);
+
+	// ListCell* p;
+	// foreach (p, final_rel->pathlist)
+	// {
+	// 	//  explain select * from my_table where id < 2000 and  int_field > 999990 limit 3;
+	// 	// 1. limit_path -> bitmap_heap_path -> index_path
+	// 	// 2. limit_path -> index_path
+	// 	// 3. limit_path -> seqscan_path
+	// 	Path *path = (Path *)lfirst(p);
+	// 	int type_tag = nodeTag(path);
+	// 	if(type_tag == 297){
+	// 		LimitPath* limit_path =  (LimitPath*)path;
+	// 		path = limit_path->subpath;
+	// 		type_tag = nodeTag(path);
+	// 	}
+	// 	elog(INFO,"before cur rel: %d",type_tag);
+	// 	if(type_tag == 262){ // T_BitmapHeapPath
+	// 		BitmapHeapPath* bit_heap_path = (BitmapHeapPath*)(path);
+	// 		elog(INFO,"BitmapHeapPath child: %d",nodeTag(bit_heap_path->bitmapqual));
+	// 		if(nodeTag(bit_heap_path->bitmapqual) == 260){ // T_IndexPath
+	// 			// indexclauses
+	// 			IndexPath* index_path =  (IndexPath*)(bit_heap_path->bitmapqual);
+	// 			ListCell* cell;
+	// 			foreach(cell,index_path->indexclauses){
+	// 				elog_node_display(INFO,"Indexpath indexcaluse:",lfirst(cell),true);
+	// 			}
+	// 		}
+	// 	}else if(type_tag == 260){ // T_IndexPath
+	// 		IndexPath* index_path =  (IndexPath*)(path);
+	// 		elog(INFO,"IndexPath no child");
+	// 	}else if(type_tag == 259){
+	// 		// T_SeqScan/T_SampleScan/T_FunctionScan/ValuesScan etc.
+	// 		elog(INFO,"normal path: %d",path->pathtype);
+	// 	}
+	// }
 
 	return root;
 }
@@ -1606,13 +1706,20 @@ grouping_planner(PlannerInfo *root, double tuple_fraction)
 			scanjoin_targets_contain_srfs = NIL;
 		}
 
+	
 		/* Apply scan/join target. */
 		scanjoin_target_same_exprs = list_length(scanjoin_targets) == 1 && equal(scanjoin_target->exprs, current_rel->reltarget->exprs);
 		apply_scanjoin_target_to_paths(root, current_rel, scanjoin_targets,
 									   scanjoin_targets_contain_srfs,
 									   scanjoin_target_parallel_safe,
 									   scanjoin_target_same_exprs);
-
+		// ListCell* p;
+		// foreach (p, current_rel->pathlist)
+		// {
+		// 	Path *path = (Path *)lfirst(p);
+		// 	int type_tag = nodeTag(path);
+		// 	elog(INFO,"after apply_scanjoin_target_to_paths: %d",type_tag);
+		// }
 		/*
 		 * Save the various upper-rel PathTargets we just computed into
 		 * root->upper_targets[].  The core code doesn't use this, but it
@@ -1676,7 +1783,24 @@ grouping_planner(PlannerInfo *root, double tuple_fraction)
 												current_rel);
 		}
 	} /* end of if (setOperations) */
-
+	// ListCell* p;
+	// foreach (p, current_rel->pathlist)
+	// {
+	// 	//  explain select * from my_table where id < 2000 and  int_field > 999990 limit 3;
+	// 	Path *path = (Path *)lfirst(p);
+	// 	int type_tag = nodeTag(path);
+	// 	elog(INFO,"before cur rel: %d",type_tag);
+	// 	if(type_tag == 262){ // T_BitmapHeapPath
+	// 		BitmapHeapPath* bit_heap_path = (BitmapHeapPath*)(path);
+	// 		elog(INFO,"BitmapHeapPath child: %d",nodeTag(bit_heap_path->bitmapqual));
+	// 	}else if(type_tag == 260){ // T_IndexPath
+	// 		IndexPath* index_path =  (IndexPath*)(path);
+	// 		elog(INFO,"IndexPath no child");
+	// 	}else if(type_tag == 259){
+	// 		// T_SeqScan/T_SampleScan/T_FunctionScan/ValuesScan etc.
+	// 		elog(INFO,"normal path: %d",path->pathtype);
+	// 	}
+	// }
 	/*
 	 * If ORDER BY was given, consider ways to implement that, and generate a
 	 * new upperrel containing only paths that emit the correct ordering and
@@ -1946,6 +2070,45 @@ grouping_planner(PlannerInfo *root, double tuple_fraction)
 		/* And shove it into final_rel */
 		add_path(final_rel, path);
 	}
+
+	// ListCell* p;
+	// foreach (p, final_rel->pathlist)
+	// {
+	// 	//  explain select * from my_table where id < 2000 and  int_field > 999990 limit 3;
+	// 	// 1. limit_path -> bitmap_heap_path -> index_path
+	// 	// 2. limit_path -> index_path
+	// 	// 3. limit_path -> seqscan_path
+	// 	Path *path = (Path *)lfirst(p);
+	// 	int type_tag = nodeTag(path);
+	// 	if(type_tag == 297){
+	// 		LimitPath* limit_path =  (LimitPath*)path;
+	// 		path = limit_path->subpath;
+	// 		type_tag = nodeTag(path);
+	// 	}
+	// 	elog(INFO,"before cur rel: %d",type_tag);
+	// 	if(type_tag == 262){ // T_BitmapHeapPath
+	// 		BitmapHeapPath* bit_heap_path = (BitmapHeapPath*)(path);
+	// 		elog(INFO,"BitmapHeapPath child: %d",nodeTag(bit_heap_path->bitmapqual));
+	// 		ListCell* cell;
+	// 		foreach(cell,bit_heap_path->path.pathkeys){
+	// 			elog_node_display(INFO,"BitmapHeapPath path.pathkey:",lfirst(cell),true);
+	// 		}
+	// 		// if(nodeTag(bit_heap_path->bitmapqual) == 260){ // T_IndexPath
+	// 		// 	// indexclauses
+	// 		// 	IndexPath* index_path =  (IndexPath*)(bit_heap_path->bitmapqual);
+	// 		// 	ListCell* cell;
+	// 		// 	foreach(cell,index_path->indexclauses){
+	// 		// 		elog_node_display(INFO,"Indexpath indexcaluse:",lfirst(cell),true);
+	// 		// 	}
+	// 		// }
+	// 	}else if(type_tag == 260){ // T_IndexPath
+	// 		IndexPath* index_path =  (IndexPath*)(path);
+	// 		elog(INFO,"IndexPath no child");
+	// 	}else if(type_tag == 259){
+	// 		// T_SeqScan/T_SampleScan/T_FunctionScan/ValuesScan etc.
+	// 		elog(INFO,"normal path: %d",path->pathtype);
+	// 	}
+	// }
 
 	/*
 	 * Generate partial paths for final_rel, too, if outer query levels might

@@ -146,6 +146,11 @@
     "strstream": "cpp",
     "cfenv": "cpp",
     "complex": "cpp",
-    "typeindex": "cpp"
+    "typeindex": "cpp",
+    "restrictinfo.h": "c",
+    "lsyscache.h": "c",
+    "nodebitmapand.h": "c",
+    "relscan.h": "c",
+    "relcache.h": "c"
   }
 }

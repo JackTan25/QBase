@@ -14,6 +14,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "nodes/print.h"
 #include "catalog/pg_type.h"
 #include "utils/syscache.h"
 #include "utils/lsyscache.h"
@@ -258,6 +259,8 @@ void create_index_paths(PlannerInfo *root, RelOptInfo *rel)
 	{
 		IndexOptInfo *index = (IndexOptInfo *)lfirst(lc);
 
+		// char *indexName = get_rel_name(index->indexoid);
+		// elog(INFO,"index name: %s",indexName);
 		/* Protect limited-size array in IndexClauseSets */
 		Assert(index->nkeycolumns <= INDEX_MAX_KEYS);
 
@@ -282,7 +285,7 @@ void create_index_paths(PlannerInfo *root, RelOptInfo *rel)
 		 */
 		get_index_paths(root, rel, index, &rclauseset,
 						&bitindexpaths);
-
+		
 		/*
 		 * Identify the join clauses that can match the index.  For the moment
 		 * we keep them separate from the restriction clauses.  Note that this
@@ -292,7 +295,10 @@ void create_index_paths(PlannerInfo *root, RelOptInfo *rel)
 		MemSet(&jclauseset, 0, sizeof(jclauseset));
 		match_join_clauses_to_index(root, rel, index,
 									&jclauseset, &joinorclauses);
-
+		// foreach(lc,rel->pathlist){
+		// 	int type_tag = nodeTag((Path*)lfirst(lc));
+		// 	elog(INFO,"rel_pathlist type: %d",type_tag);
+		// }
 		/*
 		 * Look for EquivalenceClasses that can generate joinclauses matching
 		 * the index.
@@ -340,10 +346,22 @@ void create_index_paths(PlannerInfo *root, RelOptInfo *rel)
 	{
 		Path *bitmapqual;
 		BitmapHeapPath *bpath;
-
+		elog(INFO,"bitmap_and length %d",list_length(bitindexpaths));
+		ListCell* p;
+		// foreach(p,bitindexpaths){
+		// 	IndexPath* index_path = (IndexPath*) p;
+		// 	char *indexName = get_rel_name(index_path->indexinfo->indexoid);
+		// 	elog(INFO,"index name: %s",indexName);
+		// }
 		bitmapqual = choose_bitmap_and(root, rel, bitindexpaths);
 		bpath = create_bitmap_heap_path(root, rel, bitmapqual,
 										rel->lateral_relids, 1.0, 0);
+		// we should control the index->selectivity, optimizer rule:
+		// if btree index selectity in a range, try to recommand use m3v tree,
+		// if not in, just use multi hnsw index to solve.
+		bpath->path.total_cost = 0.0;
+		bpath->path.startup_cost = 0.0;
+		
 		add_path(rel, (Path *)bpath);
 
 		/* create a partial bitmap heap path */
@@ -727,13 +745,22 @@ get_index_paths(PlannerInfo *root, RelOptInfo *rel,
 	 * clauses for index columns after the first (so that we produce ordered
 	 * paths if possible).
 	 */
+	ListCell* clause;
+	foreach(clause,clauses->indexclauses){
+		elog_node_display(INFO,"index clause",clause,true);
+	}
+
 	indexpaths = build_index_paths(root, rel,
 								   index, clauses,
 								   index->predOK,
 								   ST_ANYSCAN,
 								   &skip_nonnative_saop,
 								   &skip_lower_saop);
-
+	// int i = 0;
+	// foreach(lc,indexpaths){
+	// 	int type_tag = nodeTag((Path*)lfirst(lc));
+	// 	elog(INFO,"indexpath type%d: %d",i++,type_tag);
+	// }
 	/*
 	 * If we skipped any lower-order ScalarArrayOpExprs on an index with an AM
 	 * that supports them, then try again including those clauses.  This will
@@ -748,6 +775,10 @@ get_index_paths(PlannerInfo *root, RelOptInfo *rel,
 												   ST_ANYSCAN,
 												   &skip_nonnative_saop,
 												   NULL));
+		foreach(lc,indexpaths){
+			int type_tag = nodeTag((Path*)lfirst(lc));
+			elog(INFO,"indexpath type2: %d",type_tag);
+		}
 	}
 
 	/*
@@ -768,11 +799,14 @@ get_index_paths(PlannerInfo *root, RelOptInfo *rel,
 
 		if (index->amhasgettuple)
 			add_path(rel, (Path *)ipath);
-
+		float old_selectivity = ipath->indexselectivity;
+		// ipath->indexselectivity = 0;
+		if(ipath->is_vector_search) ipath->indexselectivity = 0.0,ipath->path.startup_cost = INT_MAX,ipath->path.total_cost = INT_MAX,ipath->indextotalcost = INT_MAX;
 		if (index->amhasgetbitmap &&
 			(ipath->path.pathkeys == NIL ||
 			 ipath->indexselectivity < 1.0))
 			*bitindexpaths = lappend(*bitindexpaths, ipath);
+		ipath->indexselectivity = old_selectivity;
 	}
 
 	/*
@@ -790,6 +824,11 @@ get_index_paths(PlannerInfo *root, RelOptInfo *rel,
 									   NULL);
 		*bitindexpaths = list_concat(*bitindexpaths, indexpaths);
 	}
+
+	// foreach(lc,bitindexpaths){
+	// 	int type_tag = nodeTag((Path*)lfirst(lc));
+	// 	elog(INFO,"bitindexpath type: %d",type_tag);
+	// }
 }
 
 /*
@@ -904,7 +943,7 @@ build_index_paths(PlannerInfo *root, RelOptInfo *rel,
 		foreach (lc, clauses->indexclauses[indexcol])
 		{
 			IndexClause *iclause = (IndexClause *)lfirst(lc);
-			is_vector_expr =  iclause->is_multi_vector_range_search;
+			is_vector_expr =  iclause->is_vector_search;
 			RestrictInfo *rinfo = iclause->rinfo;
 			/* We might need to omit ScalarArrayOpExpr clauses */
 			if (IsA(rinfo->clause, ScalarArrayOpExpr))
@@ -1460,7 +1499,24 @@ choose_bitmap_and(PlannerInfo *root, RelOptInfo *rel, List *paths)
 	/* Sort the surviving paths by index access cost */
 	qsort(pathinfoarray, npaths, sizeof(PathClauseUsage *),
 		  path_usage_comparator);
-
+	// after sort, if we found a vector index (it's a3v index), generate bitmap_and
+	// we just support btree_index and a3v_index
+	if(npaths == 2){
+		if(nodeTag(pathinfoarray[npaths-1]->path) == T_IndexPath){
+			IndexPath* index_path = (IndexPath*)(pathinfoarray[npaths-1]->path);
+			char *indexName = get_rel_name(index_path->indexinfo->indexoid);
+			if(index_path->is_vector_search){
+				List* paths_;
+				for(int j = 0;j < npaths;j++){
+					paths_ = lappend(paths_,pathinfoarray[j]->path);
+				}
+				Path* path = (Path *)create_bitmap_and_path(root, rel, paths_);
+				// path->total_cost = 0.0;
+				// path->startup_cost = 0.0;
+				return path;
+			}
+		}
+	}
 	/*
 	 * For each surviving index, consider it as an "AND group leader", and see
 	 * whether adding on any of the later indexes results in an AND path with
@@ -2194,7 +2250,7 @@ match_clause_to_index(PlannerInfo *root,
 
 
 	char *name = get_am_name_me(index->relam);
-	if(strcmp(name,"m3v")==0){
+	if(strcmp(name,"m3v")==0 || strcmp(name,"a3v")==0){
 		// for where (a <-> '[4,4]')*0.3 + (b <-> '[4,4]')*0.2 + (c <-> '[4,4]')*0.5 < 2.6
 		// we will spilt it into below: 
 		// 		(a <-> '[4,4]')*0.3    2.6
@@ -2202,16 +2258,20 @@ match_clause_to_index(PlannerInfo *root,
 		//      (c <-> '[4,4]')*0.5    2.6
 		// Todo!: think about there are more other filter for other indexes. In fact,it won't be hard.
 		for(int i = 0;i < index->nkeycolumns;i++){
-			clauseset->indexclauses[i] = 
-				lappend(clauseset->indexclauses[i], match_multi_vector_to_indexcol(root,rinfo,i,index));
-			ListCell* lc;
-			// foreach(lc,clauseset->indexclauses[i]){
+			IndexClause* clause =  match_multi_vector_to_indexcol(root,rinfo,i,index);
+			if(clause){
+				clauseset->indexclauses[i] = 
+				lappend(clauseset->indexclauses[i], clause);
+				// ListCell* lc;
+				// foreach(lc,clauseset->indexclauses[i]){
 
-			// 	char *ss1 = nodeToString(rinfo->clause);
-			// 	char *f1 = format_node_dump(ss1);
-			// 	elog(LOG, "rinfo :\n %s\n", f1);
-			// }
-			clauseset->nonempty = true;
+				// 	char *ss1 = nodeToString(rinfo->clause);
+				// 	char *f1 = format_node_dump(ss1);
+				// 	elog(LOG, "rinfo :\n %s\n", f1);
+				// }
+				clauseset->nonempty = true;
+			}
+
 		}
 		return;
 	}
@@ -2251,7 +2311,6 @@ match_multi_vector_to_indexcol(PlannerInfo *root,
 
 	if (leftop && IsA(leftop, OpExpr) && strcmp(get_opname(expr_op), "<") == 0 || leftop && IsA(leftop, OpExpr) && strcmp(get_opname(expr_op), "<") == 0)
 	{
-
 		// OpExpr *opert = (OpExpr *)leftop;
 		// Node *left = (Node *)linitial(opert->args);
 		// Node *right = (Node *)lsecond(opert->args);
@@ -2261,7 +2320,7 @@ match_multi_vector_to_indexcol(PlannerInfo *root,
 		// 	!bms_is_member(index_relid, rinfo->right_relids) &&
 		// 	!contain_volatile_functions(right))
 		char *name = get_am_name_me(index->relam);
-		if (strcmp(name, "m3v") == 0)
+		if (strcmp(name, "m3v") == 0 || strcmp(name,"a3v") == 0)
 		{
 			iclause = makeNode(IndexClause);
 			RestrictInfo *rinfo_ = makeNode(RestrictInfo);
@@ -2270,6 +2329,24 @@ match_multi_vector_to_indexcol(PlannerInfo *root,
 			/* 假设 expr 和 constant 是您已经有的 Expr* 和 Const* */
 			Assert(IsA(rightop,Const));
 			Expr* expr = match_vector_index_col(leftop,indexcol,index);
+			// it's "select * from t where c <-> const < const", there is weight.
+			if(expr == NULL){
+				// 514
+				OpExpr *opexpr = makeNode(OpExpr);
+				opexpr->opno = 514;
+				Const* weight =  makeConst(
+					FLOAT4OID,  // 数据类型的OID，FLOAT4OID表示float8或double precision
+					-1,         // typeMod -1 表示默认值
+					InvalidOid, // collation OID, 对于浮点数类型通常是无效的
+					sizeof(float4), // 数据长度
+					Float4GetDatum(1.0), // 将C变量转换为Postgres Datum
+					false, // isnull，这里设置为false因为我们提供了一个非空值
+					true   // byval，float4是按值传递的
+				);
+				opexpr->opresulttype = FLOAT4OID;
+				opexpr->args = list_make2(weight, leftop);
+				expr = opexpr;
+			}
 			Assert(IsA(expr,OpExpr));
 			Const *constant = (Const*) rightop;;
 			/* 创建一个 OpExpr 结构 */
@@ -2290,6 +2367,7 @@ match_multi_vector_to_indexcol(PlannerInfo *root,
 			iclause->indexcol = indexcol;
 			iclause->indexcols = NIL;
 			iclause->is_multi_vector_range_search = true;
+			iclause->is_vector_search = true;
 			return iclause;
 		}
 	}
@@ -3392,8 +3470,8 @@ match_clause_to_ordering_op(IndexOptInfo *index,
 	if (!IndexCollMatchesExprColl(idxcollation, expr_coll))
 		return NULL;
 
-	char *s = nodeToString(clause);
-	char *f = format_node_dump(s);
+	// char *s = nodeToString(clause);
+	// char *f = format_node_dump(s);
 	// elog(LOG, "clause see:\n %s\n", f);
 	/*
 	 * Check for clauses of the form: (indexkey operator constant) or
@@ -3404,6 +3482,10 @@ match_clause_to_ordering_op(IndexOptInfo *index,
 		!contain_volatile_functions(rightop))
 	{
 		// is_vector_type(rightop);
+		if(nodeTag(rightop) == T_Const && is_vector_type(rightop))  {
+			OpExpr* op =  (OpExpr*)(clause);
+			op->location = VectorExprFlag;
+		}
 		commuted = false;
 	}
 	else if (match_index_to_operand(rightop, indexcol, index) &&

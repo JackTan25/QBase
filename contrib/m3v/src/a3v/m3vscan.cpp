@@ -398,6 +398,105 @@ m3vbeginscan(Relation index, int nkeys, int norderbys)
 }
 
 /*
+ * Insert all matching tuples into a bitmap.
+ */
+int64
+m3vgetbitmap(IndexScanDesc scan, TIDBitmap *tbm)
+{
+	// int64		ntids = 0;
+	// BlockNumber blkno = BLOOM_HEAD_BLKNO,
+	// 			npages;
+	// int			i;
+	// BufferAccessStrategy bas;
+	// BloomScanOpaque so = (BloomScanOpaque) scan->opaque;
+
+	// if (so->sign == NULL)
+	// {
+	// 	/* New search: have to calculate search signature */
+	// 	ScanKey		skey = scan->keyData;
+
+	// 	so->sign = palloc0(sizeof(BloomSignatureWord) * so->state.opts.bloomLength);
+
+	// 	for (i = 0; i < scan->numberOfKeys; i++)
+	// 	{
+	// 		/*
+	// 		 * Assume bloom-indexable operators to be strict, so nothing could
+	// 		 * be found for NULL key.
+	// 		 */
+	// 		if (skey->sk_flags & SK_ISNULL)
+	// 		{
+	// 			pfree(so->sign);
+	// 			so->sign = NULL;
+	// 			return 0;
+	// 		}
+
+	// 		/* Add next value to the signature */
+	// 		signValue(&so->state, so->sign, skey->sk_argument,
+	// 				  skey->sk_attno - 1);
+
+	// 		skey++;
+	// 	}
+	// }
+
+	// /*
+	//  * We're going to read the whole index. This is why we use appropriate
+	//  * buffer access strategy.
+	//  */
+	// bas = GetAccessStrategy(BAS_BULKREAD);
+	// npages = RelationGetNumberOfBlocks(scan->indexRelation);
+
+	// for (blkno = BLOOM_HEAD_BLKNO; blkno < npages; blkno++)
+	// {
+	// 	Buffer		buffer;
+	// 	Page		page;
+
+	// 	buffer = ReadBufferExtended(scan->indexRelation, MAIN_FORKNUM,
+	// 								blkno, RBM_NORMAL, bas);
+
+	// 	LockBuffer(buffer, BUFFER_LOCK_SHARE);
+	// 	page = BufferGetPage(buffer);
+	// 	TestForOldSnapshot(scan->xs_snapshot, scan->indexRelation, page);
+
+	// 	if (!PageIsNew(page) && !BloomPageIsDeleted(page))
+	// 	{
+	// 		OffsetNumber offset,
+	// 					maxOffset = BloomPageGetMaxOffset(page);
+
+	// 		for (offset = 1; offset <= maxOffset; offset++)
+	// 		{
+	// 			BloomTuple *itup = BloomPageGetTuple(&so->state, page, offset);
+	// 			bool		res = true;
+
+	// 			/* Check index signature with scan signature */
+	// 			for (i = 0; i < so->state.opts.bloomLength; i++)
+	// 			{
+	// 				if ((itup->sign[i] & so->sign[i]) != so->sign[i])
+	// 				{
+	// 					res = false;
+	// 					break;
+	// 				}
+	// 			}
+
+	// 			/* Add matching tuples to bitmap */
+	// 			if (res)
+	// 			{
+	// 				tbm_add_tuples(tbm, &itup->heapPtr, 1, true);
+	// 				ntids++;
+	// 			}
+	// 		}
+	// 	}
+
+	// 	UnlockReleaseBuffer(buffer);
+	// 	CHECK_FOR_INTERRUPTS();
+	// }
+	// FreeAccessStrategy(bas);
+
+	// return ntids;
+	return 0;
+}
+
+
+/*
  * End a scan and release resources
  */
 void m3vendscan(IndexScanDesc scan)
@@ -546,7 +645,7 @@ bool m3vgettuple(IndexScanDesc scan, ScanDirection dir)
 	{
 		elog(ERROR, "just support Knn Query and Range Query");
 	}
-
+	return false;
 	if(A3vMemoryIndexType(scan->indexRelation)){
 		ItemPointerData result_tid;
 		// auto begin_query = std::chrono::steady_clock::now();

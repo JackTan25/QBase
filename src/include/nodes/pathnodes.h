@@ -1731,6 +1731,7 @@ typedef struct IndexClause
 	AttrNumber	indexcol;		/* index column the clause uses (zero-based) */
 	List	   *indexcols;		/* multiple index columns, if RowCompare */
 	bool 		is_multi_vector_range_search;
+	bool		is_vector_search;
 } IndexClause;
 
 /*

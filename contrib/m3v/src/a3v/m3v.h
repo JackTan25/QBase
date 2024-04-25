@@ -515,6 +515,7 @@ IndexBulkDeleteResult *m3vvacuumcleanup(IndexVacuumInfo *info, IndexBulkDeleteRe
 IndexScanDesc m3vbeginscan(Relation index, int nkeys, int norderbys);
 void m3vrescan(IndexScanDesc scan, ScanKey keys, int nkeys, ScanKey orderbys, int norderbys);
 bool m3vgettuple(IndexScanDesc scan, ScanDirection dir);
+int64 m3vgetbitmap(IndexScanDesc scan, TIDBitmap *tbm);
 void m3vendscan(IndexScanDesc scan);
 void a3vUpdateMetaPage(Relation index,uint16 simliar_query_root_nums,uint32_t tuple_nums, ForkNumber forkNum);
 std::string build_data_string_datum(Datum* values,int columns);

@@ -252,10 +252,13 @@ void set_cheapest(RelOptInfo *parent_rel)
 
 	cheapest_startup_path = cheapest_total_path = best_param_path = NULL;
 	parameterized_paths = NIL;
-
+	// elog(INFO,"start set cheapest path type");
 	foreach (p, parent_rel->pathlist)
 	{
+
 		Path *path = (Path *)lfirst(p);
+		// int type_tag = nodeTag(path);
+		// elog(INFO,"set cheapest path type: %d",type_tag);
 		int cmp;
 
 		if (path->param_info)

@@ -62,7 +62,7 @@ MultiExecBitmapIndexScan(BitmapIndexScanState *node)
 	 * extract necessary information from index scan node
 	 */
 	scandesc = node->biss_ScanDesc;
-
+	
 	/*
 	 * If we have runtime keys and they've not already been set up, do it now.
 	 * Array keys are also treated as runtime keys; note that if ExecReScan
