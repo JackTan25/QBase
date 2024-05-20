@@ -456,6 +456,7 @@ typedef struct IndexScan
 	List	   *indexorderbyops;	/* OIDs of sort ops for ORDER BY exprs */
 	ScanDirection indexorderdir;	/* forward or backward or don't care */
 	bool 		is_multi_col_vector_search;
+	bool		is_single_vector_search;
 } IndexScan;
 
 /* ----------------

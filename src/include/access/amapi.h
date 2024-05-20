@@ -250,7 +250,8 @@ typedef struct IndexAmRoutine
 	uint8		amparallelvacuumoptions;
 	/* type of data stored in index, or InvalidOid if variable */
 	Oid			amkeytype;
-
+	/* does AM support relaxed ORDER BY result of an operator on indexed column? */
+	bool		amcanrelaxedorderbyop;
 	/*
 	 * If you add new properties to either the above or the below lists, then
 	 * they should also (usually) be exposed via the property API (see

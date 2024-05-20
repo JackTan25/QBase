@@ -131,7 +131,7 @@ IndexNext(IndexScanState *node)
 	while (index_getnext_slot(scandesc, direction, slot))
 	{
 		CHECK_FOR_INTERRUPTS();
-
+		 estate->is_index_inorder = scandesc->xs_inorder;
 		/*
 		 * If the index was lossy, we have to recheck the index quals using
 		 * the fetched tuple.
@@ -146,7 +146,7 @@ IndexNext(IndexScanState *node)
 				continue;
 			}
 		}
-
+		estate->is_index_inorder = scandesc->xs_inorder;
 		return slot;
 	}
 
@@ -306,9 +306,10 @@ next_indextuple:
 								  scandesc->xs_orderbyvals,
 								  scandesc->xs_orderbynulls,
 								  node);
-			if (cmp < 0)
-				elog(ERROR, "index returned tuples in wrong order");
-			else if (cmp == 0)
+			// if (cmp < 0)
+			// 	elog(ERROR, "index returned tuples in wrong order");
+			// else 
+			if (cmp == 0)
 				was_exact = true;
 			else
 				was_exact = false;
@@ -1207,7 +1208,14 @@ ExecIndexBuildScanKeys(PlanState *planstate, Relation index,
 		indnkeyatts = IndexRelationGetNumberOfKeyAttributes(index);
 		if (IsA(clause, OpExpr))
 		{
-			if(is_multi_col_vector_search){
+			bool is_single_vector_search = false;
+			if(isorderby){
+				is_single_vector_search = !IsA(get_leftop(clause),OpExpr);
+			}else{
+				if(IsA(get_leftop(clause),OpExpr))
+					is_single_vector_search = !IsA(get_leftop(get_leftop(clause)),OpExpr);
+			}
+			if(is_multi_col_vector_search&&!is_single_vector_search){
 				int			flags = 0;
 				if(isorderby)
 					flags |= SK_ORDER_BY;
@@ -1266,8 +1274,9 @@ ExecIndexBuildScanKeys(PlanState *planstate, Relation index,
 						varattno = ((Var*)get_leftop(op_expr))->varattno;
 					}
 				}
-			
-				opfamily = index->rd_opfamily[varattno - 1];
+				// fix: the varatto is the offset in table schema, not index, but I can't find it out now,
+				// please fix it later.
+				opfamily = index->rd_opfamily[0];
 				const struct TableAmRoutine* tableam = index->rd_tableam;
 				// elog(INFO,"opfamily: %s", get_opname(opfamily));
 				// elog(INFO,"opno: %s", get_opname(opno));
@@ -1417,27 +1426,36 @@ ExecIndexBuildScanKeys(PlanState *planstate, Relation index,
 				rangeQueryOp = (OpExpr*)get_leftop(clause);
 
 				leftop = (Expr*)linitial(rangeQueryOp->args);
+				// we should try to exchange the ops if (const op var).
+				// if(is_single_vector_search){
+				// 	if(IsA(leftop,Const)){
 
+				// 	}
+				// }
 				//leftop = (OpExpr*)get_leftop(clause);
 
 				if (leftop && IsA(leftop, RelabelType))
 					leftop = ((RelabelType*)leftop)->arg;
 
 				Assert(leftop != NULL);
-
-				/*if (!(IsA(leftop, Var) &&
-					((Var*)leftop)->varno == INDEX_VAR))
-					elog(ERROR, "indexqual doesn't have key on left side");*/
+				// elog(INFO,"is left_op %d",IsA(leftop, Var));
+				// if (!(IsA(leftop, Var) &&
+				// 	((Var*)leftop)->varno == INDEX_VAR))
+				// 	elog(ERROR, "indexqual doesn't have key on left side");
 
 				varattno = ((Var*)leftop)->varattno;
-				if (varattno < 1 || varattno > indnkeyatts)
+				if(!is_single_vector_search)
+					if (varattno < 1 || varattno > indnkeyatts)
 					elog(ERROR, "bogus index qualification");
-
+	
 				/*
 				 * We have to look up the operator's strategy number.  This
 				 * provides a cross-check that the operator does match the index.
 				 */
-				opfamily = index->rd_opfamily[varattno - 1];
+				if(!is_single_vector_search)
+					opfamily = index->rd_opfamily[varattno - 1];
+				else
+					opfamily = index->rd_opfamily[0];
 				const struct TableAmRoutine* tableam = index->rd_tableam;
 				opno = rangeQueryOp->opno;
 				opfuncid = rangeQueryOp->opfuncid;
@@ -1464,7 +1482,7 @@ ExecIndexBuildScanKeys(PlanState *planstate, Relation index,
 				{
 					/* OK, simple constant comparison value */
 					Const* con = (Const*)rightop;
-					scanvalue = ((Const*)rightop)->constvalue;
+					this_scan_key->query = ((Const*)rightop)->constvalue;
 					if (((Const*)rightop)->constisnull)
 						flags |= SK_ISNULL;
 				}
@@ -1507,7 +1525,7 @@ ExecIndexBuildScanKeys(PlanState *planstate, Relation index,
 
 				if (IsA(queryobject, Const) && !(((Const*)queryobject)->constisnull))
 				{
-					this_scan_key->query = ((Const*)queryobject)->constvalue;
+					scanvalue = ((Const*)queryobject)->constvalue;
 					// ArrayType* array = DatumGetArrayTypeP(this_scan_key->query);
 					// {
 					// 	char str[200];

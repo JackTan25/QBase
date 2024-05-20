@@ -14,7 +14,8 @@ extern "C"{
 	#include "utils/memutils.h"
 	#include "utils/float.h"
 }
-
+#define SingleSearchType 1
+#define MultiColumnSearchType 2
 #define MAX_KNN_DISTANCE get_float8_infinity()
 #define KNN_QUERY(scan) (scan->orderByData != NULL && ((scan->orderByData->sk_flags & SK_ISNULL) == false))
 #define RANGE_QUERY(scan) (scan->keyData != NULL && ((scan->keyData->sk_flags & SK_ISNULL) == false))
@@ -387,13 +388,20 @@ m3vbeginscan(Relation index, int nkeys, int norderbys)
 	so->collation = index->rd_indcollation[0];
 	so->columns = columns;
 	scan->opaque = so;
-
+	// load hnsw hard index
+	bool load_hnsw_from_disk = memory_init.LoadHnswHardIndex(index, memory_init.GetDimensions(index),index->rd_att->natts);
+	so->load_hnsw_from_disk = load_hnsw_from_disk;
+	if(index->rd_att->natts > 1){
+		so->search_type = MultiColumnSearchType;
+	}else{
+		so->search_type = SingleSearchType;
+	}
 	/*
 	 * Get a shared lock. This allows vacuum to ensure no in-flight scans
 	 * before marking tuples as deleted.
 	 */
 	LockPage(scan->indexRelation, M3V_SCAN_LOCK, ShareLock);
-
+	
 	return scan;
 }
 
@@ -403,6 +411,7 @@ m3vbeginscan(Relation index, int nkeys, int norderbys)
 int64
 m3vgetbitmap(IndexScanDesc scan, TIDBitmap *tbm)
 {
+	elog(ERROR,"doesn't support bitmap scan for a3v index now");
 	// int64		ntids = 0;
 	// BlockNumber blkno = BLOOM_HEAD_BLKNO,
 	// 			npages;
@@ -518,6 +527,14 @@ std::string build_hnsw_index_file_path(Relation index){
 	return std::string(PROJECT_ROOT_PATH) + "/" + std::string(RelationGetRelationName(index)) + "_hnsw.bin";
 }
 
+std::string build_hnsw_index_file_hard_path(Relation index,int idx){
+	return std::string(PROJECT_ROOT_PATH) + "/" + std::string(RelationGetRelationName(index)) + "_hnsw." + std::to_string(idx);
+}
+
+std::string build_hnsw_index_file_hard_path_prefix(Relation index){
+	return std::string(PROJECT_ROOT_PATH) + "/" + std::string(RelationGetRelationName(index)) + "_hnsw";
+}
+
 std::string build_memory_index_points_file_path(Relation index){
 	std::string path = std::string(PROJECT_ROOT_PATH) + "/" + std::string(RelationGetRelationName(index)) + "_memory_points.bin";
 	return path;
@@ -560,6 +577,7 @@ bool MemoryA3vIndexGetTuple(IndexScanDesc scan,ItemPointerData& result_tid){
 		so->data_points = memory_init.GetDataPointsPointer(index);
 		// 1. get query point
 		const std::vector<int> dimensions =  memory_init.GetDimensions(scan->indexRelation);
+		std::vector<float*> query_points;
 		int sums = 0,offset = 0;
 		for(int i = 0;i < dimensions.size();i++){
 			sums += dimensions[i];
@@ -573,15 +591,35 @@ bool MemoryA3vIndexGetTuple(IndexScanDesc scan,ItemPointerData& result_tid){
 				so->weights[i] = DatumGetFloat8(scan->keyData[i].w);
 				query_point = DatumGetVector(scan->keyData[i].sk_argument);
 			}
+			query_points.push_back(query_point->x);
 			memcpy(query + offset,query_point->x,sizeof(float) * dimensions[i]);
 			offset += dimensions[i];
 		}
+		if(dimensions.size() == 1){
+			so->weights[0] = 1.0;so->weights[1] = 1.0; so->weights[2] = 1.0;
+		}
 		// get memory_index from memory init.
 		std::shared_ptr<MemoryA3v> a3v_index = memory_init.GetMultiVectorMemoryIndex(index,dimensions,query);
+		// judge hnsw or a3v
+		// multi column/single column hnsw or a3v index
+		// 1. check this is the first query for now, if so we should insert query into MetaHnsw, and push the query for the 
+		// a3v index. Do HardHnsw Search.
+		// 2. check query records for A3V Index (in the a3v threshold), if over A3V_HINT_QUERY_RECORDS = 7, do a3v index search.
+		// 3. if not within the threshold, open a new a3v index and do HardHnsw Search
+		
+		// we should try to check the queryRecords
 		// knn search
 		if(KNN_QUERY(scan)){
 			std::priority_queue<PQNode> result_pq;
-			a3v_index->KnnCrackSearch(so,query,scan->orderByData->KNNValues,result_pq,dimensions);
+			std::string hard_hnsws_prefix_path = build_hnsw_index_file_hard_path_prefix(index);
+			auto hard_hnsws = MultiColumnHnsw(memory_init.hard_hnsws[hard_hnsws_prefix_path],query_points,scan->orderByData->KNNValues);
+			// first search.
+			if(memory_init.query_times == 0){
+				
+			}
+			a3v_index->KnnCrackSearch(so,query,scan->orderByData->KNNValues,result_pq,dimensions,a3v_index->last_top_k_mean);
+			a3v_index->query_records++;
+			a3v_index->last_top_k_mean = (a3v_index->last_top_k_mean + result_pq.top().first)/a3v_index->query_records;
 			while(!result_pq.empty()){
 				so->result_ids->push_back(result_pq.top().second);result_pq.pop();
 			}
@@ -599,6 +637,22 @@ bool MemoryA3vIndexGetTuple(IndexScanDesc scan,ItemPointerData& result_tid){
 		return true;
 	}
 	return false;
+}
+
+void debug_weights(IndexScanDesc scan,bool is_knn){
+	if(is_knn){
+		// scan->numberOfOrderBys == 1, it means it's a single metric query.
+		for(int i = 0;i < scan->numberOfOrderBys; i++){
+			elog(INFO,"w: %lf",DatumGetFloat8(scan->orderByData[i].w));
+			PrintVector("vector knn: ",DatumGetVector(scan->orderByData[i].sk_argument));
+		}
+	}else{
+		for(int i = 0;i < scan->numberOfKeys; i++){
+			elog(INFO,"w: %lf",DatumGetFloat8(scan->keyData[i].w));
+			PrintVector("vector range query: ",DatumGetVector(scan->keyData[i].sk_argument));
+		}
+		elog(INFO,"radius: %lf",DatumGetFloat8(scan->keyData[0].query));
+	}
 }
 
 /**
@@ -645,13 +699,16 @@ bool m3vgettuple(IndexScanDesc scan, ScanDirection dir)
 	{
 		elog(ERROR, "just support Knn Query and Range Query");
 	}
-	return false;
+	elog(INFO,"A3V GetTuple");
+	elog(INFO,"A3vIndex Name: %s",RelationGetRelationName(scan->indexRelation));
+	debug_weights(scan,KNN_QUERY(scan));
+	// return false;
 	if(A3vMemoryIndexType(scan->indexRelation)){
 		ItemPointerData result_tid;
-		// auto begin_query = std::chrono::steady_clock::now();
+		auto begin_query = std::chrono::steady_clock::now();
 		bool has_next = MemoryA3vIndexGetTuple(scan,result_tid);
-		// auto end_query = std::chrono::steady_clock::now();
-		// elog(INFO,"time cost %d millseconds",std::chrono::duration_cast<std::chrono::milliseconds>(end_query - begin_query).count());
+		auto end_query = std::chrono::steady_clock::now();
+		elog(INFO,"time cost %.2f millseconds",std::chrono::duration<double, std::milli>(end_query - begin_query).count());
 		#if PG_VERSION_NUM >= 120000
 		scan->xs_heaptid = result_tid;
 		#else
@@ -741,6 +798,9 @@ bool m3vgettuple(IndexScanDesc scan, ScanDirection dir)
 				memcpy(data + offset,knn_scan_point->x,sizeof(float) * dimensions[i]);
 			}
 			offset += dimensions[i];
+		}
+		if(so->columns == 1){
+			so->weights[0] = 1.0;so->weights[1] = 1.0;so->weights[2] = 1.0;
 		}
 		std::priority_queue<std::pair<float, hnswlib::labeltype>> result = so->alg_hnsw->searchKnn(so->query_point,1);
 		auto root_point = result.top();

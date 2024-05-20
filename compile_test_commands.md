@@ -41,7 +41,8 @@ awk '{
 }' bigann_vector_128_1M.txt > bigann_vector_128_postgres_1M.txt
 1 2 3 --> [1,2,3]
 
-sed 's/ /,/g' bigann_vector_128_1M.txt > bigann_vector_128_vbase_1M.txt
+
+ bigann_vector_128_1M.txt > bigann_vector_128_vbase_1M.txt
 1 2 3 --> 1,2,3
 
 awk '{
@@ -49,7 +50,7 @@ awk '{
     for (i = 1; i <= NF; i++) {
         printf "%s", $i;
         if (i < NF) {
-            printf ",";
+            printf ", ";
         }
     }
     printf "}\n";
@@ -206,4 +207,12 @@ choose_bitmap_and(PlannerInfo *root, RelOptInfo *rel, List *paths)
 // 将位图下推下去.
 ```
 
+
+
+运行milvus:
+```c++
+// 需要使用python3.11来执行
+pip3.11 install pymilvus -i http://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com
+python3.11 hello_milvus.py 
+```
 

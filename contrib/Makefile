@@ -52,7 +52,7 @@ SUBDIRS = \
 		tsm_system_time \
 		unaccent	\
 		vacuumlo	\
-		pgvector	\
+		# pgvector	\
 		# mtree_am2	\
 		# m3v			\
 		blackhole	

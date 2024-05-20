@@ -237,7 +237,8 @@ Datum a3vhandler(PG_FUNCTION_ARGS)
 	amroutine->ambeginscan = m3vbeginscan;
 	amroutine->amrescan = m3vrescan;
 	amroutine->amgettuple = m3vgettuple;
-	amroutine->amgetbitmap = m3vgetbitmap;
+	// amroutine->amgetbitmap = m3vgetbitmap;
+	amroutine->amgetbitmap = NULL; // todo(Support BitmapScan);
 	amroutine->amendscan = m3vendscan;
 	amroutine->ammarkpos = NULL;
 	amroutine->amrestrpos = NULL;

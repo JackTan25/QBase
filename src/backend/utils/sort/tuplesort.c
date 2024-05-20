@@ -3213,3 +3213,8 @@ ssup_datum_int32_cmp(Datum x, Datum y, SortSupport ssup)
 	else
 		return 0;
 }
+
+bool tuplesort_heapfull(Tuplesortstate *state)
+{
+    return (state->memtupcount >= state->bound);
+}

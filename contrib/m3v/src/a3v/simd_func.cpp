@@ -85,7 +85,7 @@ export float F32L2AVX(const void *pv1_, const void *pv2_, const void* dim_) {
 
     _mm256_store_ps(TmpRes, sum);
     float res = TmpRes[0] + TmpRes[1] + TmpRes[2] + TmpRes[3] + TmpRes[4] + TmpRes[5] + TmpRes[6] + TmpRes[7];
-    return std::sqrt(res) * 0.2;
+    return res;
 }
 
 void SetSIMDFunc(){
@@ -113,17 +113,43 @@ void SetSIMDFunc(){
     }
 #endif
 
-float hyper_distance_func_with_weights(const float *query,const float* data_point, const std::vector<int> &dimensions,float* weights,float* distance_1){
+float hyper_distance_func_with_weights(const float *query,const std::vector<const float*>& data_point, const std::vector<int> &dimensions,float* weights,float* distance_1){
     float res = 0.0;
     *distance_1 = 0.0;
     int offset = 0.0;
     for(int i = 0;i < dimensions.size();++i){
-        float d = SIMDFunc(query+offset,data_point+offset,&dimensions[i]);
+        int dim_rest = dimensions[i]%16;
+        int dim = dimensions[i] - dim_rest;
+        float d = SIMDFunc(query+offset,data_point[i],&dim);
+
+        for(int j = 0;j < dim_rest;j++){
+            float temp_distance = *(query+dim+j) - *(data_point[i]+dim+j);
+            res += temp_distance * temp_distance;
+        }
         *distance_1 += d;
         res += d * weights[i];
         offset += dimensions[i];
     }
-    return res;
+    return sqrt(res);
+}
+
+float hyper_distance_func_with_weights_internal_query(const float *query,const float* data_point, const std::vector<int> &dimensions,float* weights,float* distance_1){
+    float res = 0.0;
+    *distance_1 = 0.0;
+    int offset = 0.0;
+    for(int i = 0;i < dimensions.size();++i){
+        int dim_rest = dimensions[i]%16;
+        int dim = dimensions[i] - dim_rest;
+        float d = SIMDFunc(query+offset,data_point+offset,&dim);
+        for(int j = 0;j < dim_rest;j++){
+            float temp_distance = *(query+dim+j) - *(data_point+dim+j);
+            res += temp_distance * temp_distance;
+        }
+        *distance_1 += d;
+        res += d * weights[i];
+        offset += dimensions[i];
+    }
+    return sqrt(res);
 }
 
 // float hyper_distance_func_without_weights(float *query,float* data_point,int dim){

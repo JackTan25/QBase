@@ -182,7 +182,7 @@ static IndexScan *make_indexscan(List *qptlist, List *qpqual, Index scanrelid,
 								 Oid indexid, List *indexqual, List *indexqualorig,
 								 List *indexorderby, List *indexorderbyorig,
 								 List *indexorderbyops,
-								 ScanDirection indexscandir,bool multi_vector_search);
+								 ScanDirection indexscandir,bool multi_vector_search,bool is_single_vector_search);
 static IndexOnlyScan *make_indexonlyscan(List *qptlist, List *qpqual,
 										 Index scanrelid, Oid indexid,
 										 List *indexqual, List *recheckqual,
@@ -3189,7 +3189,7 @@ create_indexscan_plan(PlannerInfo *root,
 										   fixed_indexorderbys,
 										   indexorderbys,
 										   indexorderbyops,
-										   best_path->indexscandir,best_path->is_vector_search);
+										   best_path->indexscandir,best_path->is_vector_search,best_path->is_single_vector_search);
 
 	copy_generic_path_info(&scan_plan->plan, &best_path->path);
 
@@ -5154,7 +5154,7 @@ fix_indexqual_operand(Node *node, IndexOptInfo *index, int indexcol)
 	{
 		char *s = nodeToString(node);
 		char *f = format_node_dump(s);
-		elog(LOG, "fix_indexqual_operand:\n %s\n", f);
+		// elog(LOG, "fix_indexqual_operand:\n %s\n", f);
 		/* It's a simple index column */
 		// if(IsA(node, Var)){
 		// 	elog(INFO,"is a var");
@@ -5542,7 +5542,7 @@ make_indexscan(List *qptlist,
 			   List *indexorderby,
 			   List *indexorderbyorig,
 			   List *indexorderbyops,
-			   ScanDirection indexscandir,bool multi_vector_search)
+			   ScanDirection indexscandir,bool multi_vector_search,bool is_single_vector_search)
 {
 	IndexScan *node = makeNode(IndexScan);
 	Plan *plan = &node->scan.plan;
@@ -5560,6 +5560,7 @@ make_indexscan(List *qptlist,
 	node->indexorderbyops = indexorderbyops;
 	node->indexorderdir = indexscandir;
 	node->is_multi_col_vector_search = multi_vector_search;
+	node->is_single_vector_search = is_single_vector_search;
 	return node;
 }
 

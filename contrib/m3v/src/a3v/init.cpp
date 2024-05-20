@@ -91,10 +91,38 @@ GlobalInit::~GlobalInit(){
     }
 }
 
-// MemoryGlobal
-void InMemoryGlobal::appendDataPoints(const std::vector<PII>& data, Relation index){
+float InMemoryGlobal::random_10(Relation index,std::vector<PII> &data_points){
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(0, data_points.size() - 1);
+    std::vector<int> indices;
+    while (indices.size() < 10) {
+        int index = dis(gen);
+        if (std::find(indices.begin(), indices.end(), index) == indices.end()) {
+            indices.push_back(index);
+        }
+    }
     std::string index_file_path = build_memory_index_points_file_path(index);
-    points[index_file_path] = data;
+    std::vector<int> dimensions_ = dimensions[index_file_path];
+    float dist = 0.0;
+    for(int i = 0;i < data_points.size();i++){
+        for(int j = i+1;j < data_points.size();j++){
+            for(int k = 0;k <dimensions_.size();k++){
+                dist += L2Distance(const_cast<float*>(data_points[i].first[k]),const_cast<float*>(data_points[j].first[k]),dimensions_[k]);
+            }
+        }
+    }
+    return dist/45.0;
+}
+
+// MemoryGlobal
+void InMemoryGlobal::appendDataPoints(Relation index,m3vBuildState *buildstate){
+    std::string index_file_path = build_memory_index_points_file_path(index);
+    // add vector data pointer
+    points[index_file_path] = buildstate->data_points;
+    // calculate random distance here.
+    float threshold = random_10(index,buildstate->data_points);
+    elog(INFO,"MetaHNSW threshold: %.2f",threshold);
 }
 
 void InMemoryGlobal::SetDimensions(const std::vector<int> &dimensions_,Relation index){
@@ -162,12 +190,61 @@ std::shared_ptr<hnswlib::HierarchicalNSW<float>> InMemoryGlobal::LoadHnswIndex(R
 	
 // }
 
+bool InMemoryGlobal::LoadHnswHardIndex(Relation index,const std::vector<int>& dims,int nums){
+    std::string index_file_path_prefix = build_hnsw_index_file_hard_path_prefix(index);
+    if(hard_hnsws.count(index_file_path_prefix)){
+        return false;
+    }
+    for(int i = 0;i < nums;i++){
+        std::string index_file_path_pefix = build_hnsw_index_file_hard_path_prefix(index);
+        std::string index_file_path = build_hnsw_index_file_hard_path(index,i);
+        // we can load from disk
+        if(file_exists(index_file_path)){
+            // try load hnsw index from index_file_path
+            // Initing index
+            index_space[index_file_path] = std::make_shared<hnswlib::L2Space>(dims[i]);
+            hard_hnsws[index_file_path_pefix].push_back(std::make_shared<hnswlib::HierarchicalNSW<float>>(index_space[index_file_path].get(), index_file_path));
+        }else{
+            ereport(FATAL, errcode(0), errmsg("can't find hnsw index hard file: %s",index_file_path.c_str()));
+        }
+    }
+    restore_datapoints_from_hnsw(index);
+    return true;
+}
+
+void InMemoryGlobal::appendHnswHardIndex(std::shared_ptr<hnswlib::HierarchicalNSW<float>> &hnsw_hard_index,Relation index){
+    std::string hnsw_index_file_prefix = build_hnsw_index_file_hard_path_prefix(index);
+    hard_hnsws[hnsw_index_file_prefix].push_back(hnsw_hard_index);
+}
+
+const float* InMemoryGlobal::appendHnswHardIndexData(int idx,Relation index,const float* data_point,int num,int vector_index){
+    std::string hnsw_index_file_prefix = build_hnsw_index_file_hard_path_prefix(index);
+    hard_hnsws[hnsw_index_file_prefix][idx]->addPoint(data_point,num);
+    return (float*)hard_hnsws[hnsw_index_file_prefix][idx]->getDataByInternalId(vector_index);
+}
+
+void InMemoryGlobal::restore_datapoints_from_hnsw(Relation index){
+    int column_nums = index->rd_att->natts;
+    std::string memory_a3v_index_file_path = build_memory_index_points_file_path(index);
+    std::string hnsw_index_file_prefix = build_hnsw_index_file_hard_path_prefix(index);
+    int vector_nums = hard_hnsws[hnsw_index_file_prefix][0]->cur_element_count;
+    for(int i = 0;i < vector_nums;i++){
+        std::vector<const float*> a3v_data_points;
+        hnswlib::labeltype label = 0;
+        for(int j = 0;j < column_nums;j++){
+            a3v_data_points.push_back((float*)hard_hnsws[hnsw_index_file_prefix][j]->getDataByInternalId(i));
+            label = *hard_hnsws[hnsw_index_file_prefix][j]->getExternalLabeLp(i);
+        }
+        ItemPointerData tid = GetItemPointerDataByNumber(label);
+        points[memory_a3v_index_file_path].push_back({a3v_data_points,tid});
+    }
+}
+
 std::shared_ptr<MemoryA3v> InMemoryGlobal::GetMultiVectorMemoryIndex(Relation index,const std::vector<int>& dims,float* query){
 	std::string index_file_path = build_memory_index_points_file_path(index);
 	bool init;
     int dim = 0;
     for(int i = 0;i < dims.size();i++) dim += dims[i];
-	// support single index for now.
 	std::shared_ptr<hnswlib::HierarchicalNSW<float>> hnsw_index = LoadHnswIndex(index,dim,init);
     // elog(INFO,"(int*)hnsw_index->dist_func_param_: %d",(*(size_t*)hnsw_index->dist_func_param_));
 	if(init){
@@ -182,8 +259,18 @@ std::shared_ptr<MemoryA3v> InMemoryGlobal::GetMultiVectorMemoryIndex(Relation in
 		memory_indexes[index_file_path].push_back(a3v_index);
 		hnsw_index->addPoint(query,lable);
 		// we should add new memory index.
-		
-	}
+	}else{
+        std::priority_queue<std::pair<float, hnswlib::labeltype>> result = hnsw_index->searchKnn(query,1);
+        auto distance = result.top().first;
+        // open a new a3v index
+        if(distance > check_thresold){
+            std::shared_ptr<MemoryA3v> a3v_index = std::make_shared<MemoryA3v>(dims,memory_init.LoadDataPoints(index));
+            // elog(INFO,"(int*)hnsw_index->dist_func_param_: %d",*(int*)hnsw_index->dist_func_param_);
+            hnswlib::labeltype lable = memory_indexes[index_file_path].size();
+            memory_indexes[index_file_path].push_back(a3v_index);
+            hnsw_index->addPoint(query,lable);
+        }
+    }
 	std::priority_queue<std::pair<float, hnswlib::labeltype>> result = hnsw_index->searchKnn(query,1);
     // CloseQueryThreshold
     // A3vMemoryIndexType(index)
@@ -199,5 +286,89 @@ InMemoryGlobal::~InMemoryGlobal(){
         if(!file_exists(path) && points.size() > 0){
             SerializeVector<PII>(item.second,path);
         }
+    }
+}
+
+std::uint64_t GetNumberByItemPointerData(ItemPointer tid){
+	std::int32_t blockId = ItemPointerGetBlockNumberNoCheck(tid);
+    std::int32_t offset = ItemPointerGetOffsetNumberNoCheck(tid);
+    std::uint64_t number = blockId;
+    number = (number << 32) + offset;
+	return number;
+}
+
+ItemPointerData GetItemPointerDataByNumber(hnswlib::labeltype label){
+    ItemPointerData tid;memset(&tid,0,sizeof(ItemPointerData));
+    tid.ip_blkid.bi_hi = (label>>32)&(0xff00);tid.ip_blkid.bi_hi = (label>>32)&(0x00ff);
+    tid.ip_posid = label & (0xffff);
+    return tid;
+}
+
+float MultiColumnHnsw::l2_distance(std::vector<float> &data1,const float* query_point){
+    float res = 0.0;
+    for(int i = 0;i <data1.size();i++){
+        float temp = (data1[i] -query_point[i]); temp = temp * temp;
+        res += temp;
+    }
+    return sqrt(res);
+}
+
+float MultiColumnHnsw::RankScore(hnswlib::labeltype label){
+    float score = 0.0;
+    for(int i = 0;i < query_points.size();i++){
+        std::vector<float> hit_data = hnsws[i]->getDataByLabel<float>(label);
+        score += l2_distance(hit_data,query_points[i]) * weights[i];
+    }
+    return score;
+}
+
+bool MultiColumnHnsw::GetSingleNext(){
+    auto result = hnsws_iterators[0]->Next();
+    if(result->HasResult()){
+        result_tid = GetItemPointerDataByNumber(result->GetLabel());
+        return true;
+    }
+    return false;
+}
+
+bool MultiColumnHnsw::GetNext(){
+    float score = 0.0;
+    bool finished = false;
+    int  consecutive_drops = 0;
+    while(!finished){
+        for(int col = 0; col < query_points.size();col++){
+            const void* query_point = query_points[col];
+            auto result = hnsws_iterators[col]->Next();
+            if(!result->HasResult()){
+                finished = true;break;
+            }
+            hnswlib::labeltype label = result->GetLabel();
+            if(seen_tid.find(label) != seen_tid.end()){
+                continue;
+            }
+            seen_tid.insert(label);
+            consecutive_drops++;
+            float score = RankScore(label);
+            if(proc_pq.size() < k || proc_pq.top().first > score){
+				if(proc_pq.size() == k)
+					proc_pq.pop();
+				proc_pq.push(std::make_pair(score, label));
+				consecutive_drops = 0;
+			}
+            if(consecutive_drops >= terminate_multi_top_k){
+                finished = true;break;
+            }
+        }
+    }
+
+    while(!proc_pq.empty()){
+        result_pq.push(proc_pq.top());proc_pq.pop();
+    }
+
+    if(result_pq.empty()){
+        return false;
+    }else{
+        result_tid = GetItemPointerDataByNumber(result_pq.top().second);  
+        result_pq.pop();  
     }
 }

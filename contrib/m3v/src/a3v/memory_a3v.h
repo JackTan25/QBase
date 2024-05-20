@@ -9,6 +9,9 @@
 
 const int CRACKTHRESHOLD = 128;
 const int ReserveRange = 100;
+const int A3V_HINT_QUERY_RECORDS = 7;
+const float alpha_amplication = 1.13;
+const float sigma = 0.8;
 #define Min(x,y) ((x) < (y) ? (x) : (y))
 #define Max(x,y) ((x) > (y) ? (x) : (y))
 #define INITIAL_NODES 300 // hack value
@@ -32,11 +35,11 @@ class MemoryA3v{
 		MemoryA3v(const std::vector<int>& dims,const std::vector<PII>& data_points_);
 
 		// result_pq should be empty initially.
-		void KnnCrackSearch(m3vScanOpaque so, float* query,int k, std::priority_queue<PQNode>& result_pq /**Max heap**/,const std::vector<int> &dimensions);
+		void KnnCrackSearch(m3vScanOpaque so, float* query,int k, std::priority_queue<PQNode>& result_pq /**Max heap**/,const std::vector<int> &dimensions,float last_topk_mean);
 
 		void RangeCrackSearch(m3vScanOpaque so, float* query,float radius,std::vector<int>& result_ids,const std::vector<int> &dimensions);
 
-	private:
+	public:
 		void RangeCrackSearchAuxiliary(m3vScanOpaque so,int root_idx, float* query,float radius,std::vector<int>& result_ids,const std::vector<int> &dimensions,int dim);
 				
 		int CrackInTwo(int start_,int end_,float epsilon);
@@ -49,4 +52,8 @@ class MemoryA3v{
 		const std::vector<PII>& data_points;
 		std::vector<int> swap_indexes;
 		std::vector<int> dims_;
+		std::atomic<size_t> query_records{0};
+		float last_top_k_mean{0.0};
+		std::mutex lock;
+		std::vector<std::vector<float>> query_queue; 
 };

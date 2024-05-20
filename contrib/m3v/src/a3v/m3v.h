@@ -18,7 +18,9 @@ extern "C"{
 	#include "utils/sampling.h"
 	#include "storage/itemptr.h"
 }
-using PII = std::pair<std::vector<float>,ItemPointerData>;
+
+// we store the vector data in 
+using PII = std::pair<std::vector<const float*>,ItemPointerData>;
 using PQNode = std::pair<float,int>;
 #if PG_VERSION_NUM < 110000
 #error "Requires PostgreSQL 11+"
@@ -275,6 +277,8 @@ typedef struct m3vBuildState
 	std::vector<PII> data_points;
 	int tuples_num;
 	std::vector<int> dims;
+	bool is_first;
+	int cur_c;
 } m3vBuildState;
 
 typedef struct m3vMetaPageData
@@ -372,7 +376,6 @@ struct MaxHeapComp {
     }
 };
 
-
 typedef struct A3vTuple{
 	uint32_t low;
 	uint32_t high;
@@ -415,6 +418,8 @@ typedef struct m3vScanOpaqueData
 	IndexPointerLruCache* cache;
 	int index_pages;
 	int tuple_nums;
+	int search_type;
+	bool load_hnsw_from_disk;
 } m3vScanOpaqueData;
 
 typedef m3vScanOpaqueData *m3vScanOpaque;

@@ -148,9 +148,9 @@ MultiExecBitmapAnd(BitmapAndState *node)
 			state->biss_result = result;
 		}
 		subresult = (TIDBitmap *) MultiExecProcNode(subnode);
-
 		if (!subresult || !IsA(subresult, TIDBitmap))
 			elog(ERROR, "unrecognized result from subplan");
+
 
 		if (result == NULL)
 			result = subresult; /* first subplan */

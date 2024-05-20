@@ -129,6 +129,37 @@ BuildMemoryA3vCallback(Relation index, CALLBACK_ITEM_POINTER, Datum *values,
 			  bool *isnull, bool tupleIsAlive, void *state){
 	m3vBuildState *buildstate = (m3vBuildState *)state;
 	int vector_nums = index->rd_att->natts;
+	if(buildstate->is_first){
+		int dimensions = 0;
+		for(int i = 0;i < vector_nums;i++){
+			Vector* vector = DatumGetVector(values[i]);
+			buildstate->dims.push_back(vector->dim);
+			dimensions += vector->dim;
+		}
+		buildstate->dimensions = dimensions;
+		// 1. build single column hnsw index when init
+		for(int i = 0;i < vector_nums;i++){
+			std::shared_ptr<hnswlib::SpaceInterface<float>> distance_func = std::make_shared<hnswlib::L2Space>(buildstate->dims[i]);
+			std::shared_ptr<hnswlib::HierarchicalNSW<float>> hnsw_hard = std::make_shared<hnswlib::HierarchicalNSW<float>>(distance_func.get(), buildstate->tuples_num * 2);
+			memory_init.appendHnswHardIndex(hnsw_hard,index);
+			memory_init.index_space[build_hnsw_index_file_hard_path(index,i)] = distance_func;
+		}
+		buildstate->is_first = false;
+	}
+
+    std::uint64_t number = GetNumberByItemPointerData(tid);
+	std::vector<const float*> vec;
+	for(int i = 0;i < vector_nums;i++){
+		vec.push_back(memory_init.appendHnswHardIndexData(i,index,DatumGetVector(values[i])->x,number,buildstate->cur_c));
+	}
+	buildstate->data_points.push_back({vec,*tid});buildstate->cur_c++;
+}
+
+static void
+BuildMemoryA3vCallbackOld(Relation index, CALLBACK_ITEM_POINTER, Datum *values,
+			  bool *isnull, bool tupleIsAlive, void *state){
+	m3vBuildState *buildstate = (m3vBuildState *)state;
+	int vector_nums = index->rd_att->natts;
 	// init dims;
 	if(buildstate->dims.empty()){
 		int dimensions = 0;
@@ -139,6 +170,7 @@ BuildMemoryA3vCallback(Relation index, CALLBACK_ITEM_POINTER, Datum *values,
 		}
 		buildstate->dimensions = dimensions;
 	}
+	// first, 
 	// combine multi vectors
 	std::vector<float> vec(buildstate->dimensions,0);
 	for(int i = 0;i < vector_nums;i++){
@@ -146,7 +178,7 @@ BuildMemoryA3vCallback(Relation index, CALLBACK_ITEM_POINTER, Datum *values,
 		for(int j = 0;j < vector->dim;j++) vec[j] = vector->x[j];
 	}
 	// for build, we should only give the datapoints.
-	buildstate->data_points.push_back({vec,*tid});
+	// buildstate->data_points.push_back({vec,*tid});
 }
 
 /*
@@ -319,7 +351,8 @@ InitBuildState(m3vBuildState *buildstate, Relation heap, Relation index, IndexIn
 	buildstate->elements = NIL;
 	buildstate->entryPoint = NULL;
 	buildstate->flushed = false;
-
+	buildstate->is_first = true;
+	buildstate->cur_c = 0;
 	/* Reuse for each tuple */
 	buildstate->normvec = InitVector(buildstate->dimensions);
 
@@ -342,6 +375,17 @@ FreeBuildState(m3vBuildState *buildstate)
 	MemoryContextDelete(buildstate->tmpCtx);
 }
 
+void ComputeTuplesNum(Relation index, CALLBACK_ITEM_POINTER, Datum *values,
+	bool *isnull, bool tupleIsAlive, void *state){
+		m3vBuildState *buildstate = (m3vBuildState *)state;
+		buildstate->tuples_num++;
+}
+
+void ComputeTuples(m3vBuildState *buildstate, ForkNumber forkNum){
+	table_index_build_scan(buildstate->heap, buildstate->index, buildstate->indexInfo,
+												true, true, ComputeTuplesNum, (void *)buildstate, NULL);
+}
+
 /*
  * Build graph
  */
@@ -353,11 +397,12 @@ BuildGraph(m3vBuildState *buildstate, ForkNumber forkNum)
 	elog(INFO,"BuildA3vCallback");
 #if PG_VERSION_NUM >= 120000
 	if(A3vMemoryIndexType(buildstate->index)){
+		ComputeTuples(buildstate,forkNum);
 		buildstate->reltuples = table_index_build_scan(buildstate->heap, buildstate->index, buildstate->indexInfo,
 												true, true, BuildMemoryA3vCallback, (void *)buildstate, NULL);
 		// after build, we should give the data_points to memory_init.
-		memory_init.appendDataPoints(buildstate->data_points,buildstate->index);
 		memory_init.SetDimensions(buildstate->dims,buildstate->index);
+		memory_init.appendDataPoints(buildstate->index,buildstate);
 	}else{
 		buildstate->reltuples = table_index_build_scan(buildstate->heap, buildstate->index, buildstate->indexInfo,
 												true, true, BuildA3vCallback, (void *)buildstate, NULL);
@@ -394,11 +439,15 @@ m3vbuild(Relation heap, Relation index, IndexInfo *indexInfo)
 {
 	IndexBuildResult *result;
 	m3vBuildState buildstate;
-	// elog(INFO,"vector numbers: %d",	index->rd_att->natts);
+	elog(INFO,"vector numbers: %d",	index->rd_att->natts);
 	
 	// we should init the 
 	BuildIndex(heap, index, indexInfo, &buildstate, MAIN_FORKNUM);
-
+	// save hardhnsw index, first to get all hnsw indexes
+	int idx = 0;
+	for(auto hnsw_index:memory_init.hard_hnsws[build_hnsw_index_file_hard_path_prefix(index)]){
+		hnsw_index->saveIndex(build_hnsw_index_file_hard_path(index,idx++));
+	}
 	result = (IndexBuildResult *)palloc(sizeof(IndexBuildResult));
 	result->heap_tuples = buildstate.reltuples;
 	result->index_tuples = buildstate.indtuples;

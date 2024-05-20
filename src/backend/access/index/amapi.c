@@ -37,7 +37,6 @@ GetIndexAmRoutine(Oid amhandler)
 
 	datum = OidFunctionCall0(amhandler);
 	routine = (IndexAmRoutine *) DatumGetPointer(datum);
-
 	if (routine == NULL || !IsA(routine, IndexAmRoutine))
 		elog(ERROR, "index access method handler function %u did not return an IndexAmRoutine struct",
 			 amhandler);

@@ -19,8 +19,8 @@ set(EXT_SQL_FILE ${PROJECT_NAME}--1.0.sql)
 
 ## build rocksdb
 add_custom_target(build_rocksdb
-    COMMAND ${CMAKE_MAKE_PROGRAM} -C ${CMAKE_SOURCE_DIR}/third_party/rocksdb
-    DEPENDS ${CMAKE_SOURCE_DIR}/third_party/rocksdb/Makefile
+    COMMAND ${CMAKE_MAKE_PROGRAM} -C /home/tanboyu/cpp_workspace/third_party/rocksdb
+    DEPENDS /home/tanboyu/cpp_workspace/third_party/rocksdb/Makefile
     COMMENT "Building RocksDB"
 )
 
@@ -55,7 +55,7 @@ add_library(${PROJECT_NAME} SHARED
     src/AuxiliaryIndex/page_sort_index.cpp
 )
 
-file(GLOB ROCKSDB_DYLIBS "${CMAKE_SOURCE_DIR}/third_party/rocksdb/*.so.*")
+file(GLOB ROCKSDB_DYLIBS "/home/tanboyu/cpp_workspace/third_party/rocksdb/*.so.*")
 message(STATUS "ROCKSDB_DYLIBS:${ROCKSDB_DYLIBS}")
 message(STATUS "CMAKE_SOURCE_DIR:${CMAKE_SOURCE_DIR}")
 
@@ -72,9 +72,9 @@ set_target_properties(${PROJECT_NAME} PROPERTIES PREFIX "")
 set_target_properties(${PROJECT_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(${PROJECT_NAME} PUBLIC /data/include/postgresql/server)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/src/record_cache/include)
-target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/src/ ${CMAKE_SOURCE_DIR}/third_party/rocksdb/include)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/src/ /home/tanboyu/cpp_workspace/third_party/rocksdb/include)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/contrib/m3v/src/utils)
-target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/third_party/hnswlib/hnswlib)
+target_include_directories(${PROJECT_NAME} PUBLIC /home/tanboyu/cpp_workspace/third_party/hnsw/hnswlib)
 # target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/contrib/m3v/src/a3v)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/src/AuxiliaryIndex/)
 if(WIN32)
@@ -155,12 +155,12 @@ message(STATUS "PostgreSQL_PKGLIBDIR: ${PostgreSQL_PKGLIBDIR}")
 # message(STATUS "RECORD_SOURCES:${RECORD_SOURCES}")
 # add_executable(TEST_M3V ${TEST_FILES})
 # target_link_libraries(TEST_M3V gtest gtest_main ${ROCKSDB_DYLIBS} LRUCache11)
-# target_include_directories(TEST_M3V PRIVATE ${CMAKE_SOURCE_DIR}/third_party/lrucache11)
-# message("source directory: ${CMAKE_SOURCE_DIR}/third_party/rocksdb/include")
-# target_include_directories(TEST_M3V PRIVATE ${CMAKE_SOURCE_DIR}/third_party/rocksdb/include ${CMAKE_SOURCE_DIR}/src/record_cache/include)
+# target_include_directories(TEST_M3V PRIVATE /home/tanboyu/cpp_workspace/third_party/lrucache11)
+# message("source directory: /home/tanboyu/cpp_workspace/third_party/rocksdb/include")
+# target_include_directories(TEST_M3V PRIVATE /home/tanboyu/cpp_workspace/third_party/rocksdb/include ${CMAKE_SOURCE_DIR}/src/record_cache/include)
 # target_include_directories(TEST_M3V PRIVATE /data/include/postgresql/server ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/utils)
 # target_include_directories(TEST_M3V PRIVATE ${CMAKE_SOURCE_DIR}/src/AuxiliaryIndex/)
-# target_include_directories(TEST_M3V PRIVATE ${CMAKE_SOURCE_DIR}/third_party/hnswlib/hnswlib/)
+# target_include_directories(TEST_M3V PRIVATE /home/tanboyu/cpp_workspace/third_party/hnsw/hnswlib/)
 # add_test(NAME TEST_M3V_ COMMAND TEST_M3V)
 
 # add_executable(VectorGenerate ${CMAKE_SOURCE_DIR}/src/tests/generate_vector.cpp)

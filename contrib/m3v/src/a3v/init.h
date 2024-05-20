@@ -5,8 +5,12 @@
 #include <fstream>
 
 #define INVALID_RADIUS __FLT_MIN__
-
+const int terminate_multi_top_k = 50;
+const int check_thresold = 1.27;
+using ScorePair = std::pair<float,std::uint64_t>;
 std::string build_hnsw_index_file_path(Relation index);
+std::string build_hnsw_index_file_hard_path(Relation index,int idx);
+std::string build_hnsw_index_file_hard_path_prefix(Relation index);
 // store query ids std::vector. The ids should be tids to specify the entry position.
 std::string build_a3v_index_forest_query_ids_file_path(Relation index);
 std::string build_memory_index_points_file_path(Relation index);
@@ -60,8 +64,9 @@ class InMemoryGlobal{
 	 public:
         // InMemoryGlobal(){
         // }
-
-		void appendDataPoints(const std::vector<PII>& data,Relation index);
+		float random_10(Relation index,std::vector<PII> &data_points);
+		void restore_datapoints_from_hnsw(Relation index);
+		void appendDataPoints(Relation index,m3vBuildState *buildstate);
 
 		void SetDimensions(const std::vector<int> &dimensions_,Relation index);
 
@@ -75,9 +80,15 @@ class InMemoryGlobal{
 		// support prefilter in 4.19.
 		std::shared_ptr<MemoryA3v> GetMultiVectorMemoryIndex(Relation index,const std::vector<int>& dims,float* query);
 
+		void appendHnswHardIndex(std::shared_ptr<hnswlib::HierarchicalNSW<float>> &hnsw_hard_index,Relation index);
+
+		const float* appendHnswHardIndexData(int idx,Relation index,const float* data_point,int num,int vector_index);
+
+		bool LoadHnswHardIndex(Relation index,const std::vector<int>& dims,int nums);
+
 		~InMemoryGlobal();
 
-	private:
+	public:
 
 		// for now, support single column firstly in 2024-4-17, 
 		// support multi-vector in 4.18
@@ -85,9 +96,10 @@ class InMemoryGlobal{
 		// void BuildMultiVectorMemoryIndex(Relation index,const std::vector<int>& dims);
 		
 		std::shared_ptr<hnswlib::HierarchicalNSW<float>>  LoadHnswIndex(Relation index,int dim,bool& init);
-		
-		// index_file_name => HnswIndex
+
+		// index_file_name => HnswIndex (MetaHNSW)
 		std::unordered_map<std::string,std::shared_ptr<hnswlib::HierarchicalNSW<float>>> alg_hnsws;		
+		// index_file_name 
 		// index_file_name => (data points)
 		std::unordered_map<std::string,std::vector<PII>> points;
 		// index_file_name => (dimensions)
@@ -98,7 +110,37 @@ class InMemoryGlobal{
 		// index_file_name => MemoryA3v
 		std::unordered_map<std::string,std::vector<std::shared_ptr<MemoryA3v>>> memory_indexes;
 		// dimension
-		std::unordered_map<std::string,std::shared_ptr<hnswlib::L2Space>> index_space;
+		std::unordered_map<std::string,std::shared_ptr<hnswlib::SpaceInterface<float>>> index_space;
+		// prefix_index_file_hard_path => HnswIndex
+		std::unordered_map<std::string,std::vector<std::shared_ptr<hnswlib::HierarchicalNSW<float>>>> hard_hnsws;
+		int query_times{0};
 };
 
 extern InMemoryGlobal memory_init;
+
+std::uint64_t GetNumberByItemPointerData(ItemPointer tid);
+ItemPointerData GetItemPointerDataByNumber(hnswlib::labeltype label);
+class MultiColumnHnsw{
+	public:
+		float l2_distance(std::vector<float> &data1,const float* query_point);
+		float RankScore(hnswlib::labeltype label);
+		MultiColumnHnsw(std::vector<std::shared_ptr<hnswlib::HierarchicalNSW<float>>> &hnsws_,std::vector<float*> &query_points_,int k_):hnsws(hnsws_),query_points(query_points_),k(k_){
+			// get result_iterator for now.
+			for(int i = 0;i < hnsws.size();i++){
+				hnsws_iterators.push_back(std::make_shared<hnswlib::ResultIterator<float>>(hnsws[i].get(), (const void*)query_points[i]));
+			}
+		}
+		bool GetNext();
+		bool GetSingleNext();
+		std::vector<std::shared_ptr<hnswlib::HierarchicalNSW<float>>> hnsws;
+		// std::vector<std::shared_ptr<hnswlib::ResultIterator<float>>> hnsws_iterators;
+		std::vector<std::shared_ptr<hnswlib::ResultIterator<float>>> hnsws_iterators;
+		std::vector<float*> query_points;
+		std::vector<float> weights;
+		// <score,tid_number> s
+		std::priority_queue<ScorePair> result_pq; // MaxHeap
+		std::priority_queue<ScorePair,std::vector<ScorePair>,std::greater<ScorePair>> proc_pq; // MinHeap
+		std::unordered_set<std::uint64_t> seen_tid;
+		ItemPointerData result_tid;
+		int k;
+};

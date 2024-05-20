@@ -151,6 +151,9 @@ ExecSort(PlanState *pstate)
 				if (TupIsNull(slot))
 					break;
 				tuplesort_puttupleslot(tuplesortstate, slot);
+				if (estate->is_index_inorder && tuplesort_heapfull(tuplesortstate)) {
+					break;
+				}
 			}
 		}
 

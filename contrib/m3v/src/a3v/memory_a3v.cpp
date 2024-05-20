@@ -2,7 +2,8 @@
 
 #include "memory_a3v.h"
 #include "util.h"
-
+const int TopKOptimizationThreshold = 1024;
+const int amplication_param = 1.15;
 A3vNode::A3vNode():left_node(-1),right_node(-1),id(0),radius(0),start(-1),end(-1){}
 
 A3vNode::A3vNode(int left_node_,int right_node_,int start_,int end_,float radius_,std::vector<float>& query_,int id_){
@@ -41,16 +42,21 @@ int MemoryA3v::CrackInTwo(int start_,int end_,float epsilon){
 }
 
 // result_pq should be empty initially.
-void MemoryA3v::KnnCrackSearch(m3vScanOpaque so, float* query,int k,std::priority_queue<PQNode>& result_pq /**Max heap**/ ,const std::vector<int> &dimensions){
+void MemoryA3v::KnnCrackSearch(m3vScanOpaque so, float* query,int k,std::priority_queue<PQNode>& result_pq /**Max heap**/ ,const std::vector<int> &dimensions,float last_top_k_mean){
     // Min heap
     std::priority_queue<PQNode,std::vector<PQNode>,std::greater<PQNode>> guide_pq;
     std::vector<float> rnd_dists;
-    float median,leftMinDist,rightMinDist,temp_distance_1;int crack;
+    
+    float median = 0.0,leftMinDist = 0.0,rightMinDist = 0.0,temp_distance_1 = 0.0;int crack = 0;
     float min_w = 1.0;
     int sum = 0;
     for(int i = 0;i < dimensions.size();i++){
         min_w = std::min(min_w,so->weights[i]);sum += dimensions[i];
     }
+    if(dimensions.size() == 1){
+        min_w = 1.0;
+    }
+    bool enable_top_k_optimization = (sum >= TopKOptimizationThreshold);
     // init, we should give the root node as a guide way for guide_pq.
     guide_pq.push({0,0});
     while(!guide_pq.empty() && (result_pq.size() < k || guide_pq.top() < result_pq.top())){
@@ -60,7 +66,7 @@ void MemoryA3v::KnnCrackSearch(m3vScanOpaque so, float* query,int k,std::priorit
         // leaf node process
         if(t.left_node == -1 && t.right_node == -1){
             for(int i = t.start;i <= t.end;i++){
-                float d = hyper_distance_func_with_weights(query,data_points[swap_indexes[i]].first.data(),dimensions,so->weights,&temp_distance_1);
+                float d = hyper_distance_func_with_weights(query,data_points[swap_indexes[i]].first,dimensions,so->weights,&temp_distance_1);
                 distances_caching[swap_indexes[i]] = temp_distance_1;
                 if(result_pq.size() < k){
                     result_pq.push({d,swap_indexes[i]});
@@ -93,10 +99,15 @@ void MemoryA3v::KnnCrackSearch(m3vScanOpaque so, float* query,int k,std::priorit
                 }
             }
         }else{
-            float dist = hyper_distance_func_with_weights(query,index[root_idx].query.data(),dimensions,so->weights,&temp_distance_1);
+            float dist = hyper_distance_func_with_weights_internal_query(query,index[root_idx].query.data(),dimensions,so->weights,&temp_distance_1);
             guide_pq.pop();
             leftMinDist = Max(0.0f,dist - t.radius);
-            rightMinDist = Max(0.0f,min_w * t.radius - dist);
+            if(enable_top_k_optimization){
+                rightMinDist = Max(last_top_k_mean,min_w * t.radius - dist);
+            }else{
+                rightMinDist = Max(0.0f,min_w * t.radius - dist);
+            }
+            
             if(result_pq.size() < k){
                 guide_pq.push({leftMinDist,t.left_node});
                 guide_pq.push({rightMinDist,t.right_node});
@@ -167,7 +178,7 @@ void MemoryA3v::RangeCrackSearchAuxiliary(m3vScanOpaque so,int root_idx, float* 
     A3vNode& root = index[root_idx];
     if(root.left_node == -1 && root.right_node == -1){
         for(int i = root.start;i <= root.end;i++){
-            dist = hyper_distance_func_with_weights(query,data_points[swap_indexes[i]].first.data(),dimensions,so->weights,&temp_distance_1);
+            dist = hyper_distance_func_with_weights(query,data_points[swap_indexes[i]].first,dimensions,so->weights,&temp_distance_1);
             distances_caching[swap_indexes[i]] = temp_distance_1;
             if(dist <= radius){
                 result_ids.push_back(swap_indexes[i]);
@@ -202,7 +213,7 @@ void MemoryA3v::RangeCrackSearchAuxiliary(m3vScanOpaque so,int root_idx, float* 
             }
         }
     }else{
-        dist = hyper_distance_func_with_weights(query,index[root_idx].query.data(),dimensions,so->weights,&temp_distance_1);
+        dist = hyper_distance_func_with_weights_internal_query(query,index[root_idx].query.data(),dimensions,so->weights,&temp_distance_1);
         if(dist < radius + root.radius){
             if(dist < radius - root.radius){
                 auto& left_node = index[root.left_node];

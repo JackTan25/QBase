@@ -867,3 +867,844 @@
 2023-11-18 22:32:31.765 CST [55203] STATEMENT:  CREATE INDEX ON t USING hnsw (val vector_cosine_ops);
 2023-11-18 22:32:32.887 CST [55203] ERROR:  column "val" of relation "t" does not exist at character 16
 2023-11-18 22:32:32.887 CST [55203] STATEMENT:  INSERT INTO t (val) VALUES ('[1,2,4]');
+2024-04-28 21:33:14.866 CST [35000] LOG:  starting PostgreSQL 16.1 on x86_64-pc-linux-gnu, compiled by gcc (GCC) 11.2.1 20220127 (Red Hat 11.2.1-9), 64-bit
+2024-04-28 21:33:14.867 CST [35000] LOG:  listening on IPv6 address "::1", port 5432
+2024-04-28 21:33:14.867 CST [35000] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2024-04-28 21:33:14.868 CST [35000] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2024-04-28 21:33:14.912 CST [35010] LOG:  database system was shut down at 2024-04-28 02:13:53 CST
+2024-04-28 21:33:14.956 CST [35000] LOG:  database system is ready to accept connections
+2024-04-28 21:38:15.011 CST [35008] LOG:  checkpoint starting: time
+2024-04-28 21:38:15.015 CST [35008] LOG:  checkpoint complete: wrote 3 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.001 s, total=0.004 s; sync files=2, longest=0.001 s, average=0.001 s; distance=0 kB, estimate=0 kB; lsn=0/260DE668, redo lsn=0/260DE630
+2024-05-07 00:07:56.386 CST [35000] LOG:  received fast shutdown request
+2024-05-07 00:07:56.387 CST [35000] LOG:  aborting any active transactions
+2024-05-07 00:07:56.387 CST [35050] FATAL:  terminating connection due to administrator command
+2024-05-07 00:07:56.389 CST [35000] LOG:  background worker "logical replication launcher" (PID 35013) exited with exit code 1
+2024-05-07 00:07:56.389 CST [35008] LOG:  shutting down
+2024-05-07 00:07:56.389 CST [35008] LOG:  checkpoint starting: shutdown immediate
+2024-05-07 00:07:56.392 CST [35008] LOG:  checkpoint complete: wrote 0 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.001 s, total=0.004 s; sync files=0, longest=0.000 s, average=0.000 s; distance=0 kB, estimate=0 kB; lsn=0/260DE718, redo lsn=0/260DE718
+2024-05-07 00:07:56.398 CST [35000] LOG:  database system is shut down
+2024-05-17 14:09:33.145 CST [4762] FATAL:  lock file "postmaster.pid" already exists
+2024-05-17 14:09:33.145 CST [4762] HINT:  Is another postmaster (PID 47199) running in data directory "/home/tanboyu/cpp_workspace/qbase_data/data"?
+2024-05-17 14:09:36.634 CST [4870] LOG:  starting PostgreSQL 16.1 on x86_64-pc-linux-gnu, compiled by gcc (GCC) 11.2.1 20220127 (Red Hat 11.2.1-9), 64-bit
+2024-05-17 14:09:36.635 CST [4870] LOG:  listening on IPv6 address "::1", port 5432
+2024-05-17 14:09:36.635 CST [4870] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2024-05-17 14:09:36.636 CST [4870] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2024-05-17 14:09:36.639 CST [4873] LOG:  database system was shut down at 2024-05-17 14:09:35 CST
+2024-05-17 14:09:36.644 CST [4870] LOG:  database system is ready to accept connections
+2024-05-17 14:09:43.876 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 1 :varattno 2 :vartype 19 :vartypmod -1 :varcollid 950
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 2 :location 139}
+	
+	
+2024-05-17 14:09:43.876 CST [5026] STATEMENT:  SELECT c.oid,
+	  n.nspname,
+	  c.relname
+	FROM pg_catalog.pg_class c
+	     LEFT JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+	WHERE c.relname OPERATOR(pg_catalog.~) '^(deeps)$' COLLATE pg_catalog.default
+	  AND pg_catalog.pg_table_is_visible(c.oid)
+	ORDER BY 2, 3;
+2024-05-17 14:09:43.881 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 1 :varattno 1 :vartype 26 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 1 :location 582}
+	
+	
+2024-05-17 14:09:43.881 CST [5026] STATEMENT:  SELECT c.relchecks, c.relkind, c.relhasindex, c.relhasrules, c.relhastriggers, c.relrowsecurity, c.relforcerowsecurity, false AS relhasoids, c.relispartition, pg_catalog.array_to_string(c.reloptions || array(select 'toast.' || x from pg_catalog.unnest(tc.reloptions) x), ', ')
+	, c.reltablespace, CASE WHEN c.reloftype = 0 THEN '' ELSE c.reloftype::pg_catalog.regtype::pg_catalog.text END, c.relpersistence, c.relreplident, am.amname
+	FROM pg_catalog.pg_class c
+	 LEFT JOIN pg_catalog.pg_class tc ON (c.reltoastrelid = tc.oid)
+	LEFT JOIN pg_catalog.pg_am am ON (c.relam = am.oid)
+	WHERE c.oid = '32889';
+2024-05-17 14:09:43.881 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 2 :varattno 1 :vartype 26 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 2 :varattnosyn 1 :location 516}
+	
+	
+2024-05-17 14:09:43.881 CST [5026] STATEMENT:  SELECT c.relchecks, c.relkind, c.relhasindex, c.relhasrules, c.relhastriggers, c.relrowsecurity, c.relforcerowsecurity, false AS relhasoids, c.relispartition, pg_catalog.array_to_string(c.reloptions || array(select 'toast.' || x from pg_catalog.unnest(tc.reloptions) x), ', ')
+	, c.reltablespace, CASE WHEN c.reloftype = 0 THEN '' ELSE c.reloftype::pg_catalog.regtype::pg_catalog.text END, c.relpersistence, c.relreplident, am.amname
+	FROM pg_catalog.pg_class c
+	 LEFT JOIN pg_catalog.pg_class tc ON (c.reltoastrelid = tc.oid)
+	LEFT JOIN pg_catalog.pg_am am ON (c.relam = am.oid)
+	WHERE c.oid = '32889';
+2024-05-17 14:09:43.885 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 1 :varattno 2 :vartype 26 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 2 :location 169}
+	
+	
+2024-05-17 14:09:43.885 CST [5026] STATEMENT:  SELECT a.attname,
+	  pg_catalog.format_type(a.atttypid, a.atttypmod),
+	  (SELECT pg_catalog.pg_get_expr(d.adbin, d.adrelid, true)
+	   FROM pg_catalog.pg_attrdef d
+	   WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum AND a.atthasdef),
+	  a.attnotnull,
+	  (SELECT c.collname FROM pg_catalog.pg_collation c, pg_catalog.pg_type t
+	   WHERE c.oid = a.attcollation AND t.oid = a.atttypid AND a.attcollation <> t.typcollation) AS attcollation,
+	  a.attidentity,
+	  a.attgenerated,
+	  a.attstorage,
+	  a.attcompression AS attcompression,
+	  CASE WHEN a.attstattarget=-1 THEN NULL ELSE a.attstattarget END AS attstattarget,
+	  pg_catalog.col_description(a.attrelid, a.attnum)
+	FROM pg_catalog.pg_attribute a
+	WHERE a.attrelid = '32889' AND a.attnum > 0 AND NOT a.attisdropped
+	ORDER BY a.attnum;
+2024-05-17 14:09:43.885 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 1 :varattno 3 :vartype 21 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 3 :location 196}
+	
+	
+2024-05-17 14:09:43.885 CST [5026] STATEMENT:  SELECT a.attname,
+	  pg_catalog.format_type(a.atttypid, a.atttypmod),
+	  (SELECT pg_catalog.pg_get_expr(d.adbin, d.adrelid, true)
+	   FROM pg_catalog.pg_attrdef d
+	   WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum AND a.atthasdef),
+	  a.attnotnull,
+	  (SELECT c.collname FROM pg_catalog.pg_collation c, pg_catalog.pg_type t
+	   WHERE c.oid = a.attcollation AND t.oid = a.atttypid AND a.attcollation <> t.typcollation) AS attcollation,
+	  a.attidentity,
+	  a.attgenerated,
+	  a.attstorage,
+	  a.attcompression AS attcompression,
+	  CASE WHEN a.attstattarget=-1 THEN NULL ELSE a.attstattarget END AS attstattarget,
+	  pg_catalog.col_description(a.attrelid, a.attnum)
+	FROM pg_catalog.pg_attribute a
+	WHERE a.attrelid = '32889' AND a.attnum > 0 AND NOT a.attisdropped
+	ORDER BY a.attnum;
+2024-05-17 14:09:43.885 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 1 :varattno 1 :vartype 26 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 1 :location 332}
+	
+	
+2024-05-17 14:09:43.885 CST [5026] STATEMENT:  SELECT a.attname,
+	  pg_catalog.format_type(a.atttypid, a.atttypmod),
+	  (SELECT pg_catalog.pg_get_expr(d.adbin, d.adrelid, true)
+	   FROM pg_catalog.pg_attrdef d
+	   WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum AND a.atthasdef),
+	  a.attnotnull,
+	  (SELECT c.collname FROM pg_catalog.pg_collation c, pg_catalog.pg_type t
+	   WHERE c.oid = a.attcollation AND t.oid = a.atttypid AND a.attcollation <> t.typcollation) AS attcollation,
+	  a.attidentity,
+	  a.attgenerated,
+	  a.attstorage,
+	  a.attcompression AS attcompression,
+	  CASE WHEN a.attstattarget=-1 THEN NULL ELSE a.attstattarget END AS attstattarget,
+	  pg_catalog.col_description(a.attrelid, a.attnum)
+	FROM pg_catalog.pg_attribute a
+	WHERE a.attrelid = '32889' AND a.attnum > 0 AND NOT a.attisdropped
+	ORDER BY a.attnum;
+2024-05-17 14:09:43.885 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 2 :varattno 1 :vartype 26 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 2 :varattnosyn 1 :location 359}
+	
+	
+2024-05-17 14:09:43.885 CST [5026] STATEMENT:  SELECT a.attname,
+	  pg_catalog.format_type(a.atttypid, a.atttypmod),
+	  (SELECT pg_catalog.pg_get_expr(d.adbin, d.adrelid, true)
+	   FROM pg_catalog.pg_attrdef d
+	   WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum AND a.atthasdef),
+	  a.attnotnull,
+	  (SELECT c.collname FROM pg_catalog.pg_collation c, pg_catalog.pg_type t
+	   WHERE c.oid = a.attcollation AND t.oid = a.atttypid AND a.attcollation <> t.typcollation) AS attcollation,
+	  a.attidentity,
+	  a.attgenerated,
+	  a.attstorage,
+	  a.attcompression AS attcompression,
+	  CASE WHEN a.attstattarget=-1 THEN NULL ELSE a.attstattarget END AS attstattarget,
+	  pg_catalog.col_description(a.attrelid, a.attnum)
+	FROM pg_catalog.pg_attribute a
+	WHERE a.attrelid = '32889' AND a.attnum > 0 AND NOT a.attisdropped
+	ORDER BY a.attnum;
+2024-05-17 14:09:43.887 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 1 :varattno 1 :vartype 26 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 1 :location 694}
+	
+	
+2024-05-17 14:09:43.887 CST [5026] STATEMENT:  SELECT a.attname,
+	  pg_catalog.format_type(a.atttypid, a.atttypmod),
+	  (SELECT pg_catalog.pg_get_expr(d.adbin, d.adrelid, true)
+	   FROM pg_catalog.pg_attrdef d
+	   WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum AND a.atthasdef),
+	  a.attnotnull,
+	  (SELECT c.collname FROM pg_catalog.pg_collation c, pg_catalog.pg_type t
+	   WHERE c.oid = a.attcollation AND t.oid = a.atttypid AND a.attcollation <> t.typcollation) AS attcollation,
+	  a.attidentity,
+	  a.attgenerated,
+	  a.attstorage,
+	  a.attcompression AS attcompression,
+	  CASE WHEN a.attstattarget=-1 THEN NULL ELSE a.attstattarget END AS attstattarget,
+	  pg_catalog.col_description(a.attrelid, a.attnum)
+	FROM pg_catalog.pg_attribute a
+	WHERE a.attrelid = '32889' AND a.attnum > 0 AND NOT a.attisdropped
+	ORDER BY a.attnum;
+2024-05-17 14:09:43.887 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 1 :varattno 5 :vartype 21 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 5 :location 719}
+	
+	
+2024-05-17 14:09:43.887 CST [5026] STATEMENT:  SELECT a.attname,
+	  pg_catalog.format_type(a.atttypid, a.atttypmod),
+	  (SELECT pg_catalog.pg_get_expr(d.adbin, d.adrelid, true)
+	   FROM pg_catalog.pg_attrdef d
+	   WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum AND a.atthasdef),
+	  a.attnotnull,
+	  (SELECT c.collname FROM pg_catalog.pg_collation c, pg_catalog.pg_type t
+	   WHERE c.oid = a.attcollation AND t.oid = a.atttypid AND a.attcollation <> t.typcollation) AS attcollation,
+	  a.attidentity,
+	  a.attgenerated,
+	  a.attstorage,
+	  a.attcompression AS attcompression,
+	  CASE WHEN a.attstattarget=-1 THEN NULL ELSE a.attstattarget END AS attstattarget,
+	  pg_catalog.col_description(a.attrelid, a.attnum)
+	FROM pg_catalog.pg_attribute a
+	WHERE a.attrelid = '32889' AND a.attnum > 0 AND NOT a.attisdropped
+	ORDER BY a.attnum;
+2024-05-17 14:09:43.888 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 1 :varattno 1 :vartype 26 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 1 :location -1}
+	
+	
+2024-05-17 14:09:43.888 CST [5026] CONTEXT:  SQL function "col_description" during startup
+2024-05-17 14:09:43.888 CST [5026] STATEMENT:  SELECT a.attname,
+	  pg_catalog.format_type(a.atttypid, a.atttypmod),
+	  (SELECT pg_catalog.pg_get_expr(d.adbin, d.adrelid, true)
+	   FROM pg_catalog.pg_attrdef d
+	   WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum AND a.atthasdef),
+	  a.attnotnull,
+	  (SELECT c.collname FROM pg_catalog.pg_collation c, pg_catalog.pg_type t
+	   WHERE c.oid = a.attcollation AND t.oid = a.atttypid AND a.attcollation <> t.typcollation) AS attcollation,
+	  a.attidentity,
+	  a.attgenerated,
+	  a.attstorage,
+	  a.attcompression AS attcompression,
+	  CASE WHEN a.attstattarget=-1 THEN NULL ELSE a.attstattarget END AS attstattarget,
+	  pg_catalog.col_description(a.attrelid, a.attnum)
+	FROM pg_catalog.pg_attribute a
+	WHERE a.attrelid = '32889' AND a.attnum > 0 AND NOT a.attisdropped
+	ORDER BY a.attnum;
+2024-05-17 14:09:43.888 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 1 :varattno 2 :vartype 26 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 2 :location -1}
+	
+	
+2024-05-17 14:09:43.888 CST [5026] CONTEXT:  SQL function "col_description" during startup
+2024-05-17 14:09:43.888 CST [5026] STATEMENT:  SELECT a.attname,
+	  pg_catalog.format_type(a.atttypid, a.atttypmod),
+	  (SELECT pg_catalog.pg_get_expr(d.adbin, d.adrelid, true)
+	   FROM pg_catalog.pg_attrdef d
+	   WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum AND a.atthasdef),
+	  a.attnotnull,
+	  (SELECT c.collname FROM pg_catalog.pg_collation c, pg_catalog.pg_type t
+	   WHERE c.oid = a.attcollation AND t.oid = a.atttypid AND a.attcollation <> t.typcollation) AS attcollation,
+	  a.attidentity,
+	  a.attgenerated,
+	  a.attstorage,
+	  a.attcompression AS attcompression,
+	  CASE WHEN a.attstattarget=-1 THEN NULL ELSE a.attstattarget END AS attstattarget,
+	  pg_catalog.col_description(a.attrelid, a.attnum)
+	FROM pg_catalog.pg_attribute a
+	WHERE a.attrelid = '32889' AND a.attnum > 0 AND NOT a.attisdropped
+	ORDER BY a.attnum;
+2024-05-17 14:09:43.888 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 1 :varattno 3 :vartype 23 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 3 :location -1}
+	
+	
+2024-05-17 14:09:43.888 CST [5026] CONTEXT:  SQL function "col_description" during startup
+2024-05-17 14:09:43.888 CST [5026] STATEMENT:  SELECT a.attname,
+	  pg_catalog.format_type(a.atttypid, a.atttypmod),
+	  (SELECT pg_catalog.pg_get_expr(d.adbin, d.adrelid, true)
+	   FROM pg_catalog.pg_attrdef d
+	   WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum AND a.atthasdef),
+	  a.attnotnull,
+	  (SELECT c.collname FROM pg_catalog.pg_collation c, pg_catalog.pg_type t
+	   WHERE c.oid = a.attcollation AND t.oid = a.atttypid AND a.attcollation <> t.typcollation) AS attcollation,
+	  a.attidentity,
+	  a.attgenerated,
+	  a.attstorage,
+	  a.attcompression AS attcompression,
+	  CASE WHEN a.attstattarget=-1 THEN NULL ELSE a.attstattarget END AS attstattarget,
+	  pg_catalog.col_description(a.attrelid, a.attnum)
+	FROM pg_catalog.pg_attribute a
+	WHERE a.attrelid = '32889' AND a.attnum > 0 AND NOT a.attisdropped
+	ORDER BY a.attnum;
+2024-05-17 14:09:43.892 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 2 :varattno 1 :vartype 26 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 2 :varattnosyn 1 :location -1}
+	
+	
+2024-05-17 14:09:43.892 CST [5026] STATEMENT:  SELECT pol.polname, pol.polpermissive,
+	  CASE WHEN pol.polroles = '{0}' THEN NULL ELSE pg_catalog.array_to_string(array(select rolname from pg_catalog.pg_roles where oid = any (pol.polroles) order by 1),',') END,
+	  pg_catalog.pg_get_expr(pol.polqual, pol.polrelid),
+	  pg_catalog.pg_get_expr(pol.polwithcheck, pol.polrelid),
+	  CASE pol.polcmd
+	    WHEN 'r' THEN 'SELECT'
+	    WHEN 'a' THEN 'INSERT'
+	    WHEN 'w' THEN 'UPDATE'
+	    WHEN 'd' THEN 'DELETE'
+	    END AS cmd
+	FROM pg_catalog.pg_policy pol
+	WHERE pol.polrelid = '32889' ORDER BY 1;
+2024-05-17 14:09:43.897 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 2 :varattno 1 :vartype 26 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 2 :varattnosyn 1 :location 591}
+	
+	
+2024-05-17 14:09:43.897 CST [5026] STATEMENT:  SELECT pubname
+	     , NULL
+	     , NULL
+	FROM pg_catalog.pg_publication p
+	     JOIN pg_catalog.pg_publication_namespace pn ON p.oid = pn.pnpubid
+	     JOIN pg_catalog.pg_class pc ON pc.relnamespace = pn.pnnspid
+	WHERE pc.oid ='32889' and pg_catalog.pg_relation_is_publishable('32889')
+	UNION
+	SELECT pubname
+	     , pg_get_expr(pr.prqual, c.oid)
+	     , (CASE WHEN pr.prattrs IS NOT NULL THEN
+	         (SELECT string_agg(attname, ', ')
+	           FROM pg_catalog.generate_series(0, pg_catalog.array_upper(pr.prattrs::pg_catalog.int2[], 1)) s,
+	                pg_catalog.pg_attribute
+	          WHERE attrelid = pr.prrelid AND attnum = prattrs[s])
+	        ELSE NULL END) FROM pg_catalog.pg_publication p
+	     JOIN pg_catalog.pg_publication_rel pr ON p.oid = pr.prpubid
+	     JOIN pg_catalog.pg_class c ON c.oid = pr.prrelid
+	WHERE pr.prrelid = '32889'
+	UNION
+	SELECT pubname
+	     , NULL
+	     , NULL
+	FROM pg_catalog.pg_publication p
+	WHERE p.puballtables AND pg_catalog.pg_relation_is_publishable('32889')
+	ORDER BY 1;
+2024-05-17 14:09:43.898 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 4 :varattno 1 :vartype 26 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 4 :varattnosyn 1 :location 214}
+	
+	
+2024-05-17 14:09:43.898 CST [5026] STATEMENT:  SELECT pubname
+	     , NULL
+	     , NULL
+	FROM pg_catalog.pg_publication p
+	     JOIN pg_catalog.pg_publication_namespace pn ON p.oid = pn.pnpubid
+	     JOIN pg_catalog.pg_class pc ON pc.relnamespace = pn.pnnspid
+	WHERE pc.oid ='32889' and pg_catalog.pg_relation_is_publishable('32889')
+	UNION
+	SELECT pubname
+	     , pg_get_expr(pr.prqual, c.oid)
+	     , (CASE WHEN pr.prattrs IS NOT NULL THEN
+	         (SELECT string_agg(attname, ', ')
+	           FROM pg_catalog.generate_series(0, pg_catalog.array_upper(pr.prattrs::pg_catalog.int2[], 1)) s,
+	                pg_catalog.pg_attribute
+	          WHERE attrelid = pr.prrelid AND attnum = prattrs[s])
+	        ELSE NULL END) FROM pg_catalog.pg_publication p
+	     JOIN pg_catalog.pg_publication_rel pr ON p.oid = pr.prpubid
+	     JOIN pg_catalog.pg_class c ON c.oid = pr.prrelid
+	WHERE pr.prrelid = '32889'
+	UNION
+	SELECT pubname
+	     , NULL
+	     , NULL
+	FROM pg_catalog.pg_publication p
+	WHERE p.puballtables AND pg_catalog.pg_relation_is_publishable('32889')
+	ORDER BY 1;
+2024-05-17 14:09:43.899 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 4 :varattno 1 :vartype 26 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 4 :varattnosyn 1 :location 794}
+	
+	
+2024-05-17 14:09:43.899 CST [5026] STATEMENT:  SELECT pubname
+	     , NULL
+	     , NULL
+	FROM pg_catalog.pg_publication p
+	     JOIN pg_catalog.pg_publication_namespace pn ON p.oid = pn.pnpubid
+	     JOIN pg_catalog.pg_class pc ON pc.relnamespace = pn.pnnspid
+	WHERE pc.oid ='32889' and pg_catalog.pg_relation_is_publishable('32889')
+	UNION
+	SELECT pubname
+	     , pg_get_expr(pr.prqual, c.oid)
+	     , (CASE WHEN pr.prattrs IS NOT NULL THEN
+	         (SELECT string_agg(attname, ', ')
+	           FROM pg_catalog.generate_series(0, pg_catalog.array_upper(pr.prattrs::pg_catalog.int2[], 1)) s,
+	                pg_catalog.pg_attribute
+	          WHERE attrelid = pr.prrelid AND attnum = prattrs[s])
+	        ELSE NULL END) FROM pg_catalog.pg_publication p
+	     JOIN pg_catalog.pg_publication_rel pr ON p.oid = pr.prpubid
+	     JOIN pg_catalog.pg_class c ON c.oid = pr.prrelid
+	WHERE pr.prrelid = '32889'
+	UNION
+	SELECT pubname
+	     , NULL
+	     , NULL
+	FROM pg_catalog.pg_publication p
+	WHERE p.puballtables AND pg_catalog.pg_relation_is_publishable('32889')
+	ORDER BY 1;
+2024-05-17 14:09:43.901 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 1 :varattno 1 :vartype 26 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 1 :location 93}
+	
+	
+2024-05-17 14:09:43.901 CST [5026] STATEMENT:  SELECT c.oid::pg_catalog.regclass
+	FROM pg_catalog.pg_class c, pg_catalog.pg_inherits i
+	WHERE c.oid = i.inhparent AND i.inhrelid = '32889'
+	  AND c.relkind != 'p' AND c.relkind != 'I'
+	ORDER BY inhseqno;
+2024-05-17 14:09:43.902 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 1 :varattno 1 :vartype 26 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 1 :location 169}
+	
+	
+2024-05-17 14:09:43.902 CST [5026] STATEMENT:  SELECT c.oid::pg_catalog.regclass, c.relkind, inhdetachpending, pg_catalog.pg_get_expr(c.relpartbound, c.oid)
+	FROM pg_catalog.pg_class c, pg_catalog.pg_inherits i
+	WHERE c.oid = i.inhrelid AND i.inhparent = '32889'
+	ORDER BY pg_catalog.pg_get_expr(c.relpartbound, c.oid) = 'DEFAULT', c.oid::pg_catalog.regclass::pg_catalog.text;
+2024-05-17 14:14:36.739 CST [4871] LOG:  checkpoint starting: time
+2024-05-17 14:14:36.743 CST [4871] LOG:  checkpoint complete: wrote 3 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.001 s, total=0.005 s; sync files=2, longest=0.001 s, average=0.001 s; distance=0 kB, estimate=0 kB; lsn=0/40B4BE10, redo lsn=0/40B4BDD8
+2024-05-17 14:24:36.800 CST [4871] LOG:  checkpoint starting: time
+2024-05-17 14:24:36.904 CST [4871] LOG:  checkpoint complete: wrote 1 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.103 s, sync=0.001 s, total=0.105 s; sync files=1, longest=0.001 s, average=0.001 s; distance=4 kB, estimate=4 kB; lsn=0/40B4D1D0, redo lsn=0/40B4D198
+2024-05-17 14:29:37.005 CST [4871] LOG:  checkpoint starting: time
+2024-05-17 14:29:45.665 CST [4871] LOG:  checkpoint complete: wrote 87 buffers (0.5%); 0 WAL file(s) added, 0 removed, 0 recycled; write=8.658 s, sync=0.001 s, total=8.661 s; sync files=28, longest=0.001 s, average=0.001 s; distance=368 kB, estimate=368 kB; lsn=0/40BA9418, redo lsn=0/40BA93E0
+2024-05-17 20:46:34.762 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 1 :varattno 2 :vartype 19 :vartypmod -1 :varcollid 950
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 2 :location 139}
+	
+	
+2024-05-17 20:46:34.762 CST [5026] STATEMENT:  SELECT c.oid,
+	  n.nspname,
+	  c.relname
+	FROM pg_catalog.pg_class c
+	     LEFT JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+	WHERE c.relname OPERATOR(pg_catalog.~) '^(deep)$' COLLATE pg_catalog.default
+	  AND pg_catalog.pg_table_is_visible(c.oid)
+	ORDER BY 2, 3;
+2024-05-17 20:46:38.398 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 1 :varattno 2 :vartype 19 :vartypmod -1 :varcollid 950
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 2 :location 139}
+	
+	
+2024-05-17 20:46:38.398 CST [5026] STATEMENT:  SELECT c.oid,
+	  n.nspname,
+	  c.relname
+	FROM pg_catalog.pg_class c
+	     LEFT JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+	WHERE c.relname OPERATOR(pg_catalog.~) '^(test)$' COLLATE pg_catalog.default
+	  AND pg_catalog.pg_table_is_visible(c.oid)
+	ORDER BY 2, 3;
+2024-05-17 20:46:38.400 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 1 :varattno 1 :vartype 26 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 1 :location 582}
+	
+	
+2024-05-17 20:46:38.400 CST [5026] STATEMENT:  SELECT c.relchecks, c.relkind, c.relhasindex, c.relhasrules, c.relhastriggers, c.relrowsecurity, c.relforcerowsecurity, false AS relhasoids, c.relispartition, pg_catalog.array_to_string(c.reloptions || array(select 'toast.' || x from pg_catalog.unnest(tc.reloptions) x), ', ')
+	, c.reltablespace, CASE WHEN c.reloftype = 0 THEN '' ELSE c.reloftype::pg_catalog.regtype::pg_catalog.text END, c.relpersistence, c.relreplident, am.amname
+	FROM pg_catalog.pg_class c
+	 LEFT JOIN pg_catalog.pg_class tc ON (c.reltoastrelid = tc.oid)
+	LEFT JOIN pg_catalog.pg_am am ON (c.relam = am.oid)
+	WHERE c.oid = '32894';
+2024-05-17 20:46:38.400 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 2 :varattno 1 :vartype 26 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 2 :varattnosyn 1 :location 516}
+	
+	
+2024-05-17 20:46:38.400 CST [5026] STATEMENT:  SELECT c.relchecks, c.relkind, c.relhasindex, c.relhasrules, c.relhastriggers, c.relrowsecurity, c.relforcerowsecurity, false AS relhasoids, c.relispartition, pg_catalog.array_to_string(c.reloptions || array(select 'toast.' || x from pg_catalog.unnest(tc.reloptions) x), ', ')
+	, c.reltablespace, CASE WHEN c.reloftype = 0 THEN '' ELSE c.reloftype::pg_catalog.regtype::pg_catalog.text END, c.relpersistence, c.relreplident, am.amname
+	FROM pg_catalog.pg_class c
+	 LEFT JOIN pg_catalog.pg_class tc ON (c.reltoastrelid = tc.oid)
+	LEFT JOIN pg_catalog.pg_am am ON (c.relam = am.oid)
+	WHERE c.oid = '32894';
+2024-05-17 20:46:38.401 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 1 :varattno 2 :vartype 26 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 2 :location 169}
+	
+	
+2024-05-17 20:46:38.401 CST [5026] STATEMENT:  SELECT a.attname,
+	  pg_catalog.format_type(a.atttypid, a.atttypmod),
+	  (SELECT pg_catalog.pg_get_expr(d.adbin, d.adrelid, true)
+	   FROM pg_catalog.pg_attrdef d
+	   WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum AND a.atthasdef),
+	  a.attnotnull,
+	  (SELECT c.collname FROM pg_catalog.pg_collation c, pg_catalog.pg_type t
+	   WHERE c.oid = a.attcollation AND t.oid = a.atttypid AND a.attcollation <> t.typcollation) AS attcollation,
+	  a.attidentity,
+	  a.attgenerated,
+	  a.attstorage,
+	  a.attcompression AS attcompression,
+	  CASE WHEN a.attstattarget=-1 THEN NULL ELSE a.attstattarget END AS attstattarget,
+	  pg_catalog.col_description(a.attrelid, a.attnum)
+	FROM pg_catalog.pg_attribute a
+	WHERE a.attrelid = '32894' AND a.attnum > 0 AND NOT a.attisdropped
+	ORDER BY a.attnum;
+2024-05-17 20:46:38.402 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 1 :varattno 3 :vartype 21 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 3 :location 196}
+	
+	
+2024-05-17 20:46:38.402 CST [5026] STATEMENT:  SELECT a.attname,
+	  pg_catalog.format_type(a.atttypid, a.atttypmod),
+	  (SELECT pg_catalog.pg_get_expr(d.adbin, d.adrelid, true)
+	   FROM pg_catalog.pg_attrdef d
+	   WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum AND a.atthasdef),
+	  a.attnotnull,
+	  (SELECT c.collname FROM pg_catalog.pg_collation c, pg_catalog.pg_type t
+	   WHERE c.oid = a.attcollation AND t.oid = a.atttypid AND a.attcollation <> t.typcollation) AS attcollation,
+	  a.attidentity,
+	  a.attgenerated,
+	  a.attstorage,
+	  a.attcompression AS attcompression,
+	  CASE WHEN a.attstattarget=-1 THEN NULL ELSE a.attstattarget END AS attstattarget,
+	  pg_catalog.col_description(a.attrelid, a.attnum)
+	FROM pg_catalog.pg_attribute a
+	WHERE a.attrelid = '32894' AND a.attnum > 0 AND NOT a.attisdropped
+	ORDER BY a.attnum;
+2024-05-17 20:46:38.402 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 1 :varattno 1 :vartype 26 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 1 :location 332}
+	
+	
+2024-05-17 20:46:38.402 CST [5026] STATEMENT:  SELECT a.attname,
+	  pg_catalog.format_type(a.atttypid, a.atttypmod),
+	  (SELECT pg_catalog.pg_get_expr(d.adbin, d.adrelid, true)
+	   FROM pg_catalog.pg_attrdef d
+	   WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum AND a.atthasdef),
+	  a.attnotnull,
+	  (SELECT c.collname FROM pg_catalog.pg_collation c, pg_catalog.pg_type t
+	   WHERE c.oid = a.attcollation AND t.oid = a.atttypid AND a.attcollation <> t.typcollation) AS attcollation,
+	  a.attidentity,
+	  a.attgenerated,
+	  a.attstorage,
+	  a.attcompression AS attcompression,
+	  CASE WHEN a.attstattarget=-1 THEN NULL ELSE a.attstattarget END AS attstattarget,
+	  pg_catalog.col_description(a.attrelid, a.attnum)
+	FROM pg_catalog.pg_attribute a
+	WHERE a.attrelid = '32894' AND a.attnum > 0 AND NOT a.attisdropped
+	ORDER BY a.attnum;
+2024-05-17 20:46:38.402 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 2 :varattno 1 :vartype 26 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 2 :varattnosyn 1 :location 359}
+	
+	
+2024-05-17 20:46:38.402 CST [5026] STATEMENT:  SELECT a.attname,
+	  pg_catalog.format_type(a.atttypid, a.atttypmod),
+	  (SELECT pg_catalog.pg_get_expr(d.adbin, d.adrelid, true)
+	   FROM pg_catalog.pg_attrdef d
+	   WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum AND a.atthasdef),
+	  a.attnotnull,
+	  (SELECT c.collname FROM pg_catalog.pg_collation c, pg_catalog.pg_type t
+	   WHERE c.oid = a.attcollation AND t.oid = a.atttypid AND a.attcollation <> t.typcollation) AS attcollation,
+	  a.attidentity,
+	  a.attgenerated,
+	  a.attstorage,
+	  a.attcompression AS attcompression,
+	  CASE WHEN a.attstattarget=-1 THEN NULL ELSE a.attstattarget END AS attstattarget,
+	  pg_catalog.col_description(a.attrelid, a.attnum)
+	FROM pg_catalog.pg_attribute a
+	WHERE a.attrelid = '32894' AND a.attnum > 0 AND NOT a.attisdropped
+	ORDER BY a.attnum;
+2024-05-17 20:46:38.402 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 1 :varattno 1 :vartype 26 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 1 :location 694}
+	
+	
+2024-05-17 20:46:38.402 CST [5026] STATEMENT:  SELECT a.attname,
+	  pg_catalog.format_type(a.atttypid, a.atttypmod),
+	  (SELECT pg_catalog.pg_get_expr(d.adbin, d.adrelid, true)
+	   FROM pg_catalog.pg_attrdef d
+	   WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum AND a.atthasdef),
+	  a.attnotnull,
+	  (SELECT c.collname FROM pg_catalog.pg_collation c, pg_catalog.pg_type t
+	   WHERE c.oid = a.attcollation AND t.oid = a.atttypid AND a.attcollation <> t.typcollation) AS attcollation,
+	  a.attidentity,
+	  a.attgenerated,
+	  a.attstorage,
+	  a.attcompression AS attcompression,
+	  CASE WHEN a.attstattarget=-1 THEN NULL ELSE a.attstattarget END AS attstattarget,
+	  pg_catalog.col_description(a.attrelid, a.attnum)
+	FROM pg_catalog.pg_attribute a
+	WHERE a.attrelid = '32894' AND a.attnum > 0 AND NOT a.attisdropped
+	ORDER BY a.attnum;
+2024-05-17 20:46:38.402 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 1 :varattno 5 :vartype 21 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 5 :location 719}
+	
+	
+2024-05-17 20:46:38.402 CST [5026] STATEMENT:  SELECT a.attname,
+	  pg_catalog.format_type(a.atttypid, a.atttypmod),
+	  (SELECT pg_catalog.pg_get_expr(d.adbin, d.adrelid, true)
+	   FROM pg_catalog.pg_attrdef d
+	   WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum AND a.atthasdef),
+	  a.attnotnull,
+	  (SELECT c.collname FROM pg_catalog.pg_collation c, pg_catalog.pg_type t
+	   WHERE c.oid = a.attcollation AND t.oid = a.atttypid AND a.attcollation <> t.typcollation) AS attcollation,
+	  a.attidentity,
+	  a.attgenerated,
+	  a.attstorage,
+	  a.attcompression AS attcompression,
+	  CASE WHEN a.attstattarget=-1 THEN NULL ELSE a.attstattarget END AS attstattarget,
+	  pg_catalog.col_description(a.attrelid, a.attnum)
+	FROM pg_catalog.pg_attribute a
+	WHERE a.attrelid = '32894' AND a.attnum > 0 AND NOT a.attisdropped
+	ORDER BY a.attnum;
+2024-05-17 20:46:38.403 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 1 :varattno 1 :vartype 26 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 1 :location -1}
+	
+	
+2024-05-17 20:46:38.403 CST [5026] CONTEXT:  SQL function "col_description" during startup
+2024-05-17 20:46:38.403 CST [5026] STATEMENT:  SELECT a.attname,
+	  pg_catalog.format_type(a.atttypid, a.atttypmod),
+	  (SELECT pg_catalog.pg_get_expr(d.adbin, d.adrelid, true)
+	   FROM pg_catalog.pg_attrdef d
+	   WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum AND a.atthasdef),
+	  a.attnotnull,
+	  (SELECT c.collname FROM pg_catalog.pg_collation c, pg_catalog.pg_type t
+	   WHERE c.oid = a.attcollation AND t.oid = a.atttypid AND a.attcollation <> t.typcollation) AS attcollation,
+	  a.attidentity,
+	  a.attgenerated,
+	  a.attstorage,
+	  a.attcompression AS attcompression,
+	  CASE WHEN a.attstattarget=-1 THEN NULL ELSE a.attstattarget END AS attstattarget,
+	  pg_catalog.col_description(a.attrelid, a.attnum)
+	FROM pg_catalog.pg_attribute a
+	WHERE a.attrelid = '32894' AND a.attnum > 0 AND NOT a.attisdropped
+	ORDER BY a.attnum;
+2024-05-17 20:46:38.403 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 1 :varattno 2 :vartype 26 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 2 :location -1}
+	
+	
+2024-05-17 20:46:38.403 CST [5026] CONTEXT:  SQL function "col_description" during startup
+2024-05-17 20:46:38.403 CST [5026] STATEMENT:  SELECT a.attname,
+	  pg_catalog.format_type(a.atttypid, a.atttypmod),
+	  (SELECT pg_catalog.pg_get_expr(d.adbin, d.adrelid, true)
+	   FROM pg_catalog.pg_attrdef d
+	   WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum AND a.atthasdef),
+	  a.attnotnull,
+	  (SELECT c.collname FROM pg_catalog.pg_collation c, pg_catalog.pg_type t
+	   WHERE c.oid = a.attcollation AND t.oid = a.atttypid AND a.attcollation <> t.typcollation) AS attcollation,
+	  a.attidentity,
+	  a.attgenerated,
+	  a.attstorage,
+	  a.attcompression AS attcompression,
+	  CASE WHEN a.attstattarget=-1 THEN NULL ELSE a.attstattarget END AS attstattarget,
+	  pg_catalog.col_description(a.attrelid, a.attnum)
+	FROM pg_catalog.pg_attribute a
+	WHERE a.attrelid = '32894' AND a.attnum > 0 AND NOT a.attisdropped
+	ORDER BY a.attnum;
+2024-05-17 20:46:38.403 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 1 :varattno 3 :vartype 23 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 3 :location -1}
+	
+	
+2024-05-17 20:46:38.403 CST [5026] CONTEXT:  SQL function "col_description" during startup
+2024-05-17 20:46:38.403 CST [5026] STATEMENT:  SELECT a.attname,
+	  pg_catalog.format_type(a.atttypid, a.atttypmod),
+	  (SELECT pg_catalog.pg_get_expr(d.adbin, d.adrelid, true)
+	   FROM pg_catalog.pg_attrdef d
+	   WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum AND a.atthasdef),
+	  a.attnotnull,
+	  (SELECT c.collname FROM pg_catalog.pg_collation c, pg_catalog.pg_type t
+	   WHERE c.oid = a.attcollation AND t.oid = a.atttypid AND a.attcollation <> t.typcollation) AS attcollation,
+	  a.attidentity,
+	  a.attgenerated,
+	  a.attstorage,
+	  a.attcompression AS attcompression,
+	  CASE WHEN a.attstattarget=-1 THEN NULL ELSE a.attstattarget END AS attstattarget,
+	  pg_catalog.col_description(a.attrelid, a.attnum)
+	FROM pg_catalog.pg_attribute a
+	WHERE a.attrelid = '32894' AND a.attnum > 0 AND NOT a.attisdropped
+	ORDER BY a.attnum;
+2024-05-17 20:46:38.404 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 2 :varattno 1 :vartype 26 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 2 :varattnosyn 1 :location -1}
+	
+	
+2024-05-17 20:46:38.404 CST [5026] STATEMENT:  SELECT pol.polname, pol.polpermissive,
+	  CASE WHEN pol.polroles = '{0}' THEN NULL ELSE pg_catalog.array_to_string(array(select rolname from pg_catalog.pg_roles where oid = any (pol.polroles) order by 1),',') END,
+	  pg_catalog.pg_get_expr(pol.polqual, pol.polrelid),
+	  pg_catalog.pg_get_expr(pol.polwithcheck, pol.polrelid),
+	  CASE pol.polcmd
+	    WHEN 'r' THEN 'SELECT'
+	    WHEN 'a' THEN 'INSERT'
+	    WHEN 'w' THEN 'UPDATE'
+	    WHEN 'd' THEN 'DELETE'
+	    END AS cmd
+	FROM pg_catalog.pg_policy pol
+	WHERE pol.polrelid = '32894' ORDER BY 1;
+2024-05-17 20:46:38.407 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 2 :varattno 1 :vartype 26 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 2 :varattnosyn 1 :location 591}
+	
+	
+2024-05-17 20:46:38.407 CST [5026] STATEMENT:  SELECT pubname
+	     , NULL
+	     , NULL
+	FROM pg_catalog.pg_publication p
+	     JOIN pg_catalog.pg_publication_namespace pn ON p.oid = pn.pnpubid
+	     JOIN pg_catalog.pg_class pc ON pc.relnamespace = pn.pnnspid
+	WHERE pc.oid ='32894' and pg_catalog.pg_relation_is_publishable('32894')
+	UNION
+	SELECT pubname
+	     , pg_get_expr(pr.prqual, c.oid)
+	     , (CASE WHEN pr.prattrs IS NOT NULL THEN
+	         (SELECT string_agg(attname, ', ')
+	           FROM pg_catalog.generate_series(0, pg_catalog.array_upper(pr.prattrs::pg_catalog.int2[], 1)) s,
+	                pg_catalog.pg_attribute
+	          WHERE attrelid = pr.prrelid AND attnum = prattrs[s])
+	        ELSE NULL END) FROM pg_catalog.pg_publication p
+	     JOIN pg_catalog.pg_publication_rel pr ON p.oid = pr.prpubid
+	     JOIN pg_catalog.pg_class c ON c.oid = pr.prrelid
+	WHERE pr.prrelid = '32894'
+	UNION
+	SELECT pubname
+	     , NULL
+	     , NULL
+	FROM pg_catalog.pg_publication p
+	WHERE p.puballtables AND pg_catalog.pg_relation_is_publishable('32894')
+	ORDER BY 1;
+2024-05-17 20:46:38.408 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 4 :varattno 1 :vartype 26 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 4 :varattnosyn 1 :location 214}
+	
+	
+2024-05-17 20:46:38.408 CST [5026] STATEMENT:  SELECT pubname
+	     , NULL
+	     , NULL
+	FROM pg_catalog.pg_publication p
+	     JOIN pg_catalog.pg_publication_namespace pn ON p.oid = pn.pnpubid
+	     JOIN pg_catalog.pg_class pc ON pc.relnamespace = pn.pnnspid
+	WHERE pc.oid ='32894' and pg_catalog.pg_relation_is_publishable('32894')
+	UNION
+	SELECT pubname
+	     , pg_get_expr(pr.prqual, c.oid)
+	     , (CASE WHEN pr.prattrs IS NOT NULL THEN
+	         (SELECT string_agg(attname, ', ')
+	           FROM pg_catalog.generate_series(0, pg_catalog.array_upper(pr.prattrs::pg_catalog.int2[], 1)) s,
+	                pg_catalog.pg_attribute
+	          WHERE attrelid = pr.prrelid AND attnum = prattrs[s])
+	        ELSE NULL END) FROM pg_catalog.pg_publication p
+	     JOIN pg_catalog.pg_publication_rel pr ON p.oid = pr.prpubid
+	     JOIN pg_catalog.pg_class c ON c.oid = pr.prrelid
+	WHERE pr.prrelid = '32894'
+	UNION
+	SELECT pubname
+	     , NULL
+	     , NULL
+	FROM pg_catalog.pg_publication p
+	WHERE p.puballtables AND pg_catalog.pg_relation_is_publishable('32894')
+	ORDER BY 1;
+2024-05-17 20:46:38.408 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 4 :varattno 1 :vartype 26 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 4 :varattnosyn 1 :location 794}
+	
+	
+2024-05-17 20:46:38.408 CST [5026] STATEMENT:  SELECT pubname
+	     , NULL
+	     , NULL
+	FROM pg_catalog.pg_publication p
+	     JOIN pg_catalog.pg_publication_namespace pn ON p.oid = pn.pnpubid
+	     JOIN pg_catalog.pg_class pc ON pc.relnamespace = pn.pnnspid
+	WHERE pc.oid ='32894' and pg_catalog.pg_relation_is_publishable('32894')
+	UNION
+	SELECT pubname
+	     , pg_get_expr(pr.prqual, c.oid)
+	     , (CASE WHEN pr.prattrs IS NOT NULL THEN
+	         (SELECT string_agg(attname, ', ')
+	           FROM pg_catalog.generate_series(0, pg_catalog.array_upper(pr.prattrs::pg_catalog.int2[], 1)) s,
+	                pg_catalog.pg_attribute
+	          WHERE attrelid = pr.prrelid AND attnum = prattrs[s])
+	        ELSE NULL END) FROM pg_catalog.pg_publication p
+	     JOIN pg_catalog.pg_publication_rel pr ON p.oid = pr.prpubid
+	     JOIN pg_catalog.pg_class c ON c.oid = pr.prrelid
+	WHERE pr.prrelid = '32894'
+	UNION
+	SELECT pubname
+	     , NULL
+	     , NULL
+	FROM pg_catalog.pg_publication p
+	WHERE p.puballtables AND pg_catalog.pg_relation_is_publishable('32894')
+	ORDER BY 1;
+2024-05-17 20:46:38.409 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 1 :varattno 1 :vartype 26 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 1 :location 93}
+	
+	
+2024-05-17 20:46:38.409 CST [5026] STATEMENT:  SELECT c.oid::pg_catalog.regclass
+	FROM pg_catalog.pg_class c, pg_catalog.pg_inherits i
+	WHERE c.oid = i.inhparent AND i.inhrelid = '32894'
+	  AND c.relkind != 'p' AND c.relkind != 'I'
+	ORDER BY inhseqno;
+2024-05-17 20:46:38.410 CST [5026] LOG:  fix_indexqual_operand:
+	 {VAR :varno 1 :varattno 1 :vartype 26 :vartypmod -1 :varcollid 0
+	:varnullingrels (b) :varlevelsup 0 :varnosyn 1 :varattnosyn 1 :location 169}
+	
+	
+2024-05-17 20:46:38.410 CST [5026] STATEMENT:  SELECT c.oid::pg_catalog.regclass, c.relkind, inhdetachpending, pg_catalog.pg_get_expr(c.relpartbound, c.oid)
+	FROM pg_catalog.pg_class c, pg_catalog.pg_inherits i
+	WHERE c.oid = i.inhrelid AND i.inhparent = '32894'
+	ORDER BY pg_catalog.pg_get_expr(c.relpartbound, c.oid) = 'DEFAULT', c.oid::pg_catalog.regclass::pg_catalog.text;
+2024-05-17 20:47:55.185 CST [5026] ERROR:  data type vector has no default operator class for access method "btree"
+2024-05-17 20:47:55.185 CST [5026] HINT:  You must specify an operator class for the index or define a default operator class for the data type.
+2024-05-17 20:47:55.185 CST [5026] STATEMENT:  create index m3v_a on test(a);
+2024-05-17 20:48:59.281 CST [5026] ERROR:  access method "m3v" does not exist
+2024-05-17 20:48:59.281 CST [5026] STATEMENT:  create index m3v_a on test using m3v(a vector_l2_ops);
+2024-05-17 20:49:07.589 CST [5026] ERROR:  extension "m3v" already exists
+2024-05-17 20:49:07.589 CST [5026] STATEMENT:  create extension m3v;
+2024-05-17 20:49:17.817 CST [4870] LOG:  server process (PID 5026) was terminated by signal 11: Segmentation fault
+2024-05-17 20:49:17.817 CST [4870] DETAIL:  Failed process was running: create index a3v_a on test using a3v(a vector_l2_ops);
+2024-05-17 20:49:17.817 CST [4870] LOG:  terminating any other active server processes
+2024-05-17 20:49:17.819 CST [7974] FATAL:  the database system is in recovery mode
+2024-05-17 20:49:17.820 CST [4870] LOG:  all server processes terminated; reinitializing
+2024-05-17 20:49:17.876 CST [7976] LOG:  database system was interrupted; last known up at 2024-05-17 14:29:45 CST
+2024-05-17 20:49:17.893 CST [7976] LOG:  database system was not properly shut down; automatic recovery in progress
+2024-05-17 20:49:17.894 CST [7976] LOG:  redo starts at 0/40BA93E0
+2024-05-17 20:49:17.907 CST [7976] LOG:  invalid magic number 0000 in WAL segment 000000010000000000000040, LSN 0/40BBA000, offset 12296192
+2024-05-17 20:49:17.907 CST [7976] LOG:  redo done at 0/40BB6FD0 system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.01 s
+2024-05-17 20:49:17.909 CST [7977] LOG:  checkpoint starting: end-of-recovery immediate wait
+2024-05-17 20:49:17.914 CST [7977] LOG:  checkpoint complete: wrote 15 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.001 s, total=0.006 s; sync files=15, longest=0.001 s, average=0.001 s; distance=67 kB, estimate=67 kB; lsn=0/40BBA048, redo lsn=0/40BBA048
+2024-05-17 20:49:17.916 CST [4870] LOG:  database system is ready to accept connections
+2024-05-17 20:50:01.306 CST [8175] ERROR:  access method "m3v" does not exist
+2024-05-17 20:50:01.306 CST [8175] STATEMENT:  create index m3v_a on test using m3v(a vector_l2_ops);
+2024-05-17 20:51:07.004 CST [4870] LOG:  server process (PID 8175) was terminated by signal 11: Segmentation fault
+2024-05-17 20:51:07.004 CST [4870] DETAIL:  Failed process was running: create index a3v_a on test using a3v(a vector_l2_ops);
+2024-05-17 20:51:07.004 CST [4870] LOG:  terminating any other active server processes
+2024-05-17 20:51:07.005 CST [12796] FATAL:  the database system is in recovery mode
+2024-05-17 20:51:07.007 CST [4870] LOG:  all server processes terminated; reinitializing
+2024-05-17 20:51:07.052 CST [12798] LOG:  database system was interrupted; last known up at 2024-05-17 20:49:17 CST
+2024-05-17 20:51:07.065 CST [12798] LOG:  database system was not properly shut down; automatic recovery in progress
+2024-05-17 20:51:07.067 CST [12798] LOG:  redo starts at 0/40BBA0C0
+2024-05-17 20:51:07.068 CST [12798] LOG:  invalid record length at 0/40BCBAF8: expected at least 24, got 0
+2024-05-17 20:51:07.068 CST [12798] LOG:  redo done at 0/40BCBAC0 system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.00 s
+2024-05-17 20:51:07.070 CST [12799] LOG:  checkpoint starting: end-of-recovery immediate wait
+2024-05-17 20:51:07.076 CST [12799] LOG:  checkpoint complete: wrote 17 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.001 s, total=0.006 s; sync files=17, longest=0.001 s, average=0.001 s; distance=70 kB, estimate=70 kB; lsn=0/40BCBAF8, redo lsn=0/40BCBAF8
+2024-05-17 20:51:07.078 CST [4870] LOG:  database system is ready to accept connections
+2024-05-17 20:51:21.286 CST [4870] LOG:  received fast shutdown request
+2024-05-17 20:51:21.291 CST [4870] LOG:  aborting any active transactions
+2024-05-17 20:51:21.293 CST [4870] LOG:  background worker "logical replication launcher" (PID 12804) exited with exit code 1
+2024-05-17 20:51:21.293 CST [12799] LOG:  shutting down
+2024-05-17 20:51:21.293 CST [12799] LOG:  checkpoint starting: shutdown immediate
+2024-05-17 20:51:21.297 CST [12799] LOG:  checkpoint complete: wrote 0 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.001 s, total=0.004 s; sync files=0, longest=0.000 s, average=0.000 s; distance=0 kB, estimate=63 kB; lsn=0/40BCBB70, redo lsn=0/40BCBB70
+2024-05-17 20:51:21.302 CST [4870] LOG:  database system is shut down
+2024-05-17 20:51:22.871 CST [14096] LOG:  starting PostgreSQL 16.1 on x86_64-pc-linux-gnu, compiled by gcc (GCC) 11.2.1 20220127 (Red Hat 11.2.1-9), 64-bit
+2024-05-17 20:51:22.872 CST [14096] LOG:  listening on IPv6 address "::1", port 5432
+2024-05-17 20:51:22.872 CST [14096] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2024-05-17 20:51:22.874 CST [14096] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2024-05-17 20:51:22.879 CST [14102] LOG:  database system was shut down at 2024-05-17 20:51:21 CST
+2024-05-17 20:51:22.883 CST [14096] LOG:  database system is ready to accept connections
+2024-05-17 20:51:58.147 CST [14096] LOG:  server process (PID 14211) was terminated by signal 11: Segmentation fault
+2024-05-17 20:51:58.147 CST [14096] DETAIL:  Failed process was running: create index a3v_a on test using a3v(a vector_l2_ops);
+2024-05-17 20:51:58.147 CST [14096] LOG:  terminating any other active server processes
+2024-05-17 20:51:58.149 CST [15544] FATAL:  the database system is in recovery mode
+2024-05-17 20:51:58.150 CST [14096] LOG:  all server processes terminated; reinitializing
+2024-05-17 20:51:58.205 CST [15547] LOG:  database system was interrupted; last known up at 2024-05-17 20:51:22 CST
+2024-05-17 20:51:58.218 CST [15547] LOG:  database system was not properly shut down; automatic recovery in progress
+2024-05-17 20:51:58.219 CST [15547] LOG:  redo starts at 0/40BCBBE8
+2024-05-17 20:51:58.220 CST [15547] LOG:  invalid record length at 0/40BDD8F0: expected at least 24, got 0
+2024-05-17 20:51:58.220 CST [15547] LOG:  redo done at 0/40BDD8B8 system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.00 s
+2024-05-17 20:51:58.222 CST [15548] LOG:  checkpoint starting: end-of-recovery immediate wait
+2024-05-17 20:51:58.227 CST [15548] LOG:  checkpoint complete: wrote 17 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.001 s, total=0.006 s; sync files=17, longest=0.001 s, average=0.001 s; distance=71 kB, estimate=71 kB; lsn=0/40BDD8F0, redo lsn=0/40BDD8F0
+2024-05-17 20:51:58.230 CST [14096] LOG:  database system is ready to accept connections
+2024-05-17 23:39:50.280 CST [14096] LOG:  received fast shutdown request
+2024-05-17 23:39:50.280 CST [14096] LOG:  aborting any active transactions
+2024-05-17 23:39:50.282 CST [14096] LOG:  background worker "logical replication launcher" (PID 15552) exited with exit code 1
+2024-05-17 23:39:50.282 CST [15548] LOG:  shutting down
+2024-05-17 23:39:50.283 CST [15548] LOG:  checkpoint starting: shutdown immediate
+2024-05-17 23:39:50.286 CST [15548] LOG:  checkpoint complete: wrote 0 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.001 s, total=0.004 s; sync files=0, longest=0.000 s, average=0.000 s; distance=0 kB, estimate=64 kB; lsn=0/40BDD9A0, redo lsn=0/40BDD9A0
+2024-05-17 23:39:50.291 CST [14096] LOG:  database system is shut down

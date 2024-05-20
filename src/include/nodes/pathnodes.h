@@ -1172,6 +1172,7 @@ struct IndexOptInfo
 	 * Remaining fields are copied from the index AM's API struct
 	 * (IndexAmRoutine).  These fields are not set for partitioned indexes.
 	 */
+	bool        amcanrelaxedorderbyop;
 	bool		amcanorderbyop;
 	bool		amoptionalkey;
 	bool		amsearcharray;
@@ -1684,6 +1685,7 @@ typedef struct IndexPath
 	Cost		indextotalcost;
 	Selectivity indexselectivity;
 	bool		is_vector_search;
+	bool		is_single_vector_search;
 } IndexPath;
 
 /*
@@ -1732,6 +1734,7 @@ typedef struct IndexClause
 	List	   *indexcols;		/* multiple index columns, if RowCompare */
 	bool 		is_multi_vector_range_search;
 	bool		is_vector_search;
+	bool		is_single_vector_search;
 } IndexClause;
 
 /*

@@ -714,6 +714,7 @@ typedef struct EState
 	 */
 	List	   *es_insert_pending_result_relations;
 	List	   *es_insert_pending_modifytables;
+	bool       is_index_inorder;
 } EState;
 
 

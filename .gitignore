@@ -58,3 +58,6 @@ lib*.pc
 /contrib/m3v/a3v_index*
 /.bash_profile
 /bigann_*
+/experiment*
+/contrib/m3v/a3v_*_hnsw*
+logfile

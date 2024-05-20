@@ -424,7 +424,7 @@ extern Tuplesortstate *tuplesort_begin_datum(Oid datumType,
 											 bool nullsFirstFlag,
 											 int workMem, SortCoordinate coordinate,
 											 int sortopt);
-
+extern bool tuplesort_heapfull(Tuplesortstate *state);
 extern void tuplesort_puttupleslot(Tuplesortstate *state,
 								   TupleTableSlot *slot);
 extern void tuplesort_putheaptuple(Tuplesortstate *state, HeapTuple tup);

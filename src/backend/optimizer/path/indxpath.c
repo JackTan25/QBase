@@ -346,7 +346,7 @@ void create_index_paths(PlannerInfo *root, RelOptInfo *rel)
 	{
 		Path *bitmapqual;
 		BitmapHeapPath *bpath;
-		elog(INFO,"bitmap_and length %d",list_length(bitindexpaths));
+		// elog(INFO,"bitmap_and length %d",list_length(bitindexpaths));
 		ListCell* p;
 		// foreach(p,bitindexpaths){
 		// 	IndexPath* index_path = (IndexPath*) p;
@@ -354,19 +354,21 @@ void create_index_paths(PlannerInfo *root, RelOptInfo *rel)
 		// 	elog(INFO,"index name: %s",indexName);
 		// }
 		bitmapqual = choose_bitmap_and(root, rel, bitindexpaths);
-		bpath = create_bitmap_heap_path(root, rel, bitmapqual,
-										rel->lateral_relids, 1.0, 0);
-		// we should control the index->selectivity, optimizer rule:
-		// if btree index selectity in a range, try to recommand use m3v tree,
-		// if not in, just use multi hnsw index to solve.
-		bpath->path.total_cost = 0.0;
-		bpath->path.startup_cost = 0.0;
-		
-		add_path(rel, (Path *)bpath);
+		if(bitmapqual){
+			bpath = create_bitmap_heap_path(root, rel, bitmapqual,
+								rel->lateral_relids, 1.0, 0);
+			// we should control the index->selectivity, optimizer rule:
+			// if btree index selectity in a range, try to recommand use m3v tree,
+			// if not in, just use multi hnsw index to solve.
+			bpath->path.total_cost = 0.0;
+			bpath->path.startup_cost = 0.0;
+			
+			add_path(rel, (Path *)bpath);
 
-		/* create a partial bitmap heap path */
-		if (rel->consider_parallel && rel->lateral_relids == NULL)
-			create_partial_bitmap_paths(root, rel, bitmapqual);
+			/* create a partial bitmap heap path */
+			if (rel->consider_parallel && rel->lateral_relids == NULL)
+				create_partial_bitmap_paths(root, rel, bitmapqual);
+		}
 	}
 
 	/*
@@ -1391,6 +1393,12 @@ choose_bitmap_and(PlannerInfo *root, RelOptInfo *rel, List *paths)
 	ListCell *l;
 
 	Assert(npaths > 0); /* else caller error */
+	if(npaths == 1&&nodeTag((Path *)linitial(paths)) == T_IndexPath){
+		IndexPath* index_path = (IndexPath*)linitial(paths);
+		if(index_path->is_vector_search){
+			list_delete_first(paths);return NULL;
+		} 
+	}
 	if (npaths == 1)
 		return (Path *)linitial(paths); /* easy case */
 
@@ -1506,14 +1514,24 @@ choose_bitmap_and(PlannerInfo *root, RelOptInfo *rel, List *paths)
 			IndexPath* index_path = (IndexPath*)(pathinfoarray[npaths-1]->path);
 			char *indexName = get_rel_name(index_path->indexinfo->indexoid);
 			if(index_path->is_vector_search){
-				List* paths_;
-				for(int j = 0;j < npaths;j++){
-					paths_ = lappend(paths_,pathinfoarray[j]->path);
+				// we should check the selectivity of btree index.
+				IndexPath* bt_path = (IndexPath*)pathinfoarray[0]->path;
+				Selectivity bt_selctivity = bt_path->indexselectivity;
+				elog(INFO,"btree index selectivity %.2f",bt_selctivity);
+				if(bt_selctivity <= 0.000002){
+					List* paths_ = NULL;
+					for(int j = 0;j < npaths;j++){
+						paths_ = lappend(paths_,pathinfoarray[j]->path);
+					}
+					Path* path = (Path *)create_bitmap_and_path(root, rel, paths_);
+					// path->total_cost = 0.0;
+					// path->startup_cost = 0.0;
+					return path;
+				}else{
+					// check vector search for btree index selectivity.
+					list_delete_first(paths);list_delete_first(paths);
+					return NULL;
 				}
-				Path* path = (Path *)create_bitmap_and_path(root, rel, paths_);
-				// path->total_cost = 0.0;
-				// path->startup_cost = 0.0;
-				return path;
 			}
 		}
 	}
@@ -2257,9 +2275,11 @@ match_clause_to_index(PlannerInfo *root,
 		//		(b <-> '[4,4]')*0.2    2.6
 		//      (c <-> '[4,4]')*0.5    2.6
 		// Todo!: think about there are more other filter for other indexes. In fact,it won't be hard.
+		OpExpr *clause = (OpExpr *)rinfo->clause;
 		for(int i = 0;i < index->nkeycolumns;i++){
 			IndexClause* clause =  match_multi_vector_to_indexcol(root,rinfo,i,index);
 			if(clause){
+				clause->is_single_vector_search = (index->nkeycolumns == 1);
 				clauseset->indexclauses[i] = 
 				lappend(clauseset->indexclauses[i], clause);
 				// ListCell* lc;
@@ -2328,24 +2348,29 @@ match_multi_vector_to_indexcol(PlannerInfo *root,
 			// we just add the matched col expr into the indexes.
 			/* 假设 expr 和 constant 是您已经有的 Expr* 和 Const* */
 			Assert(IsA(rightop,Const));
+			// multi vector index but one vector search index.
+			if(index->nkeycolumns > 1 && IsA(get_leftop(leftop),Var)){
+				return NULL;
+			}
 			Expr* expr = match_vector_index_col(leftop,indexcol,index);
 			// it's "select * from t where c <-> const < const", there is weight.
 			if(expr == NULL){
 				// 514
-				OpExpr *opexpr = makeNode(OpExpr);
-				opexpr->opno = 514;
-				Const* weight =  makeConst(
-					FLOAT4OID,  // 数据类型的OID，FLOAT4OID表示float8或double precision
-					-1,         // typeMod -1 表示默认值
-					InvalidOid, // collation OID, 对于浮点数类型通常是无效的
-					sizeof(float4), // 数据长度
-					Float4GetDatum(1.0), // 将C变量转换为Postgres Datum
-					false, // isnull，这里设置为false因为我们提供了一个非空值
-					true   // byval，float4是按值传递的
-				);
-				opexpr->opresulttype = FLOAT4OID;
-				opexpr->args = list_make2(weight, leftop);
-				expr = opexpr;
+				// OpExpr *opexpr = makeNode(OpExpr);
+				// opexpr->opno = 514;
+				// Const* weight =  makeConst(
+				// 	FLOAT4OID,  // 数据类型的OID，FLOAT4OID表示float8或double precision
+				// 	-1,         // typeMod -1 表示默认值
+				// 	InvalidOid, // collation OID, 对于浮点数类型通常是无效的
+				// 	sizeof(float4), // 数据长度
+				// 	Float4GetDatum(1.0), // 将C变量转换为Postgres Datum
+				// 	false, // isnull，这里设置为false因为我们提供了一个非空值
+				// 	true   // byval，float4是按值传递的
+				// );
+				// opexpr->opresulttype = FLOAT4OID;
+				// opexpr->args = list_make2(weight, leftop);
+				// expr = opexpr;
+				expr = leftop;
 			}
 			Assert(IsA(expr,OpExpr));
 			Const *constant = (Const*) rightop;;
@@ -2368,6 +2393,7 @@ match_multi_vector_to_indexcol(PlannerInfo *root,
 			iclause->indexcols = NIL;
 			iclause->is_multi_vector_range_search = true;
 			iclause->is_vector_search = true;
+			iclause->is_single_vector_search = false;
 			return iclause;
 		}
 	}
@@ -3346,7 +3372,7 @@ match_pathkeys_to_index(IndexOptInfo *index, List *pathkeys,
 			 */
 			for (indexcol = 0; indexcol < index->nkeycolumns; indexcol++)
 			{
-				Expr *expr;
+				Expr *expr = NULL;
 
 				expr = match_clause_to_ordering_op(index,
 												   indexcol,

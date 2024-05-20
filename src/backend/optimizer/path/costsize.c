@@ -792,13 +792,14 @@ cost_index(IndexPath *path, PlannerInfo *root, double loop_count,
 	path->path.total_cost = startup_cost + run_cost;
 
 	// 6015 is spb oid, specified in the pg system table
-	char *s = get_am_name_me(path->indexinfo->relam);
-	if (path->indexinfo->relam == 6015 && enable_indexscan && !indexonly || (strcmp(s, "hnsw") == 0 || strcmp(s, "mtree") == 0 || strcmp(s,"m3v") == 0))
-	{
-		path->indextotalcost = 0;
-		path->path.startup_cost = 0;
-		path->path.total_cost = 0;
-	}
+	// char *s = get_am_name_me(path->indexinfo->relam);
+	
+	// if (path->indexinfo->relam == 6015 && enable_indexscan && !indexonly || (strcmp(s, "hnsw") == 0 || strcmp(s, "mtree") == 0 || strcmp(s,"m3v") == 0 ))
+	// {
+	// 	path->indextotalcost = 0;
+	// 	path->path.startup_cost = 0;
+	// 	path->path.total_cost = 0;
+	// }
 }
 
 /*
