@@ -73,3 +73,4 @@ Buffer m3vNewBuffer(Relation index, ForkNumber forkNum);
  */
 bool A3vMemoryIndexType(Relation index);
 float A3vCloseQueryThreshold(Relation index);
+

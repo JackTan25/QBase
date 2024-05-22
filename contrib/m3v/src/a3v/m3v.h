@@ -1,10 +1,8 @@
 #pragma once
-
 #include<vector>
 #include<string>
-#include "hnswlib.h"
 #include "lru_index_pointer.h"
-
+#include "hnsw.h"
 extern "C"{
 	#ifndef M3V_H
 	#define M3V_H
@@ -419,6 +417,8 @@ typedef struct m3vScanOpaqueData
 	int index_pages;
 	int tuple_nums;
 	int search_type;
+	MultiColumnHnsw hard_hnsws;
+	bool use_hard_hnsw;
 	bool load_hnsw_from_disk;
 } m3vScanOpaqueData;
 

@@ -61,3 +61,5 @@ lib*.pc
 /experiment*
 /contrib/m3v/a3v_*_hnsw*
 logfile
+/data_transform
+/data_load.py

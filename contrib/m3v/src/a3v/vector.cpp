@@ -1265,5 +1265,5 @@ float L2Distance(float* vector_record1,float* vector_record2,int dims){
 		diff = vector_record1[i] - vector_record2[i];
 		distance += diff * diff;
 	}
-	return sqrt((double)(distance));
+	return (double)(distance);
 }

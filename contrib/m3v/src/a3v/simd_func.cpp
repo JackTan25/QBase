@@ -104,7 +104,7 @@ void SetSIMDFunc(){
             float t = pv1[i] - pv2[i];
             res += t * t;
         }
-        return std::sqrt(res);
+        return res;
     }
 
     void SetSIMDFunc(){
@@ -130,7 +130,7 @@ float hyper_distance_func_with_weights(const float *query,const std::vector<cons
         res += d * weights[i];
         offset += dimensions[i];
     }
-    return sqrt(res);
+    return res;
 }
 
 float hyper_distance_func_with_weights_internal_query(const float *query,const float* data_point, const std::vector<int> &dimensions,float* weights,float* distance_1){
@@ -149,7 +149,7 @@ float hyper_distance_func_with_weights_internal_query(const float *query,const f
         res += d * weights[i];
         offset += dimensions[i];
     }
-    return sqrt(res);
+    return res;
 }
 
 // float hyper_distance_func_without_weights(float *query,float* data_point,int dim){

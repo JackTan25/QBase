@@ -39,7 +39,7 @@ float8 getKDistance(pairingheap *heap, int k, int nn_size);
  * 
  * we need two pq to do knn search.
  * 1. guide_pq. small heap
- * 2. result_pq. big heap
+ * 2. result_pqs. big heap
  */
 void getKNNRecurse(Relation index, BlockNumber blkno, Datum q, int k, float8 distance, pairingheap *p, pairingheap *nn, FmgrInfo *procinfo, Oid collation, int *nn_size,int columns)
 {
@@ -607,36 +607,74 @@ bool MemoryA3vIndexGetTuple(IndexScanDesc scan,ItemPointerData& result_tid){
 		// 2. check query records for A3V Index (in the a3v threshold), if over A3V_HINT_QUERY_RECORDS = 7, do a3v index search.
 		// 3. if not within the threshold, open a new a3v index and do HardHnsw Search
 		
+		// hack: first search is hardhnsw, but we can do a3v search A3V_HINT_QUERY_RECORDS times for the first time, but the real
+		// result uses hrad hnsw.
+
 		// we should try to check the queryRecords
 		// knn search
 		if(KNN_QUERY(scan)){
-			std::priority_queue<PQNode> result_pq;
+			std::priority_queue<PQNode> result_pqs;
 			std::string hard_hnsws_prefix_path = build_hnsw_index_file_hard_path_prefix(index);
-			auto hard_hnsws = MultiColumnHnsw(memory_init.hard_hnsws[hard_hnsws_prefix_path],query_points,scan->orderByData->KNNValues);
 			// first search.
 			if(memory_init.query_times == 0){
-				
-			}
-			a3v_index->KnnCrackSearch(so,query,scan->orderByData->KNNValues,result_pq,dimensions,a3v_index->last_top_k_mean);
-			a3v_index->query_records++;
-			a3v_index->last_top_k_mean = (a3v_index->last_top_k_mean + result_pq.top().first)/a3v_index->query_records;
-			while(!result_pq.empty()){
-				so->result_ids->push_back(result_pq.top().second);result_pq.pop();
+				so->hard_hnsws = MultiColumnHnsw(memory_init.hard_hnsws[hard_hnsws_prefix_path],query_points,scan->orderByData->KNNValues);
+				so->use_hard_hnsw = true;
+				// do hard hnsw index and a3v 7 times
+				memory_init.query_times = A3V_HINT_QUERY_RECORDS;
+				// put result in so->result_ids, and set result_idx as zero.
+				so->result_idx = 0;so->result_ids->clear();
+				for(int query_number = 0;query_number < A3V_HINT_QUERY_RECORDS;query_number++){
+					a3v_index->KnnCrackSearch(so,query,scan->orderByData->KNNValues,result_pqs,dimensions,a3v_index->last_top_k_mean);
+				}
+				if(so->search_type == SingleSearchType){
+					bool has_next = so->hard_hnsws.GetNext();
+					result_tid = so->hard_hnsws.result_tid;
+					return has_next;
+				}else{
+					bool has_next = so->hard_hnsws.GetNext();
+					result_tid = so->hard_hnsws.result_tid;
+					return has_next;
+				}
+			}else{
+				a3v_index->KnnCrackSearch(so,query,scan->orderByData->KNNValues,result_pqs,dimensions,a3v_index->last_top_k_mean);
+				a3v_index->query_records++;
+				a3v_index->last_top_k_mean = (a3v_index->last_top_k_mean + result_pqs.top().first)/a3v_index->query_records;
+				while(!result_pqs.empty()){
+					so->result_ids->push_back(result_pqs.top().second);result_pqs.pop();
+				}
 			}
 		}else{
-			float8 radius = DatumGetFloat8(scan->keyData->sk_argument);
-			a3v_index->RangeCrackSearch(so,query,radius,*so->result_ids,dimensions);
-			// after search, we need to sort for tids, this is used to improve cache hits.
-			sort(so->result_ids->begin(),so->result_ids->end());
+			if(memory_init.query_times == 0){
+				memory_init.query_times = A3V_HINT_QUERY_RECORDS;
+			}else{
+				float8 radius = DatumGetFloat8(scan->keyData->sk_argument);
+				a3v_index->RangeCrackSearch(so,query,radius,*so->result_ids,dimensions);
+				// after search, we need to sort for tids, this is used to improve cache hits.
+				sort(so->result_ids->begin(),so->result_ids->end());
+				// put result in so->result_ids, and set result_idx as zero.
+			}
 		}
 		so->first = false;
 	}
-	if(so->result_idx < so->result_ids->size()){
-		int idx = (*so->result_ids)[so->result_ids->size() - 1 - so->result_idx++];
-		result_tid = (*so->data_points)[idx].second;
-		return true;
+
+	if(so->use_hard_hnsw){
+		if(so->search_type == SingleSearchType){
+			bool has_next = so->hard_hnsws.GetNext();
+			result_tid = so->hard_hnsws.result_tid;
+			return has_next;
+		}else{
+			bool has_next = so->hard_hnsws.GetNext();
+			result_tid = so->hard_hnsws.result_tid;
+			return has_next;
+		}
+	}else{
+		if(so->result_idx < so->result_ids->size()){
+			int idx = (*so->result_ids)[so->result_ids->size() - 1 - so->result_idx++];
+			result_tid = (*so->data_points)[idx].second;
+			return true;
+		}
+		return false;
 	}
-	return false;
 }
 
 void debug_weights(IndexScanDesc scan,bool is_knn){

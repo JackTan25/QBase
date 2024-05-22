@@ -216,3 +216,15 @@ pip3.11 install pymilvus -i http://mirrors.aliyun.com/pypi/simple/ --trusted-hos
 python3.11 hello_milvus.py 
 ```
 
+sudo docker run -it ubuntu:20.04 /bin/bash
+sudo docker exec -it --privileged --user=root hopeful_visvesvaraya bash
+
+# Add rust download source url
+export RUSTUP_DIST_SERVER=https://mirrors.ustc.edu.cn/rust-static
+export RUSTUP_UPDATE_ROOT=https://mirrors.ustc.edu.cn/rust-static/rustup
+
+# 或者你可以将这些设置写入到 .bashrc 或 .zshrc 文件中，使其在每次启动终端时自动生效：
+echo 'export RUSTUP_DIST_SERVER=https://mirrors.ustc.edu.cn/rust-static' >> ~/.bashrc
+echo 'export RUSTUP_UPDATE_ROOT=https://mirrors.ustc.edu.cn/rust-static/rustup' >> ~/.bashrc
+
+source ~/.bashrc
