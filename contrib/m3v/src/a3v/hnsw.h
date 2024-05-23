@@ -37,5 +37,6 @@ class MultiColumnHnsw{
 		std::priority_queue<ScorePair,std::vector<ScorePair>,std::greater<ScorePair>> proc_pq; // MinHeap
 		std::unordered_set<std::uint64_t> seen_tid;
 		ItemPointerData result_tid;
+		float distance;
 		int k;
 };

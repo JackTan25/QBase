@@ -4,6 +4,7 @@
 #include "hnswlib.h"
 #include "init.h"
 #include <tuple>
+#include "a3v_async_server.h"
 #include "memory_a3v.h"
 extern "C"{
 	#include "postgres.h"
@@ -16,6 +17,7 @@ extern "C"{
 }
 #define SingleSearchType 1
 #define MultiColumnSearchType 2
+const int RANGE_QUERY_THRESHOLD_TIMES = 2500;
 #define MAX_KNN_DISTANCE get_float8_infinity()
 #define KNN_QUERY(scan) (scan->orderByData != NULL && ((scan->orderByData->sk_flags & SK_ISNULL) == false))
 #define RANGE_QUERY(scan) (scan->keyData != NULL && ((scan->keyData->sk_flags & SK_ISNULL) == false))
@@ -396,6 +398,12 @@ m3vbeginscan(Relation index, int nkeys, int norderbys)
 	}else{
 		so->search_type = SingleSearchType;
 	}
+	std::string index_file_threshold_path = build_memory_index_threshold_file_path(index);
+	if(!memory_init.thresholds.count(index_file_threshold_path)){
+		float threshold = 0.0;
+		readFloatFromFile(index_file_threshold_path,threshold);
+		memory_init.thresholds[index_file_threshold_path] = threshold;
+	}
 	/*
 	 * Get a shared lock. This allows vacuum to ensure no in-flight scans
 	 * before marking tuples as deleted.
@@ -540,6 +548,11 @@ std::string build_memory_index_points_file_path(Relation index){
 	return path;
 }
 
+std::string build_memory_index_threshold_file_path(Relation index){
+	std::string path = std::string(PROJECT_ROOT_PATH) + "/" + std::string(RelationGetRelationName(index)) + ".threshold";
+	return path;
+}
+
 // store query ids std::vector. The ids should be tids to specify the entry position.
 std::string build_a3v_index_forest_query_ids_file_path(Relation index){
 	return std::string(PROJECT_ROOT_PATH) + "/" + std::string(RelationGetRelationName(index)) + "_a3v_forest_root_ids.bin";
@@ -582,7 +595,7 @@ bool MemoryA3vIndexGetTuple(IndexScanDesc scan,ItemPointerData& result_tid){
 		for(int i = 0;i < dimensions.size();i++){
 			sums += dimensions[i];
 		}
-		float query[sums];
+		std::vector<float> query(sums,0.0f);
 		for(int i = 0;i < dimensions.size();i++){
 			if(KNN_QUERY(scan)){
 				so->weights[i] = DatumGetFloat8(scan->orderByData[i].w);
@@ -592,14 +605,16 @@ bool MemoryA3vIndexGetTuple(IndexScanDesc scan,ItemPointerData& result_tid){
 				query_point = DatumGetVector(scan->keyData[i].sk_argument);
 			}
 			query_points.push_back(query_point->x);
-			memcpy(query + offset,query_point->x,sizeof(float) * dimensions[i]);
+			memcpy(query.data() + offset,query_point->x,sizeof(float) * dimensions[i]);
 			offset += dimensions[i];
 		}
 		if(dimensions.size() == 1){
 			so->weights[0] = 1.0;so->weights[1] = 1.0; so->weights[2] = 1.0;
 		}
+		int a3v_label;
 		// get memory_index from memory init.
-		std::shared_ptr<MemoryA3v> a3v_index = memory_init.GetMultiVectorMemoryIndex(index,dimensions,query);
+		std::shared_ptr<MemoryA3v> a3v_index = memory_init.GetMultiVectorMemoryIndex(index,dimensions,query.data(),a3v_label);
+		std::string index_file_path = build_memory_index_points_file_path(index);
 		// judge hnsw or a3v
 		// multi column/single column hnsw or a3v index
 		// 1. check this is the first query for now, if so we should insert query into MetaHnsw, and push the query for the 
@@ -608,26 +623,27 @@ bool MemoryA3vIndexGetTuple(IndexScanDesc scan,ItemPointerData& result_tid){
 		// 3. if not within the threshold, open a new a3v index and do HardHnsw Search
 		
 		// hack: first search is hardhnsw, but we can do a3v search A3V_HINT_QUERY_RECORDS times for the first time, but the real
-		// result uses hrad hnsw.
-
+		// result uses hard hnsw.
+		memory_init.query_times++;
 		// we should try to check the queryRecords
 		// knn search
 		if(KNN_QUERY(scan)){
-			std::priority_queue<PQNode> result_pqs;
-			std::string hard_hnsws_prefix_path = build_hnsw_index_file_hard_path_prefix(index);
-			// first search.
-			if(memory_init.query_times == 0){
-				so->hard_hnsws = MultiColumnHnsw(memory_init.hard_hnsws[hard_hnsws_prefix_path],query_points,scan->orderByData->KNNValues);
-				so->use_hard_hnsw = true;
-				// do hard hnsw index and a3v 7 times
-				memory_init.query_times = A3V_HINT_QUERY_RECORDS;
-				// put result in so->result_ids, and set result_idx as zero.
-				so->result_idx = 0;so->result_ids->clear();
-				for(int query_number = 0;query_number < A3V_HINT_QUERY_RECORDS;query_number++){
-					a3v_index->KnnCrackSearch(so,query,scan->orderByData->KNNValues,result_pqs,dimensions,a3v_index->last_top_k_mean);
+			if(a3v_index->query_records.load() >= A3V_HINT_QUERY_RECORDS){
+				so->use_hard_hnsw = false;
+				std::priority_queue<PQNode> result_pqs;
+				a3v_index->KnnCrackSearch(so->weights,query.data(),scan->orderByData->KNNValues,result_pqs,dimensions,a3v_index->last_top_k_mean);
+				a3v_index->query_records.fetch_add(1);
+				a3v_index->last_top_k_mean = (a3v_index->last_top_k_mean + result_pqs.top().first)/a3v_index->query_records;
+				while(!result_pqs.empty()){
+					so->result_ids->push_back(result_pqs.top().second);result_pqs.pop();
 				}
+			}else{
+				so->use_hard_hnsw = true;
+				std::string hard_hnsws_prefix_path = build_hnsw_index_file_hard_path_prefix(index);
+				so->hard_hnsws = MultiColumnHnsw(memory_init.hard_hnsws[hard_hnsws_prefix_path],query_points,scan->orderByData->KNNValues);
+				so->result_idx = 0;so->result_ids->clear();
 				if(so->search_type == SingleSearchType){
-					bool has_next = so->hard_hnsws.GetNext();
+					bool has_next = so->hard_hnsws.GetSingleNext();
 					result_tid = so->hard_hnsws.result_tid;
 					return has_next;
 				}else{
@@ -635,37 +651,71 @@ bool MemoryA3vIndexGetTuple(IndexScanDesc scan,ItemPointerData& result_tid){
 					result_tid = so->hard_hnsws.result_tid;
 					return has_next;
 				}
-			}else{
-				a3v_index->KnnCrackSearch(so,query,scan->orderByData->KNNValues,result_pqs,dimensions,a3v_index->last_top_k_mean);
-				a3v_index->query_records++;
-				a3v_index->last_top_k_mean = (a3v_index->last_top_k_mean + result_pqs.top().first)/a3v_index->query_records;
-				while(!result_pqs.empty()){
-					so->result_ids->push_back(result_pqs.top().second);result_pqs.pop();
-				}
+				// yield the query point to A3VReciveServer
+				A3vAsyncSendServer(std::make_shared<Message>(KNN_QUERY_MESSAGE,a3v_label,index_file_path,std::make_shared<std::vector<float>>(query),scan->orderByData->KNNValues,0.0,std::make_shared<std::vector<int>>(dimensions)));
 			}
 		}else{
-			if(memory_init.query_times == 0){
-				memory_init.query_times = A3V_HINT_QUERY_RECORDS;
-			}else{
+			so->range_next_times++;
+			if(a3v_index->query_records.load() >= A3V_HINT_QUERY_RECORDS){
+				so->use_hard_hnsw = false;
 				float8 radius = DatumGetFloat8(scan->keyData->sk_argument);
-				a3v_index->RangeCrackSearch(so,query,radius,*so->result_ids,dimensions);
+				a3v_index->RangeCrackSearch(so->weights,query.data(),radius,*so->result_ids,dimensions);
+				a3v_index->query_records.fetch_add(1);
 				// after search, we need to sort for tids, this is used to improve cache hits.
 				sort(so->result_ids->begin(),so->result_ids->end());
-				// put result in so->result_ids, and set result_idx as zero.
+			}else{
+				so->use_hard_hnsw = true;
+				float8 radius = DatumGetFloat8(scan->keyData->sk_argument);
+				if(so->search_type == SingleSearchType){
+					bool has_next = so->hard_hnsws.GetSingleNext();
+					if(so->hard_hnsws.distance > radius || so->range_next_times > RANGE_QUERY_THRESHOLD_TIMES){
+						return false;
+					}
+					result_tid = so->hard_hnsws.result_tid;
+					return has_next;
+				}else{
+					bool has_next = so->hard_hnsws.GetNext();
+					if(so->hard_hnsws.distance > radius || so->range_next_times > RANGE_QUERY_THRESHOLD_TIMES){
+						return false;
+					}
+					result_tid = so->hard_hnsws.result_tid;
+				}
+				// yield the query point to A3VReciveServer
+				A3vAsyncSendServer(std::make_shared<Message>(RANGE_QUERY_MESSAGE,a3v_label,index_file_path,std::make_shared<std::vector<float>>(query),scan->orderByData->KNNValues,0.0,std::make_shared<std::vector<int>>(dimensions)));
 			}
+			// put result in so->result_ids, and set result_idx as zero.
 		}
 		so->first = false;
 	}
 
 	if(so->use_hard_hnsw){
-		if(so->search_type == SingleSearchType){
-			bool has_next = so->hard_hnsws.GetNext();
-			result_tid = so->hard_hnsws.result_tid;
-			return has_next;
+		if(KNN_QUERY(scan)){
+			if(so->search_type == SingleSearchType){
+				bool has_next = so->hard_hnsws.GetSingleNext();
+				result_tid = so->hard_hnsws.result_tid;
+				return has_next;
+			}else{
+				bool has_next = so->hard_hnsws.GetNext();
+				result_tid = so->hard_hnsws.result_tid;
+				return has_next;
+			}
 		}else{
-			bool has_next = so->hard_hnsws.GetNext();
-			result_tid = so->hard_hnsws.result_tid;
-			return has_next;
+			float8 radius = DatumGetFloat8(scan->keyData->sk_argument);
+			if(so->search_type == SingleSearchType){
+				bool has_next = so->hard_hnsws.GetSingleNext();
+				if(so->hard_hnsws.distance > radius || so->range_next_times > RANGE_QUERY_THRESHOLD_TIMES){
+					return false;
+				}
+				result_tid = so->hard_hnsws.result_tid;
+				return has_next;
+			}else{
+				bool has_next = so->hard_hnsws.GetNext();
+				if(so->hard_hnsws.distance > radius || so->range_next_times > RANGE_QUERY_THRESHOLD_TIMES){
+					return false;
+				}
+				result_tid = so->hard_hnsws.result_tid;
+			}
+			so->range_next_times++;
 		}
 	}else{
 		if(so->result_idx < so->result_ids->size()){

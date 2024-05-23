@@ -216,8 +216,8 @@ pip3.11 install pymilvus -i http://mirrors.aliyun.com/pypi/simple/ --trusted-hos
 python3.11 hello_milvus.py 
 ```
 
-sudo docker run -it ubuntu:20.04 /bin/bash
-sudo docker exec -it --privileged --user=root hopeful_visvesvaraya bash
+sudo docker --privileged run -it ubuntu:20.04 /bin/bash
+sudo docker exec -it --privileged --user=root nice_noyce bash
 
 # Add rust download source url
 export RUSTUP_DIST_SERVER=https://mirrors.ustc.edu.cn/rust-static
@@ -228,3 +228,5 @@ echo 'export RUSTUP_DIST_SERVER=https://mirrors.ustc.edu.cn/rust-static' >> ~/.b
 echo 'export RUSTUP_UPDATE_ROOT=https://mirrors.ustc.edu.cn/rust-static/rustup' >> ~/.bashrc
 
 source ~/.bashrc
+## 快点下载的方式
+HTTP_PROXY=http://127.0.0.1:7890 HTTPS_PROXY=https://127.0.0.1:7890 docker-compose up

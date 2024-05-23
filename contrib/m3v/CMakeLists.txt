@@ -50,6 +50,7 @@ add_library(${PROJECT_NAME} SHARED
     src/a3v/m3vvaccum.cpp
     src/a3v/vector.cpp
     src/a3v/util.cpp
+    src/a3v/a3v_async_server.cpp
     src/record_cache/record_io.cpp
     src/record_cache/lru_index_pointer.cpp
     src/record_cache/validity_mask.cpp
@@ -73,9 +74,9 @@ set_target_properties(${PROJECT_NAME} PROPERTIES PREFIX "")
 set_target_properties(${PROJECT_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(${PROJECT_NAME} PUBLIC /data/include/postgresql/server)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/src/record_cache/include)
-target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/src/ /home/tanboyu/cpp_workspace/third_party/rocksdb/include)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/src/ /home/tanboyu/cpp_workspace/OneDB186/contrib/m3v/third_party/rocksdb/include)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/contrib/m3v/src/utils)
-target_include_directories(${PROJECT_NAME} PUBLIC /home/tanboyu/cpp_workspace/third_party/hnsw/hnswlib)
+target_include_directories(${PROJECT_NAME} PUBLIC /home/tanboyu/cpp_workspace/OneDB186/contrib/m3v/third_party/hnsw/hnswlib)
 # target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/contrib/m3v/src/a3v)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/src/AuxiliaryIndex/)
 if(WIN32)

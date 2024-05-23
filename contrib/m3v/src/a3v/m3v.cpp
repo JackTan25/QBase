@@ -1,9 +1,11 @@
 #pragma once
 
 #include "a3v/m3v.h"
+#include "a3v_async_server.h"
 #include "lru_index_pointer.h"
 #include "util.h"
 #include "simd_func.h"
+#include<thread>
 extern "C"
 {	
 	#include "postgres.h"
@@ -52,6 +54,10 @@ bool a3v_memory_index;
 void m3vInit(void)
 {
 	// migrate m3v.
+	elog(LOG,"init M3V,Start A3vAsyncRecieve Server");
+	std::thread A3VServer(A3vAsyncRecieveServer);
+    A3VServer.detach();
+	elog(LOG,"init M3V,Start A3vAsyncRecieve Server Successfully");
 	SetSIMDFunc();
 	m3v_relopt_kind = add_reloption_kind();
 	add_bool_reloption(m3v_relopt_kind, "memory_index", "the index type is memory index or disk index",

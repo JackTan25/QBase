@@ -63,3 +63,4 @@ lib*.pc
 logfile
 /data_transform
 /data_load.py
+/contrib/m3v/third_party/*

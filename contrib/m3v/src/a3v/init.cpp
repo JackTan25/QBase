@@ -91,6 +91,28 @@ GlobalInit::~GlobalInit(){
     }
 }
 
+void writeFloatToFile(const std::string& filePath, float value) {
+    std::ofstream outputFile(filePath);
+    if (!outputFile.is_open()) {
+        elog(ERROR, "Failed to open file for writing.");
+    }
+    outputFile << value << std::endl;
+    outputFile.close();
+    elog(ERROR, "Float value has been written to file successfully.");
+}
+
+void readFloatFromFile(const std::string& filePath, float& value) {
+    std::ifstream inputFile(filePath);
+    if (!inputFile.is_open()) {
+        elog(ERROR,"Failed to open file for reading.");
+    }
+    if (!(inputFile >> value)) {
+        elog(ERROR,"Failed to read float value from file.");
+    }
+    inputFile.close();
+    elog(INFO, "Float value has been read from file successfully: ");
+}
+
 float InMemoryGlobal::random_10(Relation index,std::vector<PII> &data_points){
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -118,10 +140,13 @@ float InMemoryGlobal::random_10(Relation index,std::vector<PII> &data_points){
 // MemoryGlobal
 void InMemoryGlobal::appendDataPoints(Relation index,m3vBuildState *buildstate){
     std::string index_file_path = build_memory_index_points_file_path(index);
+    std::string index_file_threshold_path = build_memory_index_threshold_file_path(index);
     // add vector data pointer
     points[index_file_path] = buildstate->data_points;
     // calculate random distance here.
     float threshold = random_10(index,buildstate->data_points);
+    thresholds[index_file_threshold_path] = threshold;
+    writeFloatToFile(index_file_threshold_path,threshold);
     elog(INFO,"MetaHNSW threshold: %.2f",threshold);
 }
 
@@ -240,7 +265,14 @@ void InMemoryGlobal::restore_datapoints_from_hnsw(Relation index){
     }
 }
 
-std::shared_ptr<MemoryA3v> InMemoryGlobal::GetMultiVectorMemoryIndex(Relation index,const std::vector<int>& dims,float* query){
+std::shared_ptr<MemoryA3v> InMemoryGlobal::GetMultiVectorMemoryIndexById(std::string& path,int a3v_index_id){
+    if(!memory_indexes.count(path)||!int(memory_indexes[path].size())-1 < a3v_index_id){
+        elog(ERROR,"GetMultiVectorMemoryIndexById Failed");
+    }
+    return memory_indexes[path][a3v_index_id];
+}
+
+std::shared_ptr<MemoryA3v> InMemoryGlobal::GetMultiVectorMemoryIndex(Relation index,const std::vector<int>& dims,float* query,int &label_){
 	std::string index_file_path = build_memory_index_points_file_path(index);
 	bool init;
     int dim = 0;
@@ -276,6 +308,7 @@ std::shared_ptr<MemoryA3v> InMemoryGlobal::GetMultiVectorMemoryIndex(Relation in
     // A3vMemoryIndexType(index)
 	auto root_point = result.top();
 	hnswlib::labeltype label = root_point.second;
+    label_ = label;
     return memory_indexes[index_file_path][label];
 }
 
@@ -288,4 +321,3 @@ InMemoryGlobal::~InMemoryGlobal(){
         }
     }
 }
-

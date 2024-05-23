@@ -151,6 +151,7 @@
     "lsyscache.h": "c",
     "nodebitmapand.h": "c",
     "relscan.h": "c",
-    "relcache.h": "c"
+    "relcache.h": "c",
+    "queue": "cpp"
   }
 }

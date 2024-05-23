@@ -13,6 +13,9 @@ std::string build_hnsw_index_file_hard_path_prefix(Relation index);
 // store query ids std::vector. The ids should be tids to specify the entry position.
 std::string build_a3v_index_forest_query_ids_file_path(Relation index);
 std::string build_memory_index_points_file_path(Relation index);
+std::string build_memory_index_threshold_file_path(Relation index);
+void readFloatFromFile(const std::string& filePath, float& value);
+void writeFloatToFile(const std::string& filePath, float value);
 class GlobalInit{
     public:
         // GlobalInit(){
@@ -62,6 +65,7 @@ extern GlobalInit init;
 class InMemoryGlobal{
 	 public:
         // InMemoryGlobal(){
+		// 	elog(LOG,"init MemoryGlobal,Start Idle A3v Thread");
         // }
 		float random_10(Relation index,std::vector<PII> &data_points);
 		void restore_datapoints_from_hnsw(Relation index);
@@ -77,7 +81,10 @@ class InMemoryGlobal{
 		// for now, support single column firstly in 2024-4-17, 
 		// support multi-vector in 4.18
 		// support prefilter in 4.19.
-		std::shared_ptr<MemoryA3v> GetMultiVectorMemoryIndex(Relation index,const std::vector<int>& dims,float* query);
+		std::shared_ptr<MemoryA3v> GetMultiVectorMemoryIndex(Relation index,const std::vector<int>& dims,float* query,int &lable_);
+
+		// build_memory_index_points_file_path
+		std::shared_ptr<MemoryA3v> GetMultiVectorMemoryIndexById(std::string& path,int a3v_index_id);
 
 		void appendHnswHardIndex(std::shared_ptr<hnswlib::HierarchicalNSW<float>> &hnsw_hard_index,Relation index);
 
@@ -95,7 +102,7 @@ class InMemoryGlobal{
 		// void BuildMultiVectorMemoryIndex(Relation index,const std::vector<int>& dims);
 		
 		std::shared_ptr<hnswlib::HierarchicalNSW<float>>  LoadHnswIndex(Relation index,int dim,bool& init);
-
+		std::unordered_map<std::string,float> thresholds;
 		// index_file_name => HnswIndex (MetaHNSW)
 		std::unordered_map<std::string,std::shared_ptr<hnswlib::HierarchicalNSW<float>>> alg_hnsws;		
 		// index_file_name 

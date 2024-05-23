@@ -35,12 +35,12 @@ class MemoryA3v{
 		MemoryA3v(const std::vector<int>& dims,const std::vector<PII>& data_points_);
 
 		// result_pq should be empty initially.
-		void KnnCrackSearch(m3vScanOpaque so, float* query,int k, std::priority_queue<PQNode>& result_pq /**Max heap**/,const std::vector<int> &dimensions,float last_topk_mean);
+		void KnnCrackSearch(std::vector<float> &weights, float* query,int k, std::priority_queue<PQNode>& result_pq /**Max heap**/,const std::vector<int> &dimensions,float last_topk_mean);
 
-		void RangeCrackSearch(m3vScanOpaque so, float* query,float radius,std::vector<int>& result_ids,const std::vector<int> &dimensions);
+		void RangeCrackSearch(std::vector<float> &weights, float* query,float radius,std::vector<int>& result_ids,const std::vector<int> &dimensions);
 
 	public:
-		void RangeCrackSearchAuxiliary(m3vScanOpaque so,int root_idx, float* query,float radius,std::vector<int>& result_ids,const std::vector<int> &dimensions,int dim);
+		void RangeCrackSearchAuxiliary(std::vector<float> &weights,int root_idx, float* query,float radius,std::vector<int>& result_ids,const std::vector<int> &dimensions,int dim);
 				
 		int CrackInTwo(int start_,int end_,float epsilon);
 
@@ -55,5 +55,4 @@ class MemoryA3v{
 		std::atomic<size_t> query_records{0};
 		float last_top_k_mean{0.0};
 		std::mutex lock;
-		std::vector<std::vector<float>> query_queue; 
 };

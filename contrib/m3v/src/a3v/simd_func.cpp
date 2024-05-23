@@ -113,7 +113,7 @@ void SetSIMDFunc(){
     }
 #endif
 
-float hyper_distance_func_with_weights(const float *query,const std::vector<const float*>& data_point, const std::vector<int> &dimensions,float* weights,float* distance_1){
+float hyper_distance_func_with_weights(const float *query,const std::vector<const float*>& data_point, const std::vector<int> &dimensions,std::vector<float> &weights,float* distance_1){
     float res = 0.0;
     *distance_1 = 0.0;
     int offset = 0.0;
@@ -133,7 +133,7 @@ float hyper_distance_func_with_weights(const float *query,const std::vector<cons
     return res;
 }
 
-float hyper_distance_func_with_weights_internal_query(const float *query,const float* data_point, const std::vector<int> &dimensions,float* weights,float* distance_1){
+float hyper_distance_func_with_weights_internal_query(const float *query,const float* data_point, const std::vector<int> &dimensions,std::vector<float> &weights,float* distance_1){
     float res = 0.0;
     *distance_1 = 0.0;
     int offset = 0.0;

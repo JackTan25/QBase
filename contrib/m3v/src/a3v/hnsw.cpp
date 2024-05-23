@@ -37,6 +37,7 @@ bool MultiColumnHnsw::GetSingleNext(){
     auto result = hnsws_iterators[0]->Next();
     if(result->HasResult()){
         result_tid = GetItemPointerDataByNumber(result->GetLabel());
+        distance = result->GetDistance();
         return true;
     }
     return false;
@@ -54,6 +55,7 @@ bool MultiColumnHnsw::GetNext(){
                 finished = true;break;
             }
             hnswlib::labeltype label = result->GetLabel();
+            distance = result->GetDistance();
             if(seen_tid.find(label) != seen_tid.end()){
                 continue;
             }
