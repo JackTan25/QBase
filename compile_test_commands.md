@@ -22,6 +22,8 @@ CFLAGS='-O3 -march=native' ./configure --prefix=/home/tanboyu/cpp_workspace/qbas
 
 ./configure --prefix=/home/tanboyu/cpp_workspace/qbase_data/ --with-libedit-preferred --with-perl --with-python --with-uuid=e2fs --with-systemd --enable-debug --enable-dtrace CFLAGS="-g -O0"
 
+./configure --prefix=/home/tanboyu/cpp_workspace/qbase_data/ --with-libedit-preferred --with-perl --with-python --with-uuid=e2fs --with-systemd --disable-debug CFLAGS="-O2"
+
 配置postgres库用于find_package
 ```shell
 ## pg_config --includedir-server

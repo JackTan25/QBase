@@ -152,6 +152,7 @@
     "nodebitmapand.h": "c",
     "relscan.h": "c",
     "relcache.h": "c",
-    "queue": "cpp"
+    "queue": "cpp",
+    "*.ipp": "cpp"
   }
 }

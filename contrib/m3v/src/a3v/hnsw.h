@@ -10,6 +10,7 @@ extern "C"{
     #include "storage/bufmgr.h"
 }
 
+const int multi_range_k = 50;
 const int terminate_multi_top_k = 50;
 const int check_thresold = 1.27;
 using ScorePair = std::pair<float,std::uint64_t>;

@@ -7,8 +7,8 @@ const int KNN_QUERY_MESSAGE = 1;
 const int RANGE_QUERY_MESSAGE = 2;
 class Message{
     public:
-        Message(int query_type_,int a3v_id_,std::string &path_key_,std::shared_ptr<std::vector<float>> query_point_,int k_,float radius_,std::shared_ptr<std::vector<int>> dimensions_):
-        query_type(query_type_),a3v_id(a3v_id_),path_key(path_key_),query_point(query_point_),k(k_),radius(radius_),dimensions(dimensions_){
+        Message(int query_type_,int a3v_id_,std::string &path_key_,std::shared_ptr<std::vector<float>> query_point_,int k_,float radius_,std::shared_ptr<std::vector<int>> dimensions_,std::shared_ptr<std::vector<float>> weights_):
+        query_type(query_type_),a3v_id(a3v_id_),path_key(path_key_),query_point(query_point_),k(k_),radius(radius_),dimensions(dimensions_),weights(weights_){
         }
     public:
         // range query or knn query.

@@ -402,7 +402,7 @@ typedef struct m3vScanOpaqueData
 	std::vector<int>* result_ids;
 	int result_idx;
 	// 1. we support 3 vector search at most.
-	std::vector<float> weights{1.0,1.0,1.0};
+	std::vector<float>* weights;
 	// 2. the largest dimension is 300, in fact we should make it configureable in CMakeLists.
 	// for now, we use this for experiment.
 	float query_point[300];
@@ -417,7 +417,7 @@ typedef struct m3vScanOpaqueData
 	int index_pages;
 	int tuple_nums;
 	int search_type;
-	MultiColumnHnsw hard_hnsws;
+	MultiColumnHnsw* hard_hnsws;
 	bool use_hard_hnsw;
 	bool load_hnsw_from_disk;
 	int range_next_times{0};

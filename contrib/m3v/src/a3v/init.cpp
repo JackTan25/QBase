@@ -98,7 +98,7 @@ void writeFloatToFile(const std::string& filePath, float value) {
     }
     outputFile << value << std::endl;
     outputFile.close();
-    elog(ERROR, "Float value has been written to file successfully.");
+    elog(INFO, "Float value has been written to file successfully.");
 }
 
 void readFloatFromFile(const std::string& filePath, float& value) {
@@ -147,7 +147,7 @@ void InMemoryGlobal::appendDataPoints(Relation index,m3vBuildState *buildstate){
     float threshold = random_10(index,buildstate->data_points);
     thresholds[index_file_threshold_path] = threshold;
     writeFloatToFile(index_file_threshold_path,threshold);
-    elog(INFO,"MetaHNSW threshold: %.2f",threshold);
+    elog(INFO,"MetaHNSW threshold: %.6f",threshold);
 }
 
 void InMemoryGlobal::SetDimensions(const std::vector<int> &dimensions_,Relation index){
@@ -296,6 +296,7 @@ std::shared_ptr<MemoryA3v> InMemoryGlobal::GetMultiVectorMemoryIndex(Relation in
         auto distance = result.top().first;
         // open a new a3v index
         if(distance > check_thresold){
+            elog(INFO,"open new a3v index");
             std::shared_ptr<MemoryA3v> a3v_index = std::make_shared<MemoryA3v>(dims,memory_init.LoadDataPoints(index));
             // elog(INFO,"(int*)hnsw_index->dist_func_param_: %d",*(int*)hnsw_index->dist_func_param_);
             hnswlib::labeltype lable = memory_indexes[index_file_path].size();
