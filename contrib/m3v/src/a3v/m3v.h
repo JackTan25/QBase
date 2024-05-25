@@ -277,6 +277,7 @@ typedef struct m3vBuildState
 	std::vector<int> dims;
 	bool is_first;
 	int cur_c;
+	int curent_insert_tuples;
 } m3vBuildState;
 
 typedef struct m3vMetaPageData
@@ -399,7 +400,7 @@ typedef struct m3vScanOpaqueData
 	int columns;
 	std::vector<ItemPointerData> tids;
 	std::vector<PII>* data_points;
-	std::vector<int>* result_ids;
+	std::vector<PQNode>* result_ids;
 	int result_idx;
 	// 1. we support 3 vector search at most.
 	std::vector<float>* weights;
@@ -421,6 +422,7 @@ typedef struct m3vScanOpaqueData
 	bool use_hard_hnsw;
 	bool load_hnsw_from_disk;
 	int range_next_times{0};
+	int returned_nums{0};
 } m3vScanOpaqueData;
 
 typedef m3vScanOpaqueData *m3vScanOpaque;

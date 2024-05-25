@@ -9,7 +9,7 @@
 
 const int CRACKTHRESHOLD = 128;
 const int ReserveRange = 100;
-const int A3V_HINT_QUERY_RECORDS = 7;
+const int A3V_HINT_QUERY_RECORDS = 5;
 const float alpha_amplication = 1.13;
 const float sigma = 0.8;
 #define Min(x,y) ((x) < (y) ? (x) : (y))
@@ -37,14 +37,14 @@ class MemoryA3v{
 		// result_pq should be empty initially.
 		void KnnCrackSearch(std::vector<float> &weights, float* query,int k, std::priority_queue<PQNode>& result_pq /**Max heap**/,const std::vector<int> &dimensions,float last_topk_mean);
 
-		void RangeCrackSearch(std::vector<float> &weights, float* query,float radius,std::vector<int>& result_ids,const std::vector<int> &dimensions);
+		void RangeCrackSearch(std::vector<float> &weights, float* query,float radius,std::vector<PQNode>& result_ids,const std::vector<int> &dimensions);
 
 	public:
-		void RangeCrackSearchAuxiliary(std::vector<float> &weights,int root_idx, float* query,float radius,std::vector<int>& result_ids,const std::vector<int> &dimensions,int dim);
+		void RangeCrackSearchAuxiliary(std::vector<float> &weights,int root_idx, float* query,float radius,std::vector<PQNode>& result_ids,const std::vector<int> &dimensions,int dim);
 				
 		int CrackInTwo(int start_,int end_,float epsilon);
 
-		int CrackInTwoMedicore(int start_,int end_,float radius,float newE,float* query,std::vector<int>& result_ids,float& maxDistance);
+		int CrackInTwoMedicore(int start_,int end_,float radius,float newE,float* query,std::vector<PQNode>& result_ids,float& maxDistance);
 
 		std::vector<float> distances_caching; // error 2024.4.14
 		std::vector<A3vNode> index;

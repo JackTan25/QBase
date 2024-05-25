@@ -153,6 +153,7 @@
     "relscan.h": "c",
     "relcache.h": "c",
     "queue": "cpp",
-    "*.ipp": "cpp"
+    "*.ipp": "cpp",
+    "vbase_init_scan_ref": "c"
   }
 }

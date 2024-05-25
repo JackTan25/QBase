@@ -88,7 +88,7 @@ class InMemoryGlobal{
 
 		void appendHnswHardIndex(std::shared_ptr<hnswlib::HierarchicalNSW<float>> &hnsw_hard_index,Relation index);
 
-		const float* appendHnswHardIndexData(int idx,Relation index,const float* data_point,int num,int vector_index);
+		const float* appendHnswHardIndexData(int idx,Relation index,const float* data_point,uint64_t num,int vector_index);
 
 		bool LoadHnswHardIndex(Relation index,const std::vector<int>& dims,int nums);
 

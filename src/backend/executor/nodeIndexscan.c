@@ -131,7 +131,10 @@ IndexNext(IndexScanState *node)
 	while (index_getnext_slot(scandesc, direction, slot))
 	{
 		CHECK_FOR_INTERRUPTS();
-		 estate->is_index_inorder = scandesc->xs_inorder;
+		estate->is_index_inorder = scandesc->xs_inorder;
+		// if(scandesc->xs_inorder){
+		// 	elog(LOG,"node index scan node xs_inordered finished");
+		// }
 		/*
 		 * If the index was lossy, we have to recheck the index quals using
 		 * the fetched tuple.
@@ -147,6 +150,9 @@ IndexNext(IndexScanState *node)
 			}
 		}
 		estate->is_index_inorder = scandesc->xs_inorder;
+		// if(scandesc->xs_inorder){
+		// 	elog(LOG,"node index scan node xs_inordered finished");
+		// }
 		return slot;
 	}
 
@@ -229,7 +235,8 @@ IndexNextWithReorder(IndexScanState *node)
 		 * has an ORDER BY value smaller than (or equal to) the value last
 		 * returned by the index, we can return it now.
 		 */
-		if (!node->is_multi_vector_search&&!pairingheap_is_empty(node->iss_ReorderQueue))
+		// if (!node->is_multi_vector_search&&!pairingheap_is_empty(node->iss_ReorderQueue))
+		if (!pairingheap_is_empty(node->iss_ReorderQueue))
 		{
 			topmost = (ReorderTuple *) pairingheap_first(node->iss_ReorderQueue);
 
@@ -268,7 +275,10 @@ next_indextuple:
 			node->iss_ReachedEnd = true;
 			continue;
 		}
-
+		estate->is_index_inorder = scandesc->xs_inorder;
+		// if(scandesc->xs_inorder){
+		// 	elog(LOG,"node index scan node xs_inordered finished");
+		// }
 		/*
 		 * If the index was lossy, we have to recheck the index quals and
 		 * ORDER BY expressions using the fetched tuple.
@@ -1008,7 +1018,8 @@ ExecInitIndexScan(IndexScan *node, EState *estate, int eflags)
 						   NULL,node->is_multi_col_vector_search);
 
 	/* Initialize sort support, if we need to re-check ORDER BY exprs */
-	if (indexstate->iss_NumOrderByKeys > 0&& !node->is_multi_col_vector_search)
+	// if (indexstate->iss_NumOrderByKeys > 0&& !node->is_multi_col_vector_search)
+	if (indexstate->iss_NumOrderByKeys > 0)
 	{
 		int			numOrderByKeys = indexstate->iss_NumOrderByKeys;
 		int			i;
@@ -1045,7 +1056,8 @@ ExecInitIndexScan(IndexScan *node, EState *estate, int eflags)
 			orderbysort->ssup_attno = 0;
 			/* No abbreviation */
 			orderbysort->abbreviate = false;
-			PrepareSortSupportFromOrderingOp(orderbyop, orderbysort);
+			if(!node->is_multi_col_vector_search) // hack by jackTan
+				PrepareSortSupportFromOrderingOp(orderbyop, orderbysort);
 
 			get_typlenbyval(orderbyType,
 							&indexstate->iss_OrderByTypLens[i],

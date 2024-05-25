@@ -240,6 +240,7 @@ Datum a3vhandler(PG_FUNCTION_ARGS)
 #if PG_VERSION_NUM >= 140000
 	amroutine->amadjustmembers = NULL;
 #endif
+	amroutine->amcanrelaxedorderbyop = true;
 	amroutine->ambeginscan = m3vbeginscan;
 	amroutine->amrescan = m3vrescan;
 	amroutine->amgettuple = m3vgettuple;

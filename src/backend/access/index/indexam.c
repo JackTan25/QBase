@@ -645,6 +645,7 @@ index_getnext_slot(IndexScanDesc scan, ScanDirection direction, TupleTableSlot *
 		 * the index.
 		 */
 		Assert(ItemPointerIsValid(&scan->xs_heaptid));
+		scan->xs_heaptid_orig = scan->xs_heaptid;
 		if (index_fetch_heap(scan, slot))
 			return true;
 	}

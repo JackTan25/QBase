@@ -127,8 +127,12 @@ InsertTuple(Relation index, Datum *values, m3vElement element, m3vBuildState *bu
 static void
 BuildMemoryA3vCallback(Relation index, CALLBACK_ITEM_POINTER, Datum *values,
 			  bool *isnull, bool tupleIsAlive, void *state){
+	// elog(LOG,"tid blockId: %d, offset: %d",ItemPointerGetBlockNumberNoCheck(tid),ItemPointerGetOffsetNumberNoCheck(tid));
+	std::uint64_t number1 = GetNumberByItemPointerData(tid);
+	// elog(LOG,"tid number: %d",number1);
 	m3vBuildState *buildstate = (m3vBuildState *)state;
 	int vector_nums = index->rd_att->natts;
+	buildstate->curent_insert_tuples++;
 	if(buildstate->is_first){
 		int dimensions = 0;
 		for(int i = 0;i < vector_nums;i++){
@@ -150,9 +154,13 @@ BuildMemoryA3vCallback(Relation index, CALLBACK_ITEM_POINTER, Datum *values,
     std::uint64_t number = GetNumberByItemPointerData(tid);
 	std::vector<const float*> vec;
 	for(int i = 0;i < vector_nums;i++){
-		vec.push_back(memory_init.appendHnswHardIndexData(i,index,DatumGetVector(values[i])->x,number,buildstate->cur_c));
+		float* vector_data = const_cast<float*>(memory_init.appendHnswHardIndexData(i,index,DatumGetVector(values[i])->x,number,buildstate->cur_c));
+		// elog(LOG,"Insert Data:%d %s",buildstate->curent_insert_tuples,floatArrayToString(vector_data,DatumGetVector(values[i])->dim).c_str());
+		vec.push_back(vector_data);
 	}
 	buildstate->data_points.push_back({vec,*tid});buildstate->cur_c++;
+	if(buildstate->curent_insert_tuples % 10000 == 0)
+		elog(INFO, "Insert Data Id: %d",buildstate->curent_insert_tuples);
 }
 
 static void
@@ -398,8 +406,10 @@ BuildGraph(m3vBuildState *buildstate, ForkNumber forkNum)
 #if PG_VERSION_NUM >= 120000
 	if(A3vMemoryIndexType(buildstate->index)){
 		ComputeTuples(buildstate,forkNum);
-		buildstate->reltuples = table_index_build_scan(buildstate->heap, buildstate->index, buildstate->indexInfo,
+		buildstate->curent_insert_tuples = 0;
+		table_index_build_scan(buildstate->heap, buildstate->index, buildstate->indexInfo,
 												true, true, BuildMemoryA3vCallback, (void *)buildstate, NULL);
+		elog(INFO,"build insert %d tuples.",buildstate->tuples_num);
 		// after build, we should give the data_points to memory_init.
 		memory_init.SetDimensions(buildstate->dims,buildstate->index);
 		memory_init.appendDataPoints(buildstate->index,buildstate);
@@ -443,11 +453,13 @@ m3vbuild(Relation heap, Relation index, IndexInfo *indexInfo)
 	
 	// we should init the 
 	BuildIndex(heap, index, indexInfo, &buildstate, MAIN_FORKNUM);
+	elog(INFO,"build index finished, start to save index");
 	// save hardhnsw index, first to get all hnsw indexes
 	int idx = 0;
 	for(auto hnsw_index:memory_init.hard_hnsws[build_hnsw_index_file_hard_path_prefix(index)]){
 		hnsw_index->saveIndex(build_hnsw_index_file_hard_path(index,idx++));
 	}
+	elog(INFO,"save index at %s",build_hnsw_index_file_hard_path_prefix(index).c_str());
 	result = (IndexBuildResult *)palloc(sizeof(IndexBuildResult));
 	result->heap_tuples = buildstate.reltuples;
 	result->index_tuples = buildstate.indtuples;

@@ -9,9 +9,10 @@ std::uint64_t GetNumberByItemPointerData(ItemPointer tid){
 }
 
 ItemPointerData GetItemPointerDataByNumber(hnswlib::labeltype label){
-    ItemPointerData tid;memset(&tid,0,sizeof(ItemPointerData));
-    tid.ip_blkid.bi_hi = (label>>32)&(0xff00);tid.ip_blkid.bi_hi = (label>>32)&(0x00ff);
-    tid.ip_posid = label & (0xffff);
+    ItemPointerData tid;
+    BlockNumber blkno = (std::uint32_t) (label >> 32);
+    OffsetNumber offset = (std::uint32_t) label;
+    ItemPointerSet(&tid, blkno, offset);
     return tid;
 }
 
@@ -38,8 +39,25 @@ bool MultiColumnHnsw::GetSingleNext(){
     if(result->HasResult()){
         result_tid = GetItemPointerDataByNumber(result->GetLabel());
         distance = result->GetDistance();
+        if(!xs_inorder_scan){
+            if (distanceQueue.size() == range &&
+                distanceQueue.top() < result->GetDistance())
+            {
+                // elog(LOG,"xs_inorder_scan is true now.");
+                xs_inorder_scan=true;
+            }
+            else
+            {
+                if (distanceQueue.size() >= range)
+                {
+                    distanceQueue.pop();
+                }
+                distanceQueue.push(result->GetDistance());
+            }
+        }
         return true;
     }
+    // elog(LOG,"hnsw has no more.");
     return false;
 }
 

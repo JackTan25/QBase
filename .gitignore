@@ -64,3 +64,5 @@ logfile
 /data_transform
 /data_load.py
 /contrib/m3v/third_party/*
+/contrib/m3v/a3v*
+/contrib/m3v/src/a3v/vbase_*

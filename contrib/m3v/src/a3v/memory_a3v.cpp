@@ -124,7 +124,7 @@ void MemoryA3v::KnnCrackSearch(std::vector<float> &weights, float* query,int k,s
 }
 
 // for range query.
-int MemoryA3v::CrackInTwoMedicore(int start_,int end_,float radius,float median,float* query,std::vector<int>& result_ids,float& maxDistance){
+int MemoryA3v::CrackInTwoMedicore(int start_,int end_,float radius,float median,float* query,std::vector<PQNode>& result_ids,float& maxDistance){
     int i = start_, j = end_;
     while(true){
         float distance_i = distances_caching[swap_indexes[i]];
@@ -163,14 +163,14 @@ int MemoryA3v::CrackInTwoMedicore(int start_,int end_,float radius,float median,
     }
 }
 
-void MemoryA3v::RangeCrackSearch(std::vector<float> &weights,float* query,float radius,std::vector<int>& result_ids,const std::vector<int> &dimensions){
+void MemoryA3v::RangeCrackSearch(std::vector<float> &weights,float* query,float radius,std::vector<PQNode>& result_ids,const std::vector<int> &dimensions){
     result_ids.clear();result_ids.reserve(ReserveRange);
     int dim = 0;
     for(int i = 0;i < dimensions.size();i++) dim += dimensions[i];
     RangeCrackSearchAuxiliary(weights,0,query,radius,result_ids,dimensions,dim);
 }
 
-void MemoryA3v::RangeCrackSearchAuxiliary(std::vector<float> &weights,int root_idx, float* query,float radius,std::vector<int>& result_ids,const std::vector<int> &dimensions,int dim){
+void MemoryA3v::RangeCrackSearchAuxiliary(std::vector<float> &weights,int root_idx, float* query,float radius,std::vector<PQNode>& result_ids,const std::vector<int> &dimensions,int dim){
     std::vector<float> rnd_dists;
     float maxDistance, dist, median,temp_distance_1;
     int crack;
@@ -181,7 +181,7 @@ void MemoryA3v::RangeCrackSearchAuxiliary(std::vector<float> &weights,int root_i
             dist = hyper_distance_func_with_weights(query,data_points[swap_indexes[i]].first,dimensions,weights,&temp_distance_1);
             distances_caching[swap_indexes[i]] = temp_distance_1;
             if(dist <= radius){
-                result_ids.push_back(swap_indexes[i]);
+                result_ids.push_back({0.0,swap_indexes[i]});
             }
         }
 
@@ -218,7 +218,7 @@ void MemoryA3v::RangeCrackSearchAuxiliary(std::vector<float> &weights,int root_i
             if(dist < radius - root.radius){
                 auto& left_node = index[root.left_node];
                 for(int j = left_node.start;j <= left_node.end;j++){
-                    result_ids.push_back(swap_indexes[j]);
+                    result_ids.push_back({0.0,swap_indexes[j]});
                 }
                 RangeCrackSearchAuxiliary(weights,root.right_node,query,radius,result_ids,dimensions,dim);
             }else{

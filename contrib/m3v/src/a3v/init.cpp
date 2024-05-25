@@ -125,12 +125,13 @@ float InMemoryGlobal::random_10(Relation index,std::vector<PII> &data_points){
         }
     }
     std::string index_file_path = build_memory_index_points_file_path(index);
-    std::vector<int> dimensions_ = dimensions[index_file_path];
+    std::vector<int>& dimensions_ = dimensions[index_file_path];
     float dist = 0.0;
-    for(int i = 0;i < data_points.size();i++){
-        for(int j = i+1;j < data_points.size();j++){
+    for(int i = 0;i < indices.size();i++){
+        elog(INFO,"random point: %s",floatArrayToString(const_cast<float*>(data_points[indices[i]].first[0]),dimensions_[0]).c_str());
+        for(int j = i+1;j < indices.size();j++){
             for(int k = 0;k <dimensions_.size();k++){
-                dist += L2Distance(const_cast<float*>(data_points[i].first[k]),const_cast<float*>(data_points[j].first[k]),dimensions_[k]);
+                dist += L2Distance(const_cast<float*>(data_points[indices[i]].first[k]),const_cast<float*>(data_points[indices[j]].first[k]),dimensions_[k]);
             }
         }
     }
@@ -228,7 +229,9 @@ bool InMemoryGlobal::LoadHnswHardIndex(Relation index,const std::vector<int>& di
             // try load hnsw index from index_file_path
             // Initing index
             index_space[index_file_path] = std::make_shared<hnswlib::L2Space>(dims[i]);
-            hard_hnsws[index_file_path_pefix].push_back(std::make_shared<hnswlib::HierarchicalNSW<float>>(index_space[index_file_path].get(), index_file_path));
+            auto hnsw_index = std::make_shared<hnswlib::HierarchicalNSW<float>>(index_space[index_file_path].get(), index_file_path);
+            hnsw_index->setEf(64);
+            hard_hnsws[index_file_path_pefix].push_back(hnsw_index);
         }else{
             ereport(FATAL, errcode(0), errmsg("can't find hnsw index hard file: %s",index_file_path.c_str()));
         }
@@ -242,7 +245,8 @@ void InMemoryGlobal::appendHnswHardIndex(std::shared_ptr<hnswlib::HierarchicalNS
     hard_hnsws[hnsw_index_file_prefix].push_back(hnsw_hard_index);
 }
 
-const float* InMemoryGlobal::appendHnswHardIndexData(int idx,Relation index,const float* data_point,int num,int vector_index){
+// attentation: the num should be uint64, otherwise we will get overflow
+const float* InMemoryGlobal::appendHnswHardIndexData(int idx,Relation index,const float* data_point,uint64_t num,int vector_index){
     std::string hnsw_index_file_prefix = build_hnsw_index_file_hard_path_prefix(index);
     hard_hnsws[hnsw_index_file_prefix][idx]->addPoint(data_point,num);
     return (float*)hard_hnsws[hnsw_index_file_prefix][idx]->getDataByInternalId(vector_index);
@@ -294,8 +298,15 @@ std::shared_ptr<MemoryA3v> InMemoryGlobal::GetMultiVectorMemoryIndex(Relation in
 	}else{
         std::priority_queue<std::pair<float, hnswlib::labeltype>> result = hnsw_index->searchKnn(query,1);
         auto distance = result.top().first;
+        std::string index_file_threshold_path = build_memory_index_threshold_file_path(index);
+        float threshold = check_thresold;
+        if(!memory_init.thresholds.count(index_file_threshold_path)){
+            elog(ERROR,"Can't find threshold for now.");
+            threshold =  memory_init.thresholds[index_file_threshold_path] * sigma;
+        }
         // open a new a3v index
-        if(distance > check_thresold){
+        // if(distance > check_thresold){
+        if(distance > threshold){
             elog(INFO,"open new a3v index");
             std::shared_ptr<MemoryA3v> a3v_index = std::make_shared<MemoryA3v>(dims,memory_init.LoadDataPoints(index));
             // elog(INFO,"(int*)hnsw_index->dist_func_param_: %d",*(int*)hnsw_index->dist_func_param_);

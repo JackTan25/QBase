@@ -27,7 +27,7 @@ void A3vAsyncRecieveServer() {
                 std::priority_queue<PQNode> result_pq;
                 a3v_index->KnnCrackSearch(*data->weights,data->query_point->data(),data->k,result_pq,*data->dimensions,a3v_index->last_top_k_mean);
             }else{
-                std::vector<int> result_ids;
+                std::vector<PQNode> result_ids;
                 a3v_index->RangeCrackSearch(*data->weights,data->query_point->data(),data->radius,result_ids,*data->dimensions);
             }
             a3v_index->query_records.fetch_add(1);

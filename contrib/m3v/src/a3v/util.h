@@ -12,6 +12,7 @@ extern "C"
 #include <iostream>
 #include <vector>
 #include "m3v.h"
+#include<sstream>
 extern "C"
 {
 	#include <postgres.h>
@@ -26,6 +27,8 @@ extern "C"
 static ItemPointerData InvalidItemPointerData = {{0,0},InvalidOffsetNumber};
 typedef uint32_t PageId;
 #define FLOAT_SIZE sizeof(float)
+
+std::string floatArrayToString(float* arr,int n);
 
 template<class T>
 std::vector<T> DeserializeVector(const std::string& filename) {

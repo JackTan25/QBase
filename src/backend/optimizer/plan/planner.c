@@ -5297,7 +5297,35 @@ create_ordered_paths(PlannerInfo *root,
 
 		is_sorted = pathkeys_count_contained_in(root->sort_pathkeys,
 												input_path->pathkeys, &presorted_keys);
-
+		if (is_sorted && limit_tuples > 0)
+        {
+            Path *path = input_path;
+            do
+            {
+                if (path->pathtype == T_IndexScan || path->pathtype == T_IndexOnlyScan)
+                {
+                    if (castNode(IndexPath, path)->indexinfo->amcanrelaxedorderbyop)
+                    {
+                        is_sorted = false;
+                        presorted_keys = 0;
+                        //elog(INFO, "after relaxed, is_sorted=%d", is_sorted);
+                        break;
+                    }
+					else
+					{
+						break;
+					}
+                }
+                else if (path->pathtype == T_Result)
+                {
+                    path = castNode(ProjectionPath, path)->subpath;
+                }
+                else 
+				{
+                    break;
+                }
+            } while (path != NULL);
+        }
 		if (is_sorted)
 			sorted_path = input_path;
 		else

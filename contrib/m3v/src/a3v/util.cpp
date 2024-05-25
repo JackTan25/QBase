@@ -32,6 +32,21 @@ extern "C"
 #endif
 }
 
+std::string floatArrayToString(float* arr,int n) {
+    std::ostringstream oss;
+    oss << "[";
+
+    for (size_t i = 0; i < n; ++i) {
+        oss << arr[i];
+        if (i != n - 1) {
+            oss << ", ";
+        }
+    }
+
+    oss << "]";
+    return oss.str();
+}
+
 // Datum Print(PG_FUNCTION_ARGS)
 // {
 //     int sum_of_all = 0;
