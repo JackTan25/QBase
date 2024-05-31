@@ -654,9 +654,11 @@ bool MemoryA3vIndexGetTuple(IndexScanDesc scan,ItemPointerData& result_tid){
 				}
 				
 				std::priority_queue<PQNode> result_pqs;
-				a3v_index->KnnCrackSearch(*(so->weights),query.data(),scan->orderByData->KNNValues,result_pqs,dimensions,a3v_index->last_top_k_mean);
+				a3v_index->KnnCrackSearch(*(so->weights),query.data(),scan->orderByData->KNNValues,result_pqs,dimensions,a3v_index->last_top_k_mean * alpha_amplication);
 				a3v_index->query_records.fetch_add(1);
-				a3v_index->last_top_k_mean = (a3v_index->last_top_k_mean + result_pqs.top().first)/a3v_index->query_records;
+				elog(INFO,"result_pqs.top().first: %.2lf",result_pqs.top().first);
+				a3v_index->last_top_k_mean = (a3v_index->last_top_k_mean * (a3v_index->query_records - 1)+ result_pqs.top().first)/a3v_index->query_records;
+				elog(INFO,"a3v index %.2lf",a3v_index->last_top_k_mean);
 				while(!result_pqs.empty()){
 					so->result_ids->push_back(result_pqs.top());result_pqs.pop();
 				}
