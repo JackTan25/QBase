@@ -872,7 +872,15 @@ PortalRunSelect(Portal portal,
 	QueryDesc  *queryDesc;
 	ScanDirection direction;
 	uint64		nprocessed;
-
+	ListCell*	lc;
+	double btree_index_selectivity = 0.0;
+	foreach(lc,portal->stmts){
+		if(IsA(lfirst(lc),PlannedStmt)){	
+			PlannedStmt* stmt = (PlannedStmt*)(lfirst(lc));
+			btree_index_selectivity = stmt->btree_index_selectivity;
+		}
+	}
+	
 	/*
 	 * NB: queryDesc will be NULL if we are fetching from a held cursor or a
 	 * completed utility query; can't use it in that path.
@@ -921,6 +929,7 @@ PortalRunSelect(Portal portal,
 		else
 		{
 			PushActiveSnapshot(queryDesc->snapshot);
+			queryDesc->estate->btree_index_selectivity = btree_index_selectivity;
 			ExecutorRun(queryDesc, direction, (uint64) count,
 						portal->run_once);
 			nprocessed = queryDesc->estate->es_processed;

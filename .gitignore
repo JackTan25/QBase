@@ -66,3 +66,11 @@ logfile
 /contrib/m3v/third_party/*
 /contrib/m3v/a3v*
 /contrib/m3v/src/a3v/vbase_*
+/contrib/m3v/exp3*
+/contrib/m3v/recipe*
+/contrib/m3v/build/*
+/perf.data
+/perf.data.old
+/logfile
+test.sql
+contrib/m3v/src/a3v/multi_top_k_ref

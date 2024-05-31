@@ -338,7 +338,7 @@ struct PlannerInfo
 
 	/* counter for assigning RestrictInfo serial numbers */
 	int			last_rinfo_serial;
-
+	double		btree_vector_index_selectivity;
 	/*
 	 * all_result_relids is empty for SELECT, otherwise it contains at least
 	 * parse->resultRelation.  For UPDATE/DELETE/MERGE across an inheritance
@@ -945,6 +945,9 @@ typedef struct RelOptInfo
 	Oid			userid;
 	/* join is only valid for current user */
 	bool		useridiscurrent;
+	/* try to optimize vector + filter for btree */
+	bool 		in_vector_search_filter;
+	double 		btree_index_selectivity;
 	/* use "struct FdwRoutine" to avoid including fdwapi.h here */
 	struct FdwRoutine *fdwroutine pg_node_attr(read_write_ignore);
 	void	   *fdw_private pg_node_attr(read_write_ignore);

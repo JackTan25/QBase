@@ -162,6 +162,7 @@ typedef struct IndexScanDescData
 	bool	   *xs_orderbynulls;
 	bool		xs_recheckorderby;
 	bool        xs_inorder;
+	double		btree_index_selectivity;
 	/* parallel index scan information, in shared memory */
 	struct ParallelIndexScanDescData *parallel_scan;
 }			IndexScanDescData;

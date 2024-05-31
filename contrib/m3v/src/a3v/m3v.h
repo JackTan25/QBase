@@ -423,6 +423,7 @@ typedef struct m3vScanOpaqueData
 	bool load_hnsw_from_disk;
 	int range_next_times{0};
 	int returned_nums{0};
+	bool inRange;
 } m3vScanOpaqueData;
 
 typedef m3vScanOpaqueData *m3vScanOpaque;

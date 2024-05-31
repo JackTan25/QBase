@@ -136,17 +136,20 @@ m3vcostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
 
     MemSet(&costs, 0, sizeof(costs));
     // We have to visit all index tuples anyway
-    costs.numIndexTuples = index->tuples;
+    costs.numIndexTuples = 1000000;
 
     // Use generic estimate
     genericcostestimate(root, path, loop_count, &costs);
 
     *indexStartupCost = costs.indexStartupCost;
     *indexTotalCost = costs.indexTotalCost;
+	// if(costs.indexStartupCost == 0.0){
+	// 	elog(INFO,"try correct total cost here");
+	// 	*indexTotalCost = *indexTotalCost + 0.375;
+	// }
     *indexSelectivity = 0.01;
     *indexCorrelation = costs.indexCorrelation;
 	*indexPages = costs.numIndexPages;
-
 }
 
 /*

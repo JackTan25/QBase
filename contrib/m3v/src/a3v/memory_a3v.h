@@ -9,9 +9,10 @@
 
 const int CRACKTHRESHOLD = 128;
 const int ReserveRange = 100;
-const int A3V_HINT_QUERY_RECORDS = 5;
+const int ReserveA3VNodes = 2000;
+const int A3V_HINT_QUERY_RECORDS = 3;
 const float alpha_amplication = 1.13;
-const float sigma = 0.8;
+const float sigma = 0.7;
 #define Min(x,y) ((x) < (y) ? (x) : (y))
 #define Max(x,y) ((x) > (y) ? (x) : (y))
 #define INITIAL_NODES 300 // hack value

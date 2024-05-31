@@ -350,8 +350,8 @@ set_base_rel_pathlists(PlannerInfo *root)
 		/* ignore RTEs that are "other rels" */
 		if (rel->reloptkind != RELOPT_BASEREL)
 			continue;
-
 		set_rel_pathlist(root, rel, rti, root->simple_rte_array[rti]);
+		root->btree_vector_index_selectivity = rel->btree_index_selectivity; 
 	}
 }
 
@@ -558,7 +558,18 @@ set_rel_pathlist(PlannerInfo *root, RelOptInfo *rel,
 	if (rel->reloptkind == RELOPT_BASEREL &&
 		!bms_equal(rel->relids, root->all_query_rels))
 		generate_useful_gather_paths(root, rel, false);
-
+	// print all index path's cost here.
+	// ListCell* p_ipath;
+	// foreach(p_ipath,rel->pathlist){
+	// 	if(IsA(lfirst(p_ipath),IndexPath)){
+	// 		IndexPath* idx_path = (IndexPath*)(lfirst(p_ipath));
+	// 		char *s = get_am_name_me(idx_path->indexinfo->relam);
+	// 		elog(INFO,"index name: %s",s);
+	// 	}else{
+	// 		elog(INFO,"not index");
+	// 	}
+	// }
+	// debug_print_rel(root,rel);
 	/* Now find the cheapest of the paths for this rel */
 	set_cheapest(rel);
 
@@ -3364,6 +3375,8 @@ make_rel_from_joinlist(PlannerInfo *root, List *joinlist)
 		/*
 		 * Single joinlist node, so we're done.
 		 */
+		RelOptInfo* rel_opt = (RelOptInfo *) linitial(initial_rels);
+		rel_opt->btree_index_selectivity = root->btree_vector_index_selectivity;
 		return (RelOptInfo *) linitial(initial_rels);
 	}
 	else

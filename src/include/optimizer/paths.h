@@ -60,7 +60,7 @@ extern void create_partial_bitmap_paths(PlannerInfo *root, RelOptInfo *rel,
 										Path *bitmapqual);
 extern void generate_partitionwise_join_paths(PlannerInfo *root,
 											  RelOptInfo *rel);
-
+// #define OPTIMIZER_DEBUG 
 #ifdef OPTIMIZER_DEBUG
 extern void debug_print_rel(PlannerInfo *root, RelOptInfo *rel);
 #endif

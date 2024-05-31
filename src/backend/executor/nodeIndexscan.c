@@ -112,7 +112,7 @@ IndexNext(IndexScanState *node)
 								   estate->es_snapshot,
 								   node->iss_NumScanKeys,
 								   node->iss_NumOrderByKeys);
-
+		scandesc->btree_index_selectivity = node->ss.btree_index_selectivity;
 		node->iss_ScanDesc = scandesc;
 
 		/*
@@ -128,12 +128,14 @@ IndexNext(IndexScanState *node)
 	/*
 	 * ok, now that we have what we need, fetch the next tuple.
 	 */
+	estate->is_index_inorder = false;
+	scandesc->xs_inorder = false;
 	while (index_getnext_slot(scandesc, direction, slot))
 	{
 		CHECK_FOR_INTERRUPTS();
 		estate->is_index_inorder = scandesc->xs_inorder;
 		// if(scandesc->xs_inorder){
-		// 	elog(LOG,"node index scan node xs_inordered finished");
+		// 	elog(INFO,"node index scan node xs_inordered finished");
 		// }
 		/*
 		 * If the index was lossy, we have to recheck the index quals using
@@ -151,7 +153,7 @@ IndexNext(IndexScanState *node)
 		}
 		estate->is_index_inorder = scandesc->xs_inorder;
 		// if(scandesc->xs_inorder){
-		// 	elog(LOG,"node index scan node xs_inordered finished");
+		// 	elog(INFO,"node index scan node xs_inordered finished");
 		// }
 		return slot;
 	}
@@ -213,7 +215,7 @@ IndexNextWithReorder(IndexScanState *node)
 								   estate->es_snapshot,
 								   node->iss_NumScanKeys,
 								   node->iss_NumOrderByKeys);
-
+		scandesc->btree_index_selectivity = node->ss.btree_index_selectivity;
 		node->iss_ScanDesc = scandesc;
 
 		/*
@@ -261,7 +263,8 @@ IndexNextWithReorder(IndexScanState *node)
 			/* Queue is empty, and no more tuples from index.  We're done. */
 			return ExecClearTuple(slot);
 		}
-
+		estate->is_index_inorder = false;
+		scandesc->xs_inorder = false;
 		/*
 		 * Fetch next tuple from the index.
 		 */
@@ -277,7 +280,7 @@ next_indextuple:
 		}
 		estate->is_index_inorder = scandesc->xs_inorder;
 		// if(scandesc->xs_inorder){
-		// 	elog(LOG,"node index scan node xs_inordered finished");
+		// 	elog(INFO,"node index scan node xs_inordered finished");
 		// }
 		/*
 		 * If the index was lossy, we have to recheck the index quals and
@@ -531,7 +534,7 @@ static TupleTableSlot *
 ExecIndexScan(PlanState *pstate)
 {
 	IndexScanState *node = castNode(IndexScanState, pstate);
-
+	node->ss.btree_index_selectivity = pstate->btree_index_selectivity;
 	/*
 	 * If we have runtime keys and they've not already been set up, do it now.
 	 */

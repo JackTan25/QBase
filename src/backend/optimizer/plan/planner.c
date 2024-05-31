@@ -586,7 +586,7 @@ standard_planner(Query *parse, const char *query_string, int cursorOptions,
 
 	if (glob->partition_directory != NULL)
 		DestroyPartitionDirectory(glob->partition_directory);
-
+	result->btree_index_selectivity = final_rel->btree_index_selectivity;
 	return result;
 }
 
@@ -1826,7 +1826,7 @@ grouping_planner(PlannerInfo *root, double tuple_fraction)
 	 * Now we are prepared to build the final-output upperrel.
 	 */
 	final_rel = fetch_upper_rel(root, UPPERREL_FINAL, NULL);
-
+	final_rel->btree_index_selectivity = current_rel->btree_index_selectivity;
 	/*
 	 * If the input rel is marked consider_parallel and there's nothing that's
 	 * not parallel-safe in the LIMIT clause, then the final_rel can be marked
@@ -5500,7 +5500,7 @@ create_ordered_paths(PlannerInfo *root,
 	 * need us to do it.
 	 */
 	Assert(ordered_rel->pathlist != NIL);
-
+	ordered_rel->btree_index_selectivity = input_rel->btree_index_selectivity;
 	return ordered_rel;
 }
 

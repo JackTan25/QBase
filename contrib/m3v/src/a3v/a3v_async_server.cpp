@@ -17,7 +17,7 @@ void A3vAsyncRecieveServer() {
             elog(INFO,"can't find path_key %s in A3vAsyncRecieveServer",data->path_key.c_str());
         }
         if(memory_init.memory_indexes[data->path_key].size() - 1 < data->a3v_id){
-            elog(INFO,"can't find a3v_id(overflow) %d in A3vAsyncRecieveServer",data->a3v_id);
+            elog(ERROR,"can't find a3v_id(overflow) %d in A3vAsyncRecieveServer",data->a3v_id);
         }
         // carefully open elog for async_server, it will affect the postgres clien results.
         // elog(INFO,"get a a3v message");
@@ -32,7 +32,7 @@ void A3vAsyncRecieveServer() {
             }
             a3v_index->query_records.fetch_add(1);
         }
-        // elog(INFO,"finish a3v messgae processing");
+        // elog(LOG,"finish a3v messgae processing");
     }
 }
 
@@ -49,4 +49,3 @@ void A3vAsyncSendServer(std::shared_ptr<Message> message) {
     // auto end_query = std::chrono::steady_clock::now();
     // std::cout<<"time cost "<<std::chrono::duration<double, std::milli>(end_query - begin_query).count()<<"millseconds"<<std::endl;
 }
-

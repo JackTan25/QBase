@@ -22,14 +22,15 @@ class MultiColumnHnsw{
 		float l2_distance(std::vector<float> &data1,const float* query_point);
 		float RankScore(hnswlib::labeltype label);
 		MultiColumnHnsw(std::vector<std::shared_ptr<hnswlib::HierarchicalNSW<float>>> &hnsws_,std::vector<float*> &query_points_,
-		int k_,bool &xs_inorder_scan_,float range_):
-		hnsws(hnsws_),query_points(query_points_),k(k_),xs_inorder_scan(xs_inorder_scan_),range(range_){
+		int k_,bool &xs_inorder_scan_,float range_,std::vector<float> &weights_,int filter_amplication_k_):inRange(false),distanceThreshold(3),distanceQueueThreshold(50),
+		hnsws(hnsws_),query_points(query_points_),k(k_),xs_inorder_scan(xs_inorder_scan_),range(range_),RangeTimes(0),weights(weights_),filter_amplication_k(filter_amplication_k_){
 			// get result_iterator for now.
 			for(int i = 0;i < hnsws.size();i++){
 				hnsws_iterators.push_back(std::make_shared<hnswlib::ResultIterator<float>>(hnsws[i].get(), (const void*)query_points[i]));
 			}
 		}
 		bool GetNext();
+		bool RangeNext();
 		bool GetSingleNext();
 		std::vector<std::shared_ptr<hnswlib::HierarchicalNSW<float>>> hnsws;
 		// std::vector<std::shared_ptr<hnswlib::ResultIterator<float>>> hnsws_iterators;
@@ -47,4 +48,8 @@ class MultiColumnHnsw{
 		bool& xs_inorder_scan;
 		float range;
 		float distanceQueueThreshold{50};
+		int	  distanceThreshold{3};
+		bool  inRange{false};
+		int   RangeTimes{0};
+		int   filter_amplication_k;
 };

@@ -154,6 +154,7 @@
     "relcache.h": "c",
     "queue": "cpp",
     "*.ipp": "cpp",
-    "vbase_init_scan_ref": "c"
+    "vbase_init_scan_ref": "c",
+    "vbase_ref": "c"
   }
 }

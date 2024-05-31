@@ -41,7 +41,8 @@
 /* XXX see PartCollMatchesExprColl */
 #define IndexCollMatchesExprColl(idxcollation, exprcollation) \
 	((idxcollation) == InvalidOid || (idxcollation) == (exprcollation))
-
+#define VECTOR_SEARCH_FILTER_BTREE_SELECTIVITY 0.01
+#define VECTOR_SEARCH_FILTER_NOT_HINT_SELECTIVITY 0.9
 /* Whether we are looking for plain indexscan, bitmap scan, or either */
 typedef enum
 {
@@ -253,12 +254,41 @@ void create_index_paths(PlannerInfo *root, RelOptInfo *rel)
 
 	/* Bitmap paths are collected and then dealt with at the end */
 	bitindexpaths = bitjoinpaths = joinorclauses = NIL;
+	bool in_vector_search_filter = false;
+	rel->in_vector_search_filter = false;
+
+	// Check Vector Search here.
+	bool has_fliter = false;
+	foreach (lc, rel->indexlist){
+		IndexClauseSet rclauseset_test;
+		IndexOptInfo *index = (IndexOptInfo *)lfirst(lc);
+		MemSet(&rclauseset_test, 0, sizeof(rclauseset_test));
+		match_restriction_clauses_to_index(root, index, &rclauseset_test);
+		List *indexpaths;
+		bool skip_nonnative_saop = false;
+		bool skip_lower_saop = false;
+		ListCell *lc;
+		ListCell* clause;
+		indexpaths = build_index_paths(root, rel,
+									index, &rclauseset_test,
+									index->predOK,
+									ST_ANYSCAN,
+									&skip_nonnative_saop,
+									&skip_lower_saop);
+		foreach(lc,indexpaths){
+			IndexPath* ipath = (IndexPath*)(lfirst(lc));
+			if(ipath->is_vector_search) in_vector_search_filter = true;
+		}
+		if(list_length(index->indrestrictinfo) >= 1){
+			has_fliter = true;
+		}
+	}
 
 	/* Examine each index in turn */
 	foreach (lc, rel->indexlist)
 	{
 		IndexOptInfo *index = (IndexOptInfo *)lfirst(lc);
-
+		rel->in_vector_search_filter = in_vector_search_filter;
 		// char *indexName = get_rel_name(index->indexoid);
 		// elog(INFO,"index name: %s",indexName);
 		/* Protect limited-size array in IndexClauseSets */
@@ -285,7 +315,6 @@ void create_index_paths(PlannerInfo *root, RelOptInfo *rel)
 		 */
 		get_index_paths(root, rel, index, &rclauseset,
 						&bitindexpaths);
-		
 		/*
 		 * Identify the join clauses that can match the index.  For the moment
 		 * we keep them separate from the restriction clauses.  Note that this
@@ -319,6 +348,11 @@ void create_index_paths(PlannerInfo *root, RelOptInfo *rel)
 										&bitjoinpaths);
 	}
 
+	// check index not hit selectivity
+	if(in_vector_search_filter && has_fliter && rel->btree_index_selectivity < 1.0e-6){
+		rel->btree_index_selectivity = VECTOR_SEARCH_FILTER_NOT_HINT_SELECTIVITY; // set it as 0.9 as default
+	}
+	
 	/*
 	 * Generate BitmapOrPaths for any suitable OR-clauses present in the
 	 * restriction list.  Add these to bitindexpaths.
@@ -360,8 +394,8 @@ void create_index_paths(PlannerInfo *root, RelOptInfo *rel)
 			// we should control the index->selectivity, optimizer rule:
 			// if btree index selectity in a range, try to recommand use m3v tree,
 			// if not in, just use multi hnsw index to solve.
-			bpath->path.total_cost = 0.0;
-			bpath->path.startup_cost = 0.0;
+			// bpath->path.total_cost = 0.0;
+			// bpath->path.startup_cost = 0.0;
 			
 			add_path(rel, (Path *)bpath);
 
@@ -748,9 +782,6 @@ get_index_paths(PlannerInfo *root, RelOptInfo *rel,
 	 * paths if possible).
 	 */
 	ListCell* clause;
-	foreach(clause,clauses->indexclauses){
-		elog_node_display(INFO,"index clause",clause,true);
-	}
 
 	indexpaths = build_index_paths(root, rel,
 								   index, clauses,
@@ -798,12 +829,23 @@ get_index_paths(PlannerInfo *root, RelOptInfo *rel,
 	foreach (lc, indexpaths)
 	{
 		IndexPath *ipath = (IndexPath *)lfirst(lc);
-
+		// elog(INFO,"total cost: %.2lf",ipath->indextotalcost);
+		char *s = get_am_name_me(ipath->indexinfo->relam);
+		if(strcmp(s,"btree") == 0&&rel->in_vector_search_filter){
+			// force use btree index scan to optimize execution
+			// elog(INFO,"selectivity: %.2lf",ipath->indexselectivity);
+			if(ipath->indexselectivity > VECTOR_SEARCH_FILTER_BTREE_SELECTIVITY){
+				ipath->indextotalcost = ipath->indexinfo->tuples;
+				ipath->path.total_cost = ipath->indexinfo->tuples;
+				ipath->path.startup_cost = ipath->indexinfo->tuples;
+			}
+			rel->btree_index_selectivity = ipath->indexselectivity;
+		}
 		if (index->amhasgettuple)
 			add_path(rel, (Path *)ipath);
 		float old_selectivity = ipath->indexselectivity;
 		// ipath->indexselectivity = 0;
-		if(ipath->is_vector_search) ipath->indexselectivity = 0.0,ipath->path.startup_cost = INT_MAX,ipath->path.total_cost = INT_MAX,ipath->indextotalcost = INT_MAX;
+		// if(ipath->is_vector_search) ipath->indexselectivity = 0.0,ipath->path.startup_cost = INT_MAX,ipath->path.total_cost = INT_MAX,ipath->indextotalcost = INT_MAX;
 		if (index->amhasgetbitmap &&
 			(ipath->path.pathkeys == NIL ||
 			 ipath->indexselectivity < 1.0))
@@ -2266,7 +2308,7 @@ match_clause_to_index(PlannerInfo *root,
 		return;
 	}
 
-
+	
 	char *name = get_am_name_me(index->relam);
 	if(strcmp(name,"m3v")==0 || strcmp(name,"a3v")==0){
 		// for where (a <-> '[4,4]')*0.3 + (b <-> '[4,4]')*0.2 + (c <-> '[4,4]')*0.5 < 2.6

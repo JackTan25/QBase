@@ -361,7 +361,7 @@ standard_ExecutorRun(QueryDesc *queryDesc,
 		if (execute_once && queryDesc->already_executed)
 			elog(ERROR, "can't re-execute query flagged for single execution");
 		queryDesc->already_executed = true;
-
+		queryDesc->planstate->btree_index_selectivity = estate->btree_index_selectivity;
 		ExecutePlan(estate,
 					queryDesc->planstate,
 					queryDesc->plannedstmt->parallelModeNeeded,

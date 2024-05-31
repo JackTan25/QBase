@@ -302,12 +302,13 @@ std::shared_ptr<MemoryA3v> InMemoryGlobal::GetMultiVectorMemoryIndex(Relation in
         float threshold = check_thresold;
         if(!memory_init.thresholds.count(index_file_threshold_path)){
             elog(ERROR,"Can't find threshold for now.");
-            threshold =  memory_init.thresholds[index_file_threshold_path] * sigma;
+        }else{
+            threshold = memory_init.thresholds[index_file_threshold_path] * sigma;
         }
         // open a new a3v index
         // if(distance > check_thresold){
         if(distance > threshold){
-            elog(INFO,"open new a3v index");
+            // elog(LOG,"open new a3v index,distance: %.2lf, threshold: %.2lf",distance,threshold);
             std::shared_ptr<MemoryA3v> a3v_index = std::make_shared<MemoryA3v>(dims,memory_init.LoadDataPoints(index));
             // elog(INFO,"(int*)hnsw_index->dist_func_param_: %d",*(int*)hnsw_index->dist_func_param_);
             hnswlib::labeltype lable = memory_indexes[index_file_path].size();

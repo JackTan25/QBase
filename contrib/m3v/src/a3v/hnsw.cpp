@@ -22,7 +22,7 @@ float MultiColumnHnsw::l2_distance(std::vector<float> &data1,const float* query_
         float temp = (data1[i] -query_point[i]); temp = temp * temp;
         res += temp;
     }
-    return sqrt(res);
+    return res;
 }
 
 float MultiColumnHnsw::RankScore(hnswlib::labeltype label){
@@ -34,6 +34,36 @@ float MultiColumnHnsw::RankScore(hnswlib::labeltype label){
     return score;
 }
 
+
+bool MultiColumnHnsw::RangeNext(){
+    while(true){
+        auto result = hnsws_iterators[0]->Next();
+        result_tid = GetItemPointerDataByNumber(result->GetLabel());
+        distance = result->GetDistance();
+        if(!result->HasResult()) return false;
+        if(!inRange){
+            if(distanceQueue.size() < distanceQueueThreshold ||
+            distanceQueue.top() > result->GetDistance()){
+                if(distanceQueue.size() >= distanceQueueThreshold) distanceQueue.pop();
+                distanceQueue.push(result->GetDistance());
+            }else{
+                return false;
+            }
+        }
+        if(result->GetDistance() > range){
+            RangeTimes++;
+            if(inRange && RangeTimes >= distanceThreshold){
+                return false;
+            }else{
+                continue;
+            }
+        }else{
+            inRange = true;
+        }
+        return true;
+    }
+}
+
 bool MultiColumnHnsw::GetSingleNext(){
     auto result = hnsws_iterators[0]->Next();
     if(result->HasResult()){
@@ -43,7 +73,7 @@ bool MultiColumnHnsw::GetSingleNext(){
             if (distanceQueue.size() == range &&
                 distanceQueue.top() < result->GetDistance())
             {
-                // elog(LOG,"xs_inorder_scan is true now.");
+                // elog(INFO,"xs_inorder_scan is true now.");
                 xs_inorder_scan=true;
             }
             else
@@ -91,15 +121,14 @@ bool MultiColumnHnsw::GetNext(){
             }
         }
     }
-
     while(!proc_pq.empty()){
         result_pq.push(proc_pq.top());proc_pq.pop();
     }
-
     if(result_pq.empty()){
         return false;
     }else{
         result_tid = GetItemPointerDataByNumber(result_pq.top().second);  
         result_pq.pop();  
+        return true;
     }
 }

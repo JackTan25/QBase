@@ -14,15 +14,34 @@ sudo yum -y install systemd-devel.x86_64
 ```
 一个坑: 这里的qbase_data不要手动创建,直接configure然后make;make install; 然后initdb -D /home/tanboyu/cpp_workspace/qbase_data/data
 让postgres自己创建,否则出现权限问题很麻烦
+
+perf 性能:
+sudo perf record -a -p 33561 --call-graph dwarf
+perf report perf.data
+
+如果遇到:
+PostgreSQL service is unable to start with "FATAL: pre-existing shared memory block (key 5432001, ID 0) is still in use" 
+删除/home/tanboyu/cpp_workspace/qbase_data/data/postmaster.pid,然后还要看看
+ipcs -m | grep tanboyu
+ipcrm -m 163871
+ipcrm -m xxxx
 安装教程:
 // https://blog.csdn.net/Hehuyi_In/article/details/110729822
 CFLAGS='-O3 -march=native' ./configure --prefix=/home/tanboyu/cpp_workspace/qbase_data/
 // debug
-CFLAGS='-O3 -march=native' ./configure --prefix=/home/tanboyu/cpp_workspace/qbase_data/  --enable-debug
+CFLAGS='-O2 -march=native' ./configure --prefix=/home/tanboyu/cpp_workspace/qbase_data/  --enable-debug
+
+CFLAGS='-O0 -march=native' ./configure --prefix=/home/tanboyu/cpp_workspace/qbase_data/  --enable-debug
 
 ./configure --prefix=/home/tanboyu/cpp_workspace/qbase_data/ --with-libedit-preferred --with-perl --with-python --with-uuid=e2fs --with-systemd --enable-debug --enable-dtrace CFLAGS="-g -O0"
 
-./configure --prefix=/home/tanboyu/cpp_workspace/qbase_data/ --with-libedit-preferred --with-perl --with-python --with-uuid=e2fs --with-systemd --disable-debug CFLAGS="-O2"
+./configure --prefix=/home/tanboyu/cpp_workspace/qbase_data/ --enable-debug --with-blocksize=32 --with-blocksize=32 --enable-integer-datetimes  --enable-thread-safety --with-pgport=5432 --with-ldap --with-python --with-openssl --with-libxml --with-libxslt --enable-nls=yes PYTHON=/usr/bin/python3
+
+CFLAGS="-O2" ./configure --prefix=/home/tanboyu/cpp_workspace/qbase_data/ --with-libedit-preferred --with-perl --with-python --with-uuid=e2fs --with-systemd --disable-debug 
+
+./configure --prefix=/home/tanboyu/cpp_workspace/qbase_data/ CFLAGS="-O2" --with-blocksize=32 --enable-integer-datetimes  --enable-thread-safety --with-pgport=5432 --with-ldap --with-python --with-openssl --with-libxml --with-libxslt --enable-nls=yes 
+
+ ./configure --prefix=/home/tanboyu/cpp_workspace/qbase_data/ --with-blocksize=32 --enable-integer-datetimes  --enable-thread-safety --with-pgport=5432 --with-ldap --with-python --with-openssl --with-libxml --with-libxslt --enable-nls=yes PYTHON=/usr/bin/python3
 
 配置postgres库用于find_package
 ```shell

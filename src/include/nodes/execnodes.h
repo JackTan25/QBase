@@ -715,6 +715,7 @@ typedef struct EState
 	List	   *es_insert_pending_result_relations;
 	List	   *es_insert_pending_modifytables;
 	bool       is_index_inorder;
+	double 	   btree_index_selectivity;
 } EState;
 
 
@@ -1121,6 +1122,7 @@ typedef struct PlanState
 	bool		outeropsset;
 	bool		inneropsset;
 	bool		resultopsset;
+	double 		btree_index_selectivity;
 } PlanState;
 
 /* ----------------
@@ -1476,6 +1478,7 @@ typedef struct ScanState
 	Relation	ss_currentRelation;
 	struct TableScanDescData *ss_currentScanDesc;
 	TupleTableSlot *ss_ScanTupleSlot;
+	double			btree_index_selectivity;
 } ScanState;
 
 /* ----------------

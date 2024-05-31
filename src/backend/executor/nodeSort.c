@@ -144,6 +144,8 @@ ExecSort(PlanState *pstate)
 		}
 		else
 		{
+			outerNode->btree_index_selectivity = pstate->btree_index_selectivity;
+			estate->is_index_inorder = false;
 			for (;;)
 			{
 				slot = ExecProcNode(outerNode);
@@ -151,12 +153,12 @@ ExecSort(PlanState *pstate)
 				if (TupIsNull(slot))
 					break;
 				tuplesort_puttupleslot(tuplesortstate, slot);
+				// elog(INFO,"the state of index_inorder here %d",estate->is_index_inorder);
 				if (estate->is_index_inorder && tuplesort_heapfull(tuplesortstate)) {
 					break;
 				}
 			}
 		}
-
 		/*
 		 * Complete the sort.
 		 */
