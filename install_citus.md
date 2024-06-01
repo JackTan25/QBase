@@ -45,5 +45,5 @@ g++ -shared -o util.so util.o
     -- 获取perf report
     sudo perf record -p [pid] -g -- sleep 5
     -- 查看性能,观察函数性能消耗
-    sudo perf report
+    sudo perf report -- --no-children
 ```

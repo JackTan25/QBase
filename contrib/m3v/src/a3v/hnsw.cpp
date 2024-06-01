@@ -1,4 +1,5 @@
 #include "hnsw.h"
+#include "simd_func.h"
 
 std::uint64_t GetNumberByItemPointerData(ItemPointer tid){
 	std::int32_t blockId = ItemPointerGetBlockNumberNoCheck(tid);
@@ -17,12 +18,14 @@ ItemPointerData GetItemPointerDataByNumber(hnswlib::labeltype label){
 }
 
 float MultiColumnHnsw::l2_distance(std::vector<float> &data1,const float* query_point){
-    float res = 0.0;
-    for(int i = 0;i <data1.size();i++){
-        float temp = (data1[i] -query_point[i]); temp = temp * temp;
-        res += temp;
-    }
-    return res;
+    // float res = 0.0;
+    // for(int i = 0;i <data1.size();i++){
+    //     float temp = (data1[i] -query_point[i]); temp = temp * temp;
+    //     res += temp;
+    // }
+    // return res;
+    int dim = (int)data1.size();
+    return optimized_simd_distance_func(data1.data(),const_cast<float*>(query_point),dim);
 }
 
 float MultiColumnHnsw::RankScore(hnswlib::labeltype label){

@@ -1,6 +1,7 @@
 #pragma once
 #include "a3v/m3v.h"
 #include "a3v/vector.h"
+#include "simd_func.h"
 extern "C"{
 	#include "postgres.h"
 
@@ -623,6 +624,9 @@ Datum vector_to_float4(PG_FUNCTION_ARGS)
 extern "C"{
 	PGDLLEXPORT PG_FUNCTION_INFO_V1(l2_distance);
 }
+// for now ,we catch a error here, in fact we need l2_squared_distance here,
+// but we use l2_distance, so modify it here and modify it back later. (Todo: JackTan25)
+// add simd accelarate
 Datum l2_distance(PG_FUNCTION_ARGS)
 {
 	Vector *a = PG_GETARG_VECTOR_P(0);
@@ -632,7 +636,7 @@ Datum l2_distance(PG_FUNCTION_ARGS)
 	float distance = 0.0;
 	float diff;
 
-	CheckDims(a, b);
+	// CheckDims(a, b);
 
 	/* Auto-vectorized */
 	for (int i = 0; i < a->dim; i++)
@@ -640,8 +644,10 @@ Datum l2_distance(PG_FUNCTION_ARGS)
 		diff = ax[i] - bx[i];
 		distance += diff * diff;
 	}
-
-	PG_RETURN_FLOAT8(sqrt((double)distance));
+	// elog(INFO,"l2_distance");
+	// PG_RETURN_FLOAT8(((double)distance));
+	int dim = a->dim;
+    PG_RETURN_FLOAT8(optimized_simd_distance_func(ax,bx,dim));
 }
 
 /*
@@ -1259,11 +1265,14 @@ Datum vector_avg(PG_FUNCTION_ARGS)
 }
 
 float L2Distance(float* vector_record1,float* vector_record2,int dims){
-	float distance = 0.0;
-	float diff;
-	for(int i = 0; i < dims;i++){
-		diff = vector_record1[i] - vector_record2[i];
-		distance += diff * diff;
-	}
-	return (double)(distance);
+	// float distance = 0.0;
+	// float diff;
+	// for(int i = 0; i < dims;i++){
+	// 	diff = vector_record1[i] - vector_record2[i];
+	// 	distance += diff * diff;
+	// }
+	// return (double)(distance);
+	// SIMD ACCELERATE VECRSION
+	elog(INFO,"L2Distance");
+    return optimized_simd_distance_func(vector_record1,vector_record2,dims);
 }

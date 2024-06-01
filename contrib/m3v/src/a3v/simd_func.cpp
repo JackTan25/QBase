@@ -152,6 +152,13 @@ float hyper_distance_func_with_weights_internal_query(const float *query,const f
     return res;
 }
 
-// float hyper_distance_func_without_weights(float *query,float* data_point,int dim){
-//     return SIMDFunc(query,data_point,&dim);
-// }
+float optimized_simd_distance_func(float *query,float* data_point,int dim){
+    int dim_rest = dim % 16;
+    int dim_real = dim - dim_rest;
+    float distance = SIMDFunc(query,data_point,&dim_real);
+    for(int j = 0;j < dim_rest;j++){
+        float temp_distance = *(query+dim_real+j) - *(data_point+dim_real+j);
+        distance += temp_distance * temp_distance;
+    }
+    return distance;
+}

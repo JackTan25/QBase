@@ -41,7 +41,7 @@
 /* XXX see PartCollMatchesExprColl */
 #define IndexCollMatchesExprColl(idxcollation, exprcollation) \
 	((idxcollation) == InvalidOid || (idxcollation) == (exprcollation))
-#define VECTOR_SEARCH_FILTER_BTREE_SELECTIVITY 0.01
+#define VECTOR_SEARCH_FILTER_BTREE_SELECTIVITY 0.2
 #define VECTOR_SEARCH_FILTER_NOT_HINT_SELECTIVITY 0.9
 /* Whether we are looking for plain indexscan, bitmap scan, or either */
 typedef enum
@@ -782,7 +782,8 @@ get_index_paths(PlannerInfo *root, RelOptInfo *rel,
 	 * paths if possible).
 	 */
 	ListCell* clause;
-
+	// char *s = get_am_name_me(index->relam);
+	// elog(INFO,"index name %s",s);
 	indexpaths = build_index_paths(root, rel,
 								   index, clauses,
 								   index->predOK,
@@ -838,6 +839,10 @@ get_index_paths(PlannerInfo *root, RelOptInfo *rel,
 				ipath->indextotalcost = ipath->indexinfo->tuples;
 				ipath->path.total_cost = ipath->indexinfo->tuples;
 				ipath->path.startup_cost = ipath->indexinfo->tuples;
+			}else{
+				ipath->indextotalcost = 0;
+				ipath->path.total_cost = 0;
+				ipath->path.startup_cost = 0;
 			}
 			rel->btree_index_selectivity = ipath->indexselectivity;
 		}

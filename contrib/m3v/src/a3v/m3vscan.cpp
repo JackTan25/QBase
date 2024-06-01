@@ -529,7 +529,7 @@ void m3vendscan(IndexScanDesc scan)
 {
 	// auto begin_query = std::chrono::steady_clock::now();
 	m3vScanOpaque so = (m3vScanOpaque)scan->opaque;
-	elog(INFO,"Return Tuples: %d",so->returned_nums);
+	elog(LOG,"Return Tuples: %d",so->returned_nums);
 	/* Release shared lock */
 	UnlockPage(scan->indexRelation, M3V_SCAN_LOCK, ShareLock);
 	delete so->result_ids;
@@ -741,6 +741,7 @@ bool MemoryA3vIndexGetTuple(IndexScanDesc scan,ItemPointerData& result_tid){
 				result_tid = so->hard_hnsws->result_tid;
 				return has_next;
 			}else{
+				elog(INFO,"terminate check -> filter_amplication_k: %d ",so->hard_hnsws->filter_amplication_k);
 				if(so->returned_nums >= so->hard_hnsws->filter_amplication_k) scan->xs_inorder = true;
 				bool has_next = so->hard_hnsws->GetNext();
 				scan->xs_orderbyvals[0] = Float4GetDatum(so->hard_hnsws->distance);

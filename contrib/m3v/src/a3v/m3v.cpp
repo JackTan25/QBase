@@ -124,29 +124,19 @@ m3vcostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
 				Selectivity *indexSelectivity, double *indexCorrelation,
 				double *indexPages)
 {
-	// // for now, make sure it goes m3v index
-	// *indexStartupCost = 0;
-	// *indexTotalCost = 0;
-	// *indexSelectivity = 0;
-	// *indexCorrelation = 0;
-	// *indexPages = 0;
 	IndexOptInfo *index = path->indexinfo;
 	List *qinfos;
 	GenericCosts costs;
 
     MemSet(&costs, 0, sizeof(costs));
     // We have to visit all index tuples anyway
-    costs.numIndexTuples = 1000000;
+    costs.numIndexTuples = index->tuples;
 
     // Use generic estimate
     genericcostestimate(root, path, loop_count, &costs);
 
     *indexStartupCost = costs.indexStartupCost;
     *indexTotalCost = costs.indexTotalCost;
-	// if(costs.indexStartupCost == 0.0){
-	// 	elog(INFO,"try correct total cost here");
-	// 	*indexTotalCost = *indexTotalCost + 0.375;
-	// }
     *indexSelectivity = 0.01;
     *indexCorrelation = costs.indexCorrelation;
 	*indexPages = costs.numIndexPages;
