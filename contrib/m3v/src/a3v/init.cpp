@@ -160,7 +160,7 @@ const std::vector<int>& InMemoryGlobal::GetDimensions(Relation index){
     std::string index_file_path = build_memory_index_points_file_path(index);
     if(!dimensions.count(index_file_path)){
         for(int i = 0;i < index->rd_att->natts;++i){
-            Form_pg_attribute attr = TupleDescAttr(index->rd_att, 0);
+            Form_pg_attribute attr = TupleDescAttr(index->rd_att, i);
 	        dimensions[index_file_path].push_back(attr->atttypmod);
         }
     }
@@ -308,7 +308,7 @@ std::shared_ptr<MemoryA3v> InMemoryGlobal::GetMultiVectorMemoryIndex(Relation in
         // open a new a3v index
         // if(distance > check_thresold){
         if(distance > threshold){
-            // elog(LOG,"open new a3v index,distance: %.2lf, threshold: %.2lf",distance,threshold);
+            elog(INFO,"open new a3v index,distance: %.2lf, threshold: %.2lf",distance,threshold);
             std::shared_ptr<MemoryA3v> a3v_index = std::make_shared<MemoryA3v>(dims,memory_init.LoadDataPoints(index));
             // elog(INFO,"(int*)hnsw_index->dist_func_param_: %d",*(int*)hnsw_index->dist_func_param_);
             hnswlib::labeltype lable = memory_indexes[index_file_path].size();

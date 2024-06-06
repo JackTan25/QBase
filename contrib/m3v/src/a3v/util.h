@@ -8,7 +8,9 @@ extern "C"
 #ifdef __cplusplus
 }
 #endif
-
+static int hnsw_top_k = 0;
+static int a3v_top_k = 0;
+static double top_k_based_distance = 0;
 #include <iostream>
 #include <vector>
 #include "m3v.h"
@@ -76,4 +78,4 @@ Buffer m3vNewBuffer(Relation index, ForkNumber forkNum);
  */
 bool A3vMemoryIndexType(Relation index);
 float A3vCloseQueryThreshold(Relation index);
-
+std::string extract_btree_filter(const char* source_text);

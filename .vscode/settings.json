@@ -155,6 +155,8 @@
     "queue": "cpp",
     "*.ipp": "cpp",
     "vbase_init_scan_ref": "c",
-    "vbase_ref": "c"
+    "vbase_ref": "c",
+    "htup_details.h": "c",
+    "multi_top_k_ref": "c"
   }
 }

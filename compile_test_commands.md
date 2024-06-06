@@ -29,7 +29,7 @@ ipcrm -m xxxx
 // https://blog.csdn.net/Hehuyi_In/article/details/110729822
 CFLAGS='-O3 -march=native' ./configure --prefix=/home/tanboyu/cpp_workspace/qbase_data/
 
-CFLAGS='-O2 -march=native' ./configure --prefix=/home/tanboyu/cpp_workspace/qbase_data_32/  --enable-debug --with-blocksize=32
+CFLAGS='-O2 -march=native' ./configure --prefix=/home/tanboyu/cpp_workspace/qbase_data/  --enable-debug --with-blocksize=32
 
 // debug
 CFLAGS='-O2 -march=native' ./configure --prefix=/home/tanboyu/cpp_workspace/qbase_data/  --enable-debug

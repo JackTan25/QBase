@@ -19,8 +19,8 @@ void A3vAsyncRecieveServer() {
         if(memory_init.memory_indexes[data->path_key].size() - 1 < data->a3v_id){
             elog(ERROR,"can't find a3v_id(overflow) %d in A3vAsyncRecieveServer",data->a3v_id);
         }
+        elog(LOG,"get a a3v message");
         // carefully open elog for async_server, it will affect the postgres clien results.
-        // elog(INFO,"get a a3v message");
         auto a3v_index = memory_init.memory_indexes[data->path_key][data->a3v_id];
         if(a3v_index->query_records.load() < A3V_HINT_QUERY_RECORDS){
             if(data->query_type == KNN_QUERY_MESSAGE){
@@ -32,8 +32,9 @@ void A3vAsyncRecieveServer() {
             }
             a3v_index->query_records.fetch_add(1);
         }
-        // elog(LOG,"finish a3v messgae processing");
+        elog(LOG,"finish a3v messgae processing");
     }
+     elog(LOG,"core dump");
 }
 
 // async a3v send server

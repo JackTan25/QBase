@@ -113,6 +113,7 @@ IndexNext(IndexScanState *node)
 								   node->iss_NumScanKeys,
 								   node->iss_NumOrderByKeys);
 		scandesc->btree_index_selectivity = node->ss.btree_index_selectivity;
+		scandesc->sourceText = node->ss.sourceText;
 		node->iss_ScanDesc = scandesc;
 
 		/*
@@ -185,7 +186,7 @@ IndexNextWithReorder(IndexScanState *node)
 	Datum	   *lastfetched_vals;
 	bool	   *lastfetched_nulls;
 	int			cmp;
-
+	// node->ss.ps.qual;  popularity < xxx, node->ss.ps.ps_ExprContext, if (qual == NULL || ExecQual(qual, econtext))
 	estate = node->ss.ps.state;
 
 	/*
@@ -216,6 +217,9 @@ IndexNextWithReorder(IndexScanState *node)
 								   node->iss_NumScanKeys,
 								   node->iss_NumOrderByKeys);
 		scandesc->btree_index_selectivity = node->ss.btree_index_selectivity;
+		scandesc->sourceText = node->ss.sourceText;
+		scandesc->ps_ExprContext = node->ss.ps.ps_ExprContext;
+		scandesc->qual = node->ss.ps.qual;
 		node->iss_ScanDesc = scandesc;
 
 		/*
@@ -535,6 +539,7 @@ ExecIndexScan(PlanState *pstate)
 {
 	IndexScanState *node = castNode(IndexScanState, pstate);
 	node->ss.btree_index_selectivity = pstate->btree_index_selectivity;
+	node->ss.sourceText = pstate->sourceText;
 	/*
 	 * If we have runtime keys and they've not already been set up, do it now.
 	 */
@@ -1256,7 +1261,7 @@ ExecIndexBuildScanKeys(PlanState *planstate, Relation index,
 					opfuncid = ((OpExpr*)op_expr)->opfuncid;
 					Const* con = (Const*)get_rightop(clause);
 					w = con->constvalue;
-					// elog(INFO,"w1 :%lf",DatumGetFloat8(w));
+					elog(INFO,"w :%lf",DatumGetFloat8(w));
 					// float8 s1 = DatumGetFloat8(w);
 					// float4 s = DatumGetFloat4(w);
 				

@@ -165,6 +165,22 @@ float A3vCloseQueryThreshold(Relation index){
     return opts->close_query_threshold;
 }
 
+std::string extract_btree_filter(const char* source_text){
+    std::string sqlQuery = std::string(source_text);
+    size_t wherePos = sqlQuery.find("where");
+    size_t orderByPos = sqlQuery.find("order by");
+    if (wherePos != std::string::npos && orderByPos != std::string::npos && orderByPos > wherePos) {
+        size_t start = wherePos + 6;
+        size_t length = orderByPos - start;
+        std::string condition = sqlQuery.substr(start, length);
+        elog(INFO,"Condition between WHERE and ORDER BY is: %s",condition.c_str());
+        return condition;
+    } else {
+        elog(INFO,"Pure Vector Search");
+        return "none filter";
+    }
+}
+
 // gcc -I$(pg_config --includedir-server) -shared -fPIC -o pg_exec.so pg_exec.c
 // CREATE FUNCTION Print() RETURNS float8 AS 'util.so', 'Print' LANGUAGE C STRICT;
 

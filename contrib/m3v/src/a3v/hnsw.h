@@ -8,6 +8,9 @@
 extern "C"{
     #include "postgres.h"
     #include "storage/bufmgr.h"
+	#include "access/tableam.h"
+	#include "access/genam.h"
+	#include "executor/executor.h"
 }
 
 const int multi_range_k = 50;
@@ -20,10 +23,16 @@ ItemPointerData GetItemPointerDataByNumber(hnswlib::labeltype label);
 class MultiColumnHnsw{
 	public:
 		float l2_distance(std::vector<float> &data1,const float* query_point);
+		bool  CheckFilter(ItemPointerData tid);
 		float RankScore(hnswlib::labeltype label);
 		MultiColumnHnsw(std::vector<std::shared_ptr<hnswlib::HierarchicalNSW<float>>> &hnsws_,std::vector<float*> &query_points_,
-		int k_,bool &xs_inorder_scan_,float range_,std::vector<float> &weights_,int filter_amplication_k_):inRange(false),distanceThreshold(3),distanceQueueThreshold(50),
-		hnsws(hnsws_),query_points(query_points_),k(k_),xs_inorder_scan(xs_inorder_scan_),range(range_),RangeTimes(0),weights(weights_),filter_amplication_k(filter_amplication_k_){
+		int k_,bool &xs_inorder_scan_,float range_,std::vector<float> &weights_,int filter_amplication_k_,std::string relname_text_,
+		std::string filter_text_,Relation heap_rel_,IndexScanDesc scan_):
+		inRange(false),distanceThreshold(3),distanceQueueThreshold(50),
+		hnsws(hnsws_),query_points(query_points_),k(k_),xs_inorder_scan(xs_inorder_scan_),range(range_),RangeTimes(0),weights(weights_),
+		filter_amplication_k(filter_amplication_k_),filter_text(filter_text_),relname_text(relname_text_),heap_rel(heap_rel_),scan(scan_)
+		{
+			// slot = table_slot_create(heap_rel, NULL);
 			// get result_iterator for now.
 			for(int i = 0;i < hnsws.size();i++){
 				hnsws_iterators.push_back(std::make_shared<hnswlib::ResultIterator<float>>(hnsws[i].get(), (const void*)query_points[i]));
@@ -32,6 +41,7 @@ class MultiColumnHnsw{
 		bool GetNext();
 		bool RangeNext();
 		bool GetSingleNext();
+		bool GetNewNext();
 		std::vector<std::shared_ptr<hnswlib::HierarchicalNSW<float>>> hnsws;
 		// std::vector<std::shared_ptr<hnswlib::ResultIterator<float>>> hnsws_iterators;
 		std::vector<std::shared_ptr<hnswlib::ResultIterator<float>>> hnsws_iterators;
@@ -52,4 +62,10 @@ class MultiColumnHnsw{
 		bool  inRange{false};
 		int   RangeTimes{0};
 		int   filter_amplication_k;
+		std::string filter_text;
+		std::string relname_text;
+		Relation 	heap_rel;
+		IndexScanDesc scan;
+		TupleTableSlot *slot;
+		bool 		first_multi_column{true};
 };

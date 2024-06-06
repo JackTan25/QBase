@@ -47,7 +47,7 @@ void MemoryA3v::KnnCrackSearch(std::vector<float> &weights, float* query,int k,s
     // Min heap
     std::priority_queue<PQNode,std::vector<PQNode>,std::greater<PQNode>> guide_pq;
     std::vector<float> rnd_dists;
-    
+    // elog(INFO,"k of knn crack is %d",k);
     float median = 0.0,leftMinDist = 0.0,rightMinDist = 0.0,temp_distance_1 = 0.0;int crack = 0;
     float min_w = 1.0;
     int sum = 0;
@@ -61,7 +61,7 @@ void MemoryA3v::KnnCrackSearch(std::vector<float> &weights, float* query,int k,s
     // init, we should give the root node as a guide way for guide_pq.
     guide_pq.push({0,0});
     while(!guide_pq.empty() && (result_pq.size() < k || guide_pq.top() < result_pq.top())){
-        // elog(INFO,"test");
+        elog(LOG,"test");
         auto& t = index[guide_pq.top().second];
         int root_idx = guide_pq.top().second;
         // leaf node process

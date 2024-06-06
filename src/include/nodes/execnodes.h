@@ -1123,6 +1123,7 @@ typedef struct PlanState
 	bool		inneropsset;
 	bool		resultopsset;
 	double 		btree_index_selectivity;
+	const char  *sourceText;
 } PlanState;
 
 /* ----------------
@@ -1479,6 +1480,7 @@ typedef struct ScanState
 	struct TableScanDescData *ss_currentScanDesc;
 	TupleTableSlot *ss_ScanTupleSlot;
 	double			btree_index_selectivity;
+	const char* 	sourceText;
 } ScanState;
 
 /* ----------------

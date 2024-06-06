@@ -145,6 +145,7 @@ ExecSort(PlanState *pstate)
 		else
 		{
 			outerNode->btree_index_selectivity = pstate->btree_index_selectivity;
+			outerNode->sourceText = pstate->sourceText;
 			estate->is_index_inorder = false;
 			// int i = 0;
 			for (;;)

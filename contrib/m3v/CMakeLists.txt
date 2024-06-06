@@ -6,8 +6,8 @@ set(PROJECT_ROOT_PATH "${CMAKE_SOURCE_DIR}")
 message(STATUS "root_path: ${CMAKE_SOURCE_DIR}")
 add_definitions(-DPROJECT_ROOT_PATH="${PROJECT_ROOT_PATH}")
 set(PostgreSQL_ADDITIONAL_VERSIONS "16")
-list(APPEND CMAKE_PREFIX_PATH "/home/tanboyu/cpp_workspace/qbase_data_32")
-include_directories("/home/tanboyu/cpp_workspace/qbase_data_32/include/postgresql/server")
+list(APPEND CMAKE_PREFIX_PATH "/home/tanboyu/cpp_workspace/qbase_data")
+include_directories("/home/tanboyu/cpp_workspace/qbase_data/include/postgresql/server")
 find_package(PostgreSQL REQUIRED COMPONENTS Server)
 if(PostgreSQL_FOUND)
     message(STATUS "PostgreSQL_INCLUDE_DIRS: ${PostgreSQL_INCLUDE_DIRS}")
@@ -37,6 +37,7 @@ message(STATUS "vector path: ${CMAKE_SOURCE_DIR}/src/vector.h")
 
 # Add Source Files
 add_library(${PROJECT_NAME} SHARED
+    src/a3v/spi_filter.cpp
     src/a3v/simd_func.cpp
     src/a3v/memory_a3v.cpp
     src/a3v/disk_a3v.cpp

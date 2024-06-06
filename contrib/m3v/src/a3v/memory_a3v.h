@@ -5,12 +5,12 @@
 #include "simd_func.h"
 #include "util.h"
 // for guide_pq: <distance,id>, id stands for a node in `index`.
-// for result_pq: <distance,id>, id stands for the index in `data_points`
+// for result_pq: <distance,id>, id stands for the index in `data_points
 
 const int CRACKTHRESHOLD = 128;
 const int ReserveRange = 100;
 const int ReserveA3VNodes = 2000;
-const int A3V_HINT_QUERY_RECORDS = 3;
+const int A3V_HINT_QUERY_RECORDS = 7;
 const float alpha_amplication = 1.5;
 const float sigma = 0.7;
 #define Min(x,y) ((x) < (y) ? (x) : (y))

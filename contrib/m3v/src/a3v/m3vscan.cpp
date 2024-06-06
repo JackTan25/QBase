@@ -374,13 +374,13 @@ m3vbeginscan(Relation index, int nkeys, int norderbys)
 	m3vScanOpaque so;
 
 	scan = RelationGetIndexScan(index, nkeys, norderbys);
-
 	so = (m3vScanOpaque)palloc(sizeof(m3vScanOpaqueData));
 	so->returned_nums = 0;
 	so->inRange = false;
 	so->range_next_times = 0;
 	so->result_ids = new std::vector<PQNode>();
 	so->result_ids->clear();
+	so->result_ids->reserve(7000);
 	so->weights = new std::vector<float>();
 	so->weights->resize(3,1.0);
 	so->first = true;
@@ -529,7 +529,7 @@ void m3vendscan(IndexScanDesc scan)
 {
 	// auto begin_query = std::chrono::steady_clock::now();
 	m3vScanOpaque so = (m3vScanOpaque)scan->opaque;
-	elog(LOG,"Return Tuples: %d",so->returned_nums);
+	elog(INFO,"Return Tuples: %d",so->returned_nums);
 	/* Release shared lock */
 	UnlockPage(scan->indexRelation, M3V_SCAN_LOCK, ShareLock);
 	delete so->result_ids;
@@ -595,10 +595,16 @@ void do_range_search_a3v(m3vScanOpaque so,Relation index,m3vScanOpaque result,It
 bool MemoryA3vIndexGetTuple(IndexScanDesc scan,ItemPointerData& result_tid){
 	m3vScanOpaque so = (m3vScanOpaque)(scan->opaque);
 	Relation index = scan->indexRelation;
+	Relation heap_rel =  scan->heapRelation;
 	Vector* query_point;
 	if(so->first){
 		so->first = false;
 		so->result_idx = 0;
+		std::string filter_text = "";
+		if(scan->sourceText){
+			filter_text = extract_btree_filter(scan->sourceText);
+			elog(INFO,"vector search filter is %s",filter_text.c_str());
+		}
 		// if(KNN_QUERY(scan)){
 		// 	so->result_ids->clear();
 		// }
@@ -614,6 +620,7 @@ bool MemoryA3vIndexGetTuple(IndexScanDesc scan,ItemPointerData& result_tid){
 		for(int i = 0;i < dimensions.size();i++){
 			if(KNN_QUERY(scan)){
 				(*so->weights)[i] = DatumGetFloat8(scan->orderByData[i].w);
+				elog(INFO,"w: %.3lf",DatumGetFloat8(scan->orderByData[i].w));
 				query_point = DatumGetVector(scan->orderByData[i].sk_argument);
 			}else{
 				(*so->weights)[i] = DatumGetFloat8(scan->keyData[i].w);
@@ -649,16 +656,20 @@ bool MemoryA3vIndexGetTuple(IndexScanDesc scan,ItemPointerData& result_tid){
 			if(a3v_index->query_records.load() >= A3V_HINT_QUERY_RECORDS && (scan->btree_index_selectivity > VECTOR_FILTER_SELECTIVITY_THRESHOLD || scan->btree_index_selectivity < 1.0e-10)){
 				elog(INFO,"use a3v index");
 				so->use_hard_hnsw = false;
-				if(scan->btree_index_selectivity >= VECTOR_FILTER_SELECTIVITY_THRESHOLD){
+				// 6500
+				if(scan->btree_index_selectivity > 1.0e-10){
 					scan->orderByData->KNNValues = std::min(MAX_K,(int)(scan->orderByData->KNNValues/scan->btree_index_selectivity));
 				}
-				
+				scan->orderByData->KNNValues = max(scan->orderByData->KNNValues,a3v_top_k);
+				// elog(LOG,"a3v_top_k: %d",a3v_top_k);
 				std::priority_queue<PQNode> result_pqs;
 				a3v_index->KnnCrackSearch(*(so->weights),query.data(),scan->orderByData->KNNValues,result_pqs,dimensions,a3v_index->last_top_k_mean * alpha_amplication);
 				a3v_index->query_records.fetch_add(1);
-				elog(INFO,"result_pqs.top().first: %.2lf",result_pqs.top().first);
-				a3v_index->last_top_k_mean = (a3v_index->last_top_k_mean * (a3v_index->query_records - 1)+ result_pqs.top().first)/a3v_index->query_records;
-				elog(INFO,"a3v index %.2lf",a3v_index->last_top_k_mean);
+				// elog(INFO,"result_pqs.top().first: %.2lf",result_pqs.top().first);
+				a3v_index->last_top_k_mean = (a3v_index->last_top_k_mean * (a3v_index->query_records - 1) + result_pqs.top().first)/a3v_index->query_records;
+				a3v_index->last_top_k_mean = max(a3v_index->last_top_k_mean,top_k_based_distance);
+				// elog(INFO,"a3v index %.2lf",a3v_index->last_top_k_mean);
+				// elog(INFO,"result_pqs's size %d",so->result_ids->size());
 				while(!result_pqs.empty()){
 					so->result_ids->push_back(result_pqs.top());result_pqs.pop();
 				}
@@ -669,10 +680,10 @@ bool MemoryA3vIndexGetTuple(IndexScanDesc scan,ItemPointerData& result_tid){
 				if(scan->btree_index_selectivity > 1.0e-6){
 					filter_amplication_k = (int)(scan->orderByData->KNNValues / scan->btree_index_selectivity);
 				}else{
-					filter_amplication_k = scan->orderByData->KNNValues;
+					filter_amplication_k = scan->orderByData->KNNValues/0.05;
 				}
 				std::string hard_hnsws_prefix_path = build_hnsw_index_file_hard_path_prefix(index);
-				so->hard_hnsws = new MultiColumnHnsw(memory_init.hard_hnsws[hard_hnsws_prefix_path],query_points,scan->orderByData->KNNValues,scan->xs_inorder,86,*(so->weights),filter_amplication_k);
+				so->hard_hnsws = new MultiColumnHnsw(memory_init.hard_hnsws[hard_hnsws_prefix_path],query_points,scan->orderByData->KNNValues,scan->xs_inorder,86,*(so->weights),filter_amplication_k,std::string(RelationGetRelationName(heap_rel)),filter_text,scan->heapRelation,scan);
 				so->result_idx = 0;so->result_ids->clear();
 				bool has_next = false;
 				if(so->search_type == SingleSearchType){
@@ -680,13 +691,13 @@ bool MemoryA3vIndexGetTuple(IndexScanDesc scan,ItemPointerData& result_tid){
 					scan->xs_orderbyvals[0] = Float4GetDatum(so->hard_hnsws->distance);
 					result_tid = so->hard_hnsws->result_tid;
 				}else{
-					has_next = so->hard_hnsws->GetNext();
+					has_next = so->hard_hnsws->GetNewNext();
 					scan->xs_orderbyvals[0] = Float4GetDatum(so->hard_hnsws->distance);
 					result_tid = so->hard_hnsws->result_tid;
 				}
 				// yield the query point to A3VReciveServer
-				if(scan->btree_index_selectivity > 1.0e-6){
-					scan->orderByData->KNNValues = MAX_K;
+				if(scan->btree_index_selectivity >= VECTOR_FILTER_SELECTIVITY_THRESHOLD){
+					scan->orderByData->KNNValues = std::min(MAX_K,(int)(scan->orderByData->KNNValues/scan->btree_index_selectivity));
 				}
 				A3vAsyncSendServer(std::make_shared<Message>(KNN_QUERY_MESSAGE,a3v_label,index_file_path,std::make_shared<std::vector<float>>(query),scan->orderByData->KNNValues,0.0,std::make_shared<std::vector<int>>(dimensions),std::make_shared<std::vector<float>>(*so->weights)));
 				return has_next;
@@ -707,7 +718,7 @@ bool MemoryA3vIndexGetTuple(IndexScanDesc scan,ItemPointerData& result_tid){
 				so->use_hard_hnsw = true;
 				std::string hard_hnsws_prefix_path = build_hnsw_index_file_hard_path_prefix(index);
 				float8 radius = DatumGetFloat8(scan->keyData[0].query);
-				so->hard_hnsws = new MultiColumnHnsw(memory_init.hard_hnsws[hard_hnsws_prefix_path],query_points,multi_range_k,scan->xs_inorder,radius,*(so->weights),0);
+				so->hard_hnsws = new MultiColumnHnsw(memory_init.hard_hnsws[hard_hnsws_prefix_path],query_points,multi_range_k,scan->xs_inorder,radius,*(so->weights),0,std::string(RelationGetRelationName(heap_rel)),filter_text,scan->heapRelation,scan);
 				bool has_next = false;
 				if(so->search_type == SingleSearchType){
 					has_next = so->hard_hnsws->RangeNext();
@@ -718,7 +729,7 @@ bool MemoryA3vIndexGetTuple(IndexScanDesc scan,ItemPointerData& result_tid){
 					}
 					result_tid = so->hard_hnsws->result_tid;
 				}else{
-					has_next = so->hard_hnsws->GetNext();
+					has_next = so->hard_hnsws->GetNewNext();
 					scan->xs_orderbyvals[0] = Float4GetDatum(so->hard_hnsws->distance);
 					if(so->hard_hnsws->distance > radius || so->range_next_times > RANGE_QUERY_THRESHOLD_TIMES){
 						return false;
@@ -741,9 +752,9 @@ bool MemoryA3vIndexGetTuple(IndexScanDesc scan,ItemPointerData& result_tid){
 				result_tid = so->hard_hnsws->result_tid;
 				return has_next;
 			}else{
-				elog(INFO,"terminate check -> filter_amplication_k: %d ",so->hard_hnsws->filter_amplication_k);
-				if(so->returned_nums >= so->hard_hnsws->filter_amplication_k) scan->xs_inorder = true;
-				bool has_next = so->hard_hnsws->GetNext();
+				// elog(INFO,"terminate check -> filter_amplication_k: %d ",so->hard_hnsws->filter_amplication_k);
+				if(so->returned_nums >= so->hard_hnsws->filter_amplication_k) return false;
+				bool has_next = so->hard_hnsws->GetNewNext();
 				scan->xs_orderbyvals[0] = Float4GetDatum(so->hard_hnsws->distance);
 				result_tid = so->hard_hnsws->result_tid;
 				return has_next;
@@ -756,7 +767,7 @@ bool MemoryA3vIndexGetTuple(IndexScanDesc scan,ItemPointerData& result_tid){
 				result_tid = so->hard_hnsws->result_tid;
 				return has_next;
 			}else{
-				bool has_next = so->hard_hnsws->GetNext();
+				bool has_next = so->hard_hnsws->GetNewNext();
 				scan->xs_orderbyvals[0] = Float4GetDatum(so->hard_hnsws->distance);
 				float8 radius = DatumGetFloat8(scan->keyData[0].query);
 				if(so->hard_hnsws->distance > radius || so->range_next_times > RANGE_QUERY_THRESHOLD_TIMES){
@@ -860,7 +871,6 @@ bool m3vgettuple(IndexScanDesc scan, ScanDirection dir)
 		so->returned_nums++;
 		return has_next;
 	}
-
 	
 	MemoryContext oldCtx = MemoryContextSwitchTo(so->tmpCtx);
 	// if it's the first time to get a3v root.

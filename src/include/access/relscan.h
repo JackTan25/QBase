@@ -20,7 +20,7 @@
 #include "storage/buf.h"
 #include "storage/spin.h"
 #include "utils/relcache.h"
-
+#include "nodes/execnodes.h"
 
 struct ParallelTableScanDescData;
 
@@ -163,6 +163,9 @@ typedef struct IndexScanDescData
 	bool		xs_recheckorderby;
 	bool        xs_inorder;
 	double		btree_index_selectivity;
+	const char* 	sourceText;
+	ExprContext*	ps_ExprContext;
+	ExprState*		qual;	
 	/* parallel index scan information, in shared memory */
 	struct ParallelIndexScanDescData *parallel_scan;
 }			IndexScanDescData;

@@ -92,6 +92,7 @@ ExecLimit(PlanState *pstate)
 			 * Fetch rows from subplan until we reach position > offset.
 			 */
 			outerPlan->btree_index_selectivity = pstate->btree_index_selectivity;
+			outerPlan->sourceText = pstate->sourceText;
 			for (;;)
 			{
 				slot = ExecProcNode(outerPlan);
