@@ -78,6 +78,7 @@ bool MultiColumnHnsw::GetSingleNext(){
     auto result = hnsws_iterators[0]->Next();
     if(result->HasResult()){
         result_tid = GetItemPointerDataByNumber(result->GetLabel());
+        label = result->GetLabel();
         distance = result->GetDistance();
         if(!xs_inorder_scan){
             if (distanceQueue.size() == range &&
@@ -108,7 +109,7 @@ bool MultiColumnHnsw::GetNewNext(){
         for(int col = 0;col < query_points.size();col++){
             auto result = hnsws_iterators[col]->Next();
             int cur_nums = 0;
-            while(result->HasResult() && cur_nums <std::max(filter_amplication_k,hnsw_top_k)){ // 4000
+            while(result->HasResult() && cur_nums < std::max(filter_amplication_k,hnsw_top_k)){ // 4000
                 hnswlib::labeltype label = result->GetLabel();
                 if(seen_tid.find(label) != seen_tid.end()){
                     result = hnsws_iterators[col]->Next();

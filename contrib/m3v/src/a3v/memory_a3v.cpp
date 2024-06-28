@@ -30,7 +30,7 @@ MemoryA3v::MemoryA3v(const std::vector<int> &dims,const std::vector<PII>& data_p
     index.reserve(ReserveA3VNodes);
 }
 
-int MemoryA3v::CrackInTwo(int start_,int end_,float epsilon){
+int MemoryA3v:: CrackInTwo(int start_,int end_,float epsilon){
     int i = start_,j = end_;
     while(true){
         while(distances_caching[swap_indexes[i]] <= epsilon && i < end_+1) i++;
@@ -40,6 +40,39 @@ int MemoryA3v::CrackInTwo(int start_,int end_,float epsilon){
         // std::swap(distances_caching[swap_indexes[i]],distances_caching[swap_indexes[j]]);
     }
     return j;
+}
+
+// 0 1 2 3 4 5 6 7 8 9
+// 3 5 2 4 1 0 6 7 8 9 
+void MemoryA3v::KnnAuxiliaryInit(std::vector<float> &weights, float* query,const std::vector<int> &dimensions,std::vector<PQNode> indexes){
+    if(indexes.size() == 0) return;
+    if(index.size() > 1){
+        elog(ERROR,"we can't use hnsw init a3v index twice");
+    }
+    sort(indexes.begin(),indexes.end());
+    float crack_distance = indexes[indexes.size()-1].first;
+    int cur = 0;
+    for(int i = 0;i < indexes.size();i++){
+        int idx = indexes[i].second;
+        std::swap(swap_indexes[cur],swap_indexes[idx]);
+        cur++;
+    }
+    int crack = cur-1;
+    int sum = 0;
+    for(int i = 0;i < dimensions.size();i++){
+        sum += dimensions[i];
+    }
+    int root_idx = 0;
+    auto& t = index[root_idx];
+    t.radius = crack_distance;
+    std::vector<float> vec(query, query + sum);
+    t.SetQuery(vec);
+    if(crack >= t.start && t.end >= crack + 1){
+        index.push_back(A3vNode(-1,-1,t.start,crack,-1,index.size()));
+        index[root_idx].left_node = int(index.size())-1;
+        index.push_back(A3vNode(-1,-1,crack+1,t.end,-1,index.size()));
+        index[root_idx].right_node = int(index.size())-1;
+    }
 }
 
 // result_pq should be empty initially.
@@ -61,7 +94,7 @@ void MemoryA3v::KnnCrackSearch(std::vector<float> &weights, float* query,int k,s
     // init, we should give the root node as a guide way for guide_pq.
     guide_pq.push({0,0});
     while(!guide_pq.empty() && (result_pq.size() < k || guide_pq.top() < result_pq.top())){
-        elog(LOG,"test");
+        // elog(LOG,"test");
         auto& t = index[guide_pq.top().second];
         int root_idx = guide_pq.top().second;
         // leaf node process
@@ -179,7 +212,7 @@ void MemoryA3v::RangeCrackSearchAuxiliary(std::vector<float> &weights,int root_i
     float maxDistance, dist, median,temp_distance_1;
     int crack;
     // leaf node
-    A3vNode& root = index[root_idx];
+    A3vNode root = index[root_idx];
     if(root.left_node == -1 && root.right_node == -1){
         for(int i = root.start;i <= root.end;i++){
             dist = hyper_distance_func_with_weights(query,data_points[swap_indexes[i]].first,dimensions,weights,&temp_distance_1);
@@ -222,7 +255,11 @@ void MemoryA3v::RangeCrackSearchAuxiliary(std::vector<float> &weights,int root_i
                 RangeCrackSearchAuxiliary(weights,root.right_node,query,radius,result_ids,dimensions,dim);
             }else{
                 RangeCrackSearchAuxiliary(weights,root.left_node,query,radius,result_ids,dimensions,dim);
-                if(dist >= root.radius - radius){
+                float min_w = 1.0;
+                for(int i = 0;i < dimensions.size();i++){
+                    min_w = std::min(min_w,weights[i]);
+                }
+                if(dist >= min_w * root.radius - radius){
                     root = index[root_idx];
                     RangeCrackSearchAuxiliary(weights,root.right_node,query,radius,result_ids,dimensions,dim);
                 }

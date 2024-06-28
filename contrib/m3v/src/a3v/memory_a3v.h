@@ -10,8 +10,8 @@
 const int CRACKTHRESHOLD = 128;
 const int ReserveRange = 100;
 const int ReserveA3VNodes = 2000;
-const int A3V_HINT_QUERY_RECORDS = 7;
-const float alpha_amplication = 1.5;
+const int A3V_HINT_QUERY_RECORDS = 1;
+const float alpha_amplication = 1.41;
 const float sigma = 0.7;
 #define Min(x,y) ((x) < (y) ? (x) : (y))
 #define Max(x,y) ((x) > (y) ? (x) : (y))
@@ -35,6 +35,8 @@ class MemoryA3v{
 	public:
 		MemoryA3v(const std::vector<int>& dims,const std::vector<PII>& data_points_);
 
+		void KnnAuxiliaryInit(std::vector<float> &weights, float* query,const std::vector<int> &dimensions,std::vector<PQNode> indexes);
+
 		// result_pq should be empty initially.
 		void KnnCrackSearch(std::vector<float> &weights, float* query,int k, std::priority_queue<PQNode>& result_pq /**Max heap**/,const std::vector<int> &dimensions,float last_topk_mean);
 
@@ -55,5 +57,6 @@ class MemoryA3v{
 		std::vector<int> dims_;
 		std::atomic<size_t> query_records{0};
 		float last_top_k_mean{0.0};
+		bool use_hnsw_init{false};
 		std::mutex lock;
 };

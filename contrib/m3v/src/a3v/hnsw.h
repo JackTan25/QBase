@@ -38,6 +38,13 @@ class MultiColumnHnsw{
 				hnsws_iterators.push_back(std::make_shared<hnswlib::ResultIterator<float>>(hnsws[i].get(), (const void*)query_points[i]));
 			}
 		}
+
+		void SetEf(int ef_){
+			for(int i = 0;i < hnsws.size();i++){
+				hnsws[i]->setEf(ef_);
+			}
+		}
+		
 		bool GetNext();
 		bool RangeNext();
 		bool GetSingleNext();
@@ -53,6 +60,7 @@ class MultiColumnHnsw{
 		std::priority_queue<float,std::vector<float>,std::greater<float>> distanceQueue;
 		std::unordered_set<std::uint64_t> seen_tid;
 		ItemPointerData result_tid;
+		hnswlib::labeltype label;
 		float distance;
 		int k;
 		bool& xs_inorder_scan;

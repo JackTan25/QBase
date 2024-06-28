@@ -3,8 +3,10 @@
 #include <queue>
 #include <thread>
 #include <memory>
+#include "hnsw.h"
 const int KNN_QUERY_MESSAGE = 1;
 const int RANGE_QUERY_MESSAGE = 2;
+const int KNN_QUERY_HNSW_INIT_MESSAGE = 3;
 class Message{
     public:
         Message(int query_type_,int a3v_id_,std::string &path_key_,std::shared_ptr<std::vector<float>> query_point_,int k_,float radius_,std::shared_ptr<std::vector<int>> dimensions_,std::shared_ptr<std::vector<float>> weights_):
@@ -27,6 +29,7 @@ class Message{
         float radius;
         // dimensions
         std::shared_ptr<std::vector<int>>  dimensions;
+        MultiColumnHnsw* send_hard_hnsws;
 };
 
 // the message is the a3v index id and query point,
