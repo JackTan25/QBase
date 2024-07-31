@@ -51,15 +51,15 @@ PGDLLEXPORT void _PG_init(void);
 void _PG_init(void)
 {
 	elog(INFO,"Init A3V Tree");
-    DefineCustomIntVariable("hnsw.hnsw_top_k", "",
-							"", &hnsw_top_k,
+    DefineCustomIntVariable("hnsw.hnsw_single_top_k", "",
+							"", &hnsw_single_top_k,
 							0, 0, 0, PGC_USERSET, 0, NULL, NULL, NULL);
 	DefineCustomIntVariable("a3v.a3v_top_k", "",
 							"", &a3v_top_k,
 							0, 0, 0, PGC_USERSET, 0, NULL, NULL, NULL);
-	DefineCustomRealVariable("a3v.top_k_based_distance", "",
-						"", &top_k_based_distance,
-						0, 0, 0, PGC_USERSET, 0, NULL, NULL, NULL);
+	// DefineCustomRealVariable("a3v.top_k_based_distance", "",
+	// 					"", &top_k_based_distance,
+	// 					0, 0, 0, PGC_USERSET, 0, NULL, NULL, NULL);
 	m3vInit();
 }
 

@@ -2,6 +2,7 @@
 #include "simd_func.h"
 #include "spi.h"
 #include "util.h"
+
 std::uint64_t GetNumberByItemPointerData(ItemPointer tid){
 	std::int32_t blockId = ItemPointerGetBlockNumberNoCheck(tid);
     std::int32_t offset = ItemPointerGetOffsetNumberNoCheck(tid);
@@ -18,7 +19,7 @@ ItemPointerData GetItemPointerDataByNumber(hnswlib::labeltype label){
     return tid;
 }
 
-float MultiColumnHnsw::l2_distance(std::vector<float> &data1,const float* query_point){\
+float MultiColumnHnsw::l2_distance(std::vector<float> &data1,const float* query_point){
     // float res = 0.0;
     // for(int i = 0;i <data1.size();i++){
     //     float temp = (data1[i] -query_point[i]); temp = temp * temp;
@@ -102,6 +103,51 @@ bool MultiColumnHnsw::GetSingleNext(){
     return false;
 }
 
+bool MultiColumnHnsw::WeightedRoundRobin(){
+    if(first_multi_column){
+        first_multi_column = false;
+        // check every column to get amplication_k, and do score computation.
+        // we do a weighted iteration for MultiColumnHnsw Search
+        std::vector<int> ks;
+        float weights_sum = 0.0;
+        int k_sum = std::max(filter_amplication_k,hnsw_single_top_k) * weights.size();
+        for(int i = 0;i < weights.size();i++){
+            weights_sum += weights[i];
+        }
+        for(int i = 0;i < weights.size();i++){
+            ks.push_back((weights[i]/weights_sum) * k_sum);
+        }
+        for(int col = 0;col < query_points.size();col++){
+            auto result = hnsws_iterators[col]->Next();
+            int cur_nums = 0;
+            while(result->HasResult() && cur_nums < ks[col]){ // 4000
+                hnswlib::labeltype label = result->GetLabel();
+                if(seen_tid.find(label) != seen_tid.end()){
+                    result = hnsws_iterators[col]->Next();
+                    continue;
+                }
+                seen_tid.insert(label);
+                cur_nums++;
+                result = hnsws_iterators[col]->Next();
+            }
+            // elog(INFO,"finish search here");
+            if(!result->HasResult()){
+                break;
+            }
+        }
+        for (const hnswlib::labeltype& label : seen_tid) {
+            float score = RankScore(label);
+			proc_pq.push(std::make_pair(score, label));
+        }
+    }
+    xs_inorder_scan = true;
+    while(!proc_pq.empty()){
+        result_tid =  GetItemPointerDataByNumber(proc_pq.top().second);proc_pq.pop();
+        return true;
+    }
+    return false;
+}
+
 bool MultiColumnHnsw::GetNewNext(){
     if(first_multi_column){
         first_multi_column = false;
@@ -109,7 +155,7 @@ bool MultiColumnHnsw::GetNewNext(){
         for(int col = 0;col < query_points.size();col++){
             auto result = hnsws_iterators[col]->Next();
             int cur_nums = 0;
-            while(result->HasResult() && cur_nums < std::max(filter_amplication_k,hnsw_top_k)){ // 4000
+            while(result->HasResult() && cur_nums < std::max(filter_amplication_k,hnsw_single_top_k) ){ // 4000
                 hnswlib::labeltype label = result->GetLabel();
                 if(seen_tid.find(label) != seen_tid.end()){
                     result = hnsws_iterators[col]->Next();

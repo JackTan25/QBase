@@ -404,6 +404,7 @@ typedef struct m3vScanOpaqueData
 	int result_idx;
 	// 1. we support 3 vector search at most.
 	std::vector<float>* weights;
+	bool use_get_new_next{false};
 	// 2. the largest dimension is 300, in fact we should make it configureable in CMakeLists.
 	// for now, we use this for experiment.
 	float query_point[300];
@@ -412,13 +413,13 @@ typedef struct m3vScanOpaqueData
 	// 4. float lens,if vector(3),vector(4),vector(5),then it's 12
 	uint16 total_len;
 	// 4. use hnsw to search the close root index.
-	hnswlib::HierarchicalNSW<float>* alg_hnsw;
+	hnswlib::HierarchicalNSW<float>* alg_hnsw{nullptr};
 	ItemPointerData root_tid;
 	IndexPointerLruCache* cache;
 	int index_pages;
 	int tuple_nums;
 	int search_type;
-	MultiColumnHnsw* hard_hnsws;
+	MultiColumnHnsw* hard_hnsws{nullptr};
 	bool use_hard_hnsw;
 	bool load_hnsw_from_disk;
 	int range_next_times{0};

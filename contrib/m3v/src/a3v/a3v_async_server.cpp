@@ -26,8 +26,10 @@ void A3vAsyncRecieveServer() {
             if(data->query_type == KNN_QUERY_MESSAGE){
                 // we use hnsw index to accelerate a3v init
                 std::priority_queue<PQNode> result_pq;
-                a3v_index->KnnCrackSearch(*data->weights,data->query_point->data(),data->k,result_pq,*data->dimensions,a3v_index->last_top_k_mean);
+                a3v_index->KnnCrackSearch(*data->weights,data->query_point->data(),data->k,result_pq,*data->dimensions,a3v_index->last_top_k_mean,true);
                 a3v_index->query_records.fetch_add(1);
+                a3v_index->last_top_k_mean =  (a3v_index->last_top_k_mean * (a3v_index->query_records -1) + result_pq.top().first)/(a3v_index->query_records);
+                elog(LOG,"a3v_index->last_top_k_mean: %.2lf", a3v_index->last_top_k_mean);
             }else if(data->query_type == RANGE_QUERY_MESSAGE){
                 std::vector<PQNode> result_ids;
                 a3v_index->RangeCrackSearch(*data->weights,data->query_point->data(),data->radius,result_ids,*data->dimensions);
@@ -36,10 +38,10 @@ void A3vAsyncRecieveServer() {
                 // elog(LOG,"Perform A KnnAuxiliaryInit");
                 // KNN HNSW INIT MESSAGE, we try twenty, for now, we just support single vector search
                 a3v_index->use_hnsw_init = true;
-                int k = data->k * 8;
+                int k = data->k * 1000;
                 int cur = 0;
                 std::vector<PQNode> indexes;
-                data->send_hard_hnsws->SetEf(1024);
+                // data->send_hard_hnsws->SetEf(1024);
                 // auto begin_query = std::chrono::steady_clock::now();
                 while(data->send_hard_hnsws->GetSingleNext() && cur < k){
                     int label = data->send_hard_hnsws->label;
@@ -49,7 +51,7 @@ void A3vAsyncRecieveServer() {
                 }
                 // auto end_query1 = std::chrono::steady_clock::now();
 		        // elog(LOG,"cost1 %.2f millseconds",std::chrono::duration<double, std::milli>(end_query1 - begin_query).count());
-                a3v_index->KnnAuxiliaryInit(*data->weights,data->query_point->data(),*data->dimensions,indexes);
+                // a3v_index->KnnAuxiliaryInit(*data->weights,data->query_point->data(),*data->dimensions,indexes);
                 // auto end_query2 = std::chrono::steady_clock::now();
 		        // elog(LOG,"cost2 %.2f millseconds",std::chrono::duration<double, std::milli>(end_query2 - end_query1).count());
                 delete data->send_hard_hnsws;

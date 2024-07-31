@@ -15,8 +15,9 @@ extern "C"{
 
 const int multi_range_k = 50;
 const int terminate_multi_top_k = 50;
-const int check_thresold = 1.27;
-const float threshold_control = 0.8;
+const bool enable_hnsw_crack_init = false;
+// const int check_thresold = 1.27;
+// const float threshold_control = 0.5;
 using ScorePair = std::pair<float,std::uint64_t>;
 std::uint64_t GetNumberByItemPointerData(ItemPointer tid);
 ItemPointerData GetItemPointerDataByNumber(hnswlib::labeltype label);
@@ -49,6 +50,7 @@ class MultiColumnHnsw{
 		bool RangeNext();
 		bool GetSingleNext();
 		bool GetNewNext();
+		bool WeightedRoundRobin();
 		std::vector<std::shared_ptr<hnswlib::HierarchicalNSW<float>>> hnsws;
 		// std::vector<std::shared_ptr<hnswlib::ResultIterator<float>>> hnsws_iterators;
 		std::vector<std::shared_ptr<hnswlib::ResultIterator<float>>> hnsws_iterators;

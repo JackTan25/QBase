@@ -76,11 +76,11 @@ void MemoryA3v::KnnAuxiliaryInit(std::vector<float> &weights, float* query,const
 }
 
 // result_pq should be empty initially.
-void MemoryA3v::KnnCrackSearch(std::vector<float> &weights, float* query,int k,std::priority_queue<PQNode>& result_pq /**Max heap**/ ,const std::vector<int> &dimensions,float last_top_k_mean){
+void MemoryA3v::KnnCrackSearch(std::vector<float> &weights, float* query,int k,std::priority_queue<PQNode>& result_pq /**Max heap**/ ,const std::vector<int> &dimensions,float last_top_k_mean,bool is_initialization){
     // Min heap
     std::priority_queue<PQNode,std::vector<PQNode>,std::greater<PQNode>> guide_pq;
     std::vector<float> rnd_dists;
-    // elog(INFO,"k of knn crack is %d",k);
+    // elog(LOG,"k of knn crack is %d, last_top_k_mean: %.2lf",k);
     float median = 0.0,leftMinDist = 0.0,rightMinDist = 0.0,temp_distance_1 = 0.0;int crack = 0;
     float min_w = 1.0;
     int sum = 0;
@@ -90,7 +90,7 @@ void MemoryA3v::KnnCrackSearch(std::vector<float> &weights, float* query,int k,s
     if(dimensions.size() == 1){
         min_w = 1.0;
     }
-    bool enable_top_k_optimization = (sum >= TopKOptimizationThreshold);
+    bool enable_top_k_optimization = (sum >= TopKOptimizationThreshold) && !is_initialization;
     // init, we should give the root node as a guide way for guide_pq.
     guide_pq.push({0,0});
     while(!guide_pq.empty() && (result_pq.size() < k || guide_pq.top() < result_pq.top())){
@@ -117,8 +117,10 @@ void MemoryA3v::KnnCrackSearch(std::vector<float> &weights, float* query,int k,s
                 rnd_dists.push_back(distances_caching[swap_indexes[t.start + (std::rand() % (t.end - t.start + 1))]]);
                 sort(rnd_dists.begin(),rnd_dists.end());
                 float median = rnd_dists[1];
+                if(enable_top_k_optimization) median = last_top_k_mean;
                 crack = CrackInTwo(t.start,t.end,median);
                 t.radius = median;
+                // elog(LOG,"median: %.2lf",median);
                 std::vector<float> vec(query, query + sum);
                 t.SetQuery(vec);
 

@@ -1708,3 +1708,18 @@
 2024-05-17 23:39:50.283 CST [15548] LOG:  checkpoint starting: shutdown immediate
 2024-05-17 23:39:50.286 CST [15548] LOG:  checkpoint complete: wrote 0 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.001 s, total=0.004 s; sync files=0, longest=0.000 s, average=0.000 s; distance=0 kB, estimate=64 kB; lsn=0/40BDD9A0, redo lsn=0/40BDD9A0
 2024-05-17 23:39:50.291 CST [14096] LOG:  database system is shut down
+2024-07-21 16:57:33.000 CST [15814] LOG:  starting PostgreSQL 16.1 on x86_64-pc-linux-gnu, compiled by gcc (GCC) 11.2.1 20220127 (Red Hat 11.2.1-9), 64-bit
+2024-07-21 16:57:33.009 CST [15814] LOG:  listening on IPv6 address "::1", port 5432
+2024-07-21 16:57:33.009 CST [15814] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2024-07-21 16:57:33.011 CST [15814] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2024-07-21 16:57:33.060 CST [15820] LOG:  database system was shut down at 2024-07-19 16:53:46 CST
+2024-07-21 16:57:33.132 CST [15814] LOG:  database system is ready to accept connections
+2024-07-21 17:02:33.160 CST [15818] LOG:  checkpoint starting: time
+2024-07-21 17:02:33.164 CST [15818] LOG:  checkpoint complete: wrote 3 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.001 s, total=0.005 s; sync files=2, longest=0.001 s, average=0.001 s; distance=0 kB, estimate=0 kB; lsn=C/79E64E00, redo lsn=C/79E64DC8
+2024-07-21 17:07:12.774 CST [15814] LOG:  received fast shutdown request
+2024-07-21 17:07:12.775 CST [15814] LOG:  aborting any active transactions
+2024-07-21 17:07:12.776 CST [15814] LOG:  background worker "logical replication launcher" (PID 15823) exited with exit code 1
+2024-07-21 17:07:12.776 CST [15818] LOG:  shutting down
+2024-07-21 17:07:12.777 CST [15818] LOG:  checkpoint starting: shutdown immediate
+2024-07-21 17:07:12.779 CST [15818] LOG:  checkpoint complete: wrote 0 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.001 s, sync=0.001 s, total=0.003 s; sync files=0, longest=0.000 s, average=0.000 s; distance=0 kB, estimate=0 kB; lsn=C/79E64EB0, redo lsn=C/79E64EB0
+2024-07-21 17:07:12.801 CST [15814] LOG:  database system is shut down
